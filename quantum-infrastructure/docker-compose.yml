@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Axon Server - Event Store & Message Hub
   axon-server:
@@ -139,6 +137,102 @@ services:
     networks:
       - quantum-network
 
+  # Quantum Trading API Gateway
+  quantum-api-gateway:
+    image: openjdk:17-jdk-slim
+    container_name: quantum-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - AXON_SERVER_HOST=quantum-axon-server
+      - DB_HOST=quantum-postgres
+      - DB_PORT=5432
+      - DB_NAME=quantum_trading
+      - DB_USER=quantum
+      - DB_PASSWORD=quantum123
+      - REDIS_HOST=quantum-redis
+      - KAFKA_BROKERS=quantum-kafka:9092
+      - KIWOOM_API_URL=http://quantum-kiwoom-api:8100
+      - KIS_API_URL=http://quantum-kis-mock-api:8200
+    volumes:
+      - ../quantum-api/build/libs:/app
+      - ./logs/api:/app/logs
+    working_dir: /app
+    command: java -jar quantum-api-1.0.0.jar
+    depends_on:
+      - axon-server
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - quantum-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Quantum Trading Batch Processor
+  quantum-batch:
+    image: openjdk:17-jdk-slim
+    container_name: quantum-batch
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - AXON_SERVER_HOST=quantum-axon-server
+      - DB_HOST=quantum-postgres
+      - DB_PORT=5432
+      - DB_NAME=quantum_trading
+      - DB_USER=quantum
+      - DB_PASSWORD=quantum123
+      - REDIS_HOST=quantum-redis
+      - KAFKA_BROKERS=quantum-kafka:9092
+    volumes:
+      - ../quantum-batch/build/libs:/app
+      - ./logs/batch:/app/logs
+    working_dir: /app
+    command: java -jar quantum-batch-1.0.0.jar
+    depends_on:
+      - axon-server
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - quantum-network
+    restart: unless-stopped
+
+  # ============== MONITORING & MANAGEMENT ==============
+
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: quantum-kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=quantum-kafka
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=quantum-kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=quantum-zookeeper:2181
+    depends_on:
+      - kafka
+      - zookeeper
+    networks:
+      - quantum-network
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: quantum-redis-commander
+    ports:
+      - "8091:8081"
+    environment:
+      - REDIS_HOSTS=local:quantum-redis:6379
+    depends_on:
+      - redis
+    networks:
+      - quantum-network
+
 volumes:
   axon-data:
     driver: local
@@ -160,6 +254,8 @@ volumes:
     driver: local
   grafana-data:
     driver: local
+  kiwoom-data:
+    driver: local
 
 networks:
   quantum-network:
@@ -167,4 +263,5 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1
