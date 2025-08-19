@@ -8,30 +8,6 @@ Axon Framework를 활용한 CQRS/Event Sourcing 기반의 주식 자동매매 �
 
 ## 🏗️ 아키텍처
 
-### 모듈 구조
-
-```
-quantum-trading-platform/
-├── platform-core/              # Axon 기반 핵심 도메인
-│   ├── shared-kernel/          # 공통 도메인 (Value Objects, Events)
-│   ├── trading-command/        # Command Side (Aggregate, Command Handler)
-│   ├── trading-query/          # Query Side (Projection, Query Handler)
-│   └── platform-infrastructure/# Axon 설정 & 인프라
-├── broker-integration/         # 다중 증권사 연동
-│   ├── broker-common/          # 공통 증권사 인터페이스
-│   ├── kis-adapter/           # 한국투자증권 구현체
-│   ├── kiwoom-adapter/        # 키움증권 구현체
-│   └── integration-saga/      # 증권사 연동 Saga
-├── client-api/                # 클라이언트 API
-│   ├── web-api/              # REST API Gateway
-│   ├── websocket-api/        # 실시간 WebSocket
-│   └── mobile-api/           # 모바일 API
-└── data-platform/            # 데이터 처리
-    ├── market-collector/     # 시세 수집
-    ├── data-processor/       # 실시간 데이터 처리
-    └── analytics-engine/     # 분석 엔진
-```
-
 ### 기술 스택
 
 - **Framework**: Axon Framework 4.9.1

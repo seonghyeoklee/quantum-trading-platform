@@ -38,7 +38,6 @@ services:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
     networks:
       - quantum-network
     healthcheck:
@@ -139,31 +138,6 @@ services:
       - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - quantum-network
-
-  # Application Services (will be added as we build them)
-  
-  # Platform Core Service
-  # platform-core:
-  #   build: ./platform-core
-  #   container_name: quantum-platform-core
-  #   ports:
-  #     - "8081:8080"
-  #   environment:
-  #     - AXON_AXONSERVER_SERVERS=axon-server:8124
-  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/quantum_trading
-  #     - SPRING_DATASOURCE_USERNAME=quantum
-  #     - SPRING_DATASOURCE_PASSWORD=quantum123
-  #     - SPRING_REDIS_HOST=redis
-  #     - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-  #   depends_on:
-  #     axon-server:
-  #       condition: service_healthy
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   networks:
-  #     - quantum-network
 
 volumes:
   axon-data:
