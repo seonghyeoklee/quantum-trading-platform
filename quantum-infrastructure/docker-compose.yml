@@ -1,0 +1,196 @@
+version: '3.8'
+
+services:
+  # Axon Server - Event Store & Message Hub
+  axon-server:
+    image: axoniq/axonserver:2023.2.0
+    hostname: axon-server
+    container_name: quantum-axon-server
+    ports:
+      - "8024:8024"  # HTTP API & UI
+      - "8124:8124"  # gRPC
+    environment:
+      - AXONIQ_AXONSERVER_STANDALONE=true
+      - AXONIQ_AXONSERVER_HOSTNAME=axon-server
+      - AXONIQ_AXONSERVER_DOMAIN=quantum-trading
+    volumes:
+      - axon-data:/data
+      - axon-events:/eventdata
+      - axon-config:/config
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8024/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # PostgreSQL - Query Side Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quantum-postgres
+    environment:
+      POSTGRES_DB: quantum_trading
+      POSTGRES_USER: quantum
+      POSTGRES_PASSWORD: quantum123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantum -d quantum_trading"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis - Caching Layer
+  redis:
+    image: redis:7-alpine
+    container_name: quantum-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - quantum-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Kafka & Zookeeper - External Message Bus
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: quantum-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - quantum-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: quantum-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: quantum-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - quantum-network
+
+  # Grafana - Metrics Visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: quantum-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=quantum123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - quantum-network
+
+  # Application Services (will be added as we build them)
+  
+  # Platform Core Service
+  # platform-core:
+  #   build: ./platform-core
+  #   container_name: quantum-platform-core
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     - AXON_AXONSERVER_SERVERS=axon-server:8124
+  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/quantum_trading
+  #     - SPRING_DATASOURCE_USERNAME=quantum
+  #     - SPRING_DATASOURCE_PASSWORD=quantum123
+  #     - SPRING_REDIS_HOST=redis
+  #     - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  #   depends_on:
+  #     axon-server:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - quantum-network
+
+volumes:
+  axon-data:
+    driver: local
+  axon-events:
+    driver: local
+  axon-config:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  kafka-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  quantum-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

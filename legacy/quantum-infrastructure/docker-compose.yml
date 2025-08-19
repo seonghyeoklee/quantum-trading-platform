@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: quantum_trading
+      POSTGRES_USER: quantum
+      POSTGRES_PASSWORD: quantum123
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: postgres -c timezone=Asia/Seoul
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantum -d quantum_trading"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  quantum-api:
+    build:
+      context: ..
+      dockerfile: quantum-api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PROFILE:-sandbox}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/quantum_trading
+      SPRING_DATASOURCE_USERNAME: quantum
+      SPRING_DATASOURCE_PASSWORD: quantum123
+      TZ: Asia/Seoul
+      # KIS API 환경변수 (Spring Boot 설정과 매핑)
+      KIS_APP_KEY: ${KIS_SANDBOX_APP_KEY}
+      KIS_APP_SECRET: ${KIS_SANDBOX_APP_SECRET}
+      KIS_ACCOUNT_NO: ${KIS_SANDBOX_ACCOUNT_NO}
+      KIS_BASE_URL: https://openapivts.koreainvestment.com:29443
+      KIS_ENVIRONMENT: sandbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  quantum-batch:
+    build:
+      context: ..
+      dockerfile: quantum-batch/Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PROFILE:-sandbox}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/quantum_trading
+      SPRING_DATASOURCE_USERNAME: quantum
+      SPRING_DATASOURCE_PASSWORD: quantum123
+      TZ: Asia/Seoul
+      # KIS API 환경변수 (Spring Boot 설정과 매핑)
+      KIS_APP_KEY: ${KIS_SANDBOX_APP_KEY}
+      KIS_APP_SECRET: ${KIS_SANDBOX_APP_SECRET}
+      KIS_ACCOUNT_NO: ${KIS_SANDBOX_ACCOUNT_NO}
+      KIS_BASE_URL: https://openapivts.koreainvestment.com:29443
+      KIS_ENVIRONMENT: sandbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+#  analysis-service:
+#    build:
+#      context: ../quantum-analysis
+#      dockerfile: ../quantum-analysis/Dockerfile
+#    ports:
+#      - "8000:8000"
+#    environment:
+#      DATABASE_URL: postgresql://quantum:quantum123@postgres:5432/quantum_trading
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    volumes:
+#      - ./quantum-analysis/app:/app/app
+#    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:

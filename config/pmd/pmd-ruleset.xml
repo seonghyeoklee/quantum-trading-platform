@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+<ruleset name="Quantum Trading PMD Rules"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 
+         https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>PMD rules for Quantum Trading Service</description>
+
+    <!-- Best Practices -->
+    <rule ref="category/java/bestpractices.xml">
+        <!-- Exclude rules that conflict with Spring Boot -->
+        <exclude name="GuardLogStatement"/>
+        <exclude name="UseVarargs"/>
+        <!-- Allow system out for main methods -->
+        <exclude name="SystemPrintln"/>
+    </rule>
+
+    <!-- Code Style -->
+    <rule ref="category/java/codestyle.xml">
+        <!-- Exclude verbose rules -->
+        <exclude name="AtLeastOneConstructor"/>
+        <exclude name="CallSuperInConstructor"/>
+        <exclude name="DefaultPackage"/>
+        <exclude name="OnlyOneReturn"/>
+        <exclude name="TooManyStaticImports"/>
+        <exclude name="CommentDefaultAccessModifier"/>
+        <!-- Allow short variable names for loops -->
+        <exclude name="ShortVariable"/>
+        <!-- Allow long variable names for clarity -->
+        <exclude name="LongVariable"/>
+    </rule>
+
+    <!-- Customize naming rules for our conventions -->
+    <rule ref="category/java/codestyle.xml/ClassNamingConventions">
+        <properties>
+            <property name="classPattern" value="[A-Z][a-zA-Z0-9]*"/>
+            <property name="abstractClassPattern" value="Abstract[A-Z][a-zA-Z0-9]*"/>
+            <property name="interfacePattern" value="[A-Z][a-zA-Z0-9]*"/>
+            <property name="enumPattern" value="[A-Z][a-zA-Z0-9]*"/>
+            <property name="annotationPattern" value="[A-Z][a-zA-Z0-9]*"/>
+            <property name="utilityClassPattern" value="[A-Z][a-zA-Z0-9]*"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/codestyle.xml/MethodNamingConventions">
+        <properties>
+            <property name="methodPattern" value="[a-z][a-zA-Z0-9]*"/>
+            <property name="staticPattern" value="[a-z][a-zA-Z0-9]*"/>
+            <property name="nativePattern" value="[a-z][a-zA-Z0-9]*"/>
+            <property name="junit3TestPattern" value="test[A-Z0-9][a-zA-Z0-9]*"/>
+            <property name="junit4TestPattern" value="[a-z][a-zA-Z0-9]*"/>
+            <property name="junit5TestPattern" value="[a-z][a-zA-Z0-9]*"/>
+        </properties>
+    </rule>
+
+    <!-- Design -->
+    <rule ref="category/java/design.xml">
+        <!-- Adjust complexity thresholds -->
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="ExcessiveImports"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="ExcessivePublicCount"/>
+        <!-- Allow data classes -->
+        <exclude name="DataClass"/>
+        <!-- Allow more flexible design -->
+        <exclude name="LawOfDemeter"/>
+    </rule>
+
+    <!-- Custom complexity rules -->
+    <rule ref="category/java/design.xml/CyclomaticComplexity">
+        <properties>
+            <property name="classReportLevel" value="80"/>
+            <property name="methodReportLevel" value="10"/>
+            <property name="cycloOptions" value=""/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/design.xml/NPathComplexity">
+        <properties>
+            <property name="reportLevel" value="200"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/design.xml/ExcessiveMethodLength">
+        <properties>
+            <property name="minimum" value="20"/>
+        </properties>
+    </rule>
+
+    <rule ref="category/java/design.xml/ExcessiveParameterList">
+        <properties>
+            <property name="minimum" value="4"/>
+        </properties>
+    </rule>
+
+    <!-- Documentation -->
+    <rule ref="category/java/documentation.xml">
+        <!-- Make documentation optional for simple getters/setters -->
+        <exclude name="CommentRequired"/>
+        <exclude name="CommentSize"/>
+    </rule>
+
+    <!-- Error Prone -->
+    <rule ref="category/java/errorprone.xml">
+        <!-- Exclude rules that conflict with modern Java -->
+        <exclude name="BeanMembersShouldSerialize"/>
+        <exclude name="DataflowAnomalyAnalysis"/>
+        <!-- Allow null assignments -->
+        <exclude name="NullAssignment"/>
+        <!-- Allow empty catch blocks with comments -->
+        <exclude name="EmptyCatchBlock"/>
+    </rule>
+
+    <!-- Multithreading -->
+    <rule ref="category/java/multithreading.xml">
+        <!-- Spring handles thread safety -->
+        <exclude name="UseConcurrentHashMap"/>
+    </rule>
+
+    <!-- Performance -->
+    <rule ref="category/java/performance.xml">
+        <!-- Modern JVMs optimize these -->
+        <exclude name="AvoidInstantiatingObjectsInLoops"/>
+        <!-- Spring uses reflection extensively -->
+        <exclude name="AvoidDeeplyNestedIfStmts"/>
+    </rule>
+
+    <!-- Security -->
+    <rule ref="category/java/security.xml"/>
+
+    <!-- Custom rules for financial calculations -->
+    <rule name="AvoidFloatForMoney"
+          language="java"
+          message="Use BigDecimal instead of float/double for monetary calculations"
+          class="net.sourceforge.pmd.lang.rule.XPathRule">
+        <description>
+            Financial calculations should use BigDecimal to avoid precision issues
+        </description>
+        <priority>1</priority>
+        <properties>
+            <property name="xpath">
+                <value>
+                    <![CDATA[
+                    //FieldDeclaration[Type/PrimitiveType[@Image='float' or @Image='double']]
+                    [VariableDeclarator/VariableDeclaratorId[contains(@Image, 'price') or contains(@Image, 'amount') or contains(@Image, 'total')]]
+                    |
+                    //LocalVariableDeclaration[Type/PrimitiveType[@Image='float' or @Image='double']]
+                    [VariableDeclarator/VariableDeclaratorId[contains(@Image, 'price') or contains(@Image, 'amount') or contains(@Image, 'total')]]
+                    ]]>
+                </value>
+            </property>
+        </properties>
+    </rule>
+
+    <!-- Exclude generated files -->
+    <exclude-pattern>.*/target/.*</exclude-pattern>
+    <exclude-pattern>.*/build/.*</exclude-pattern>
+    <exclude-pattern>.*/generated/.*</exclude-pattern>
+    <exclude-pattern>.*Test.java</exclude-pattern>
+</ruleset>

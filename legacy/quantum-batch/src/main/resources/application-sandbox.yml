@@ -1,0 +1,13 @@
+# 모의투자 환경 설정 (sandbox) - 환경변수로 주입 필수
+kis:
+  api:
+    base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
+    app-key: ${KIS_SANDBOX_APP_KEY:PSLNzXOT3Kq7PSV2DPUgWe1lQPRz1plfTIww}
+    app-secret: ${KIS_SANDBOX_APP_SECRET:U0ssP79tV6UOHrPyhA3jaPOaiDYY1dClnFUw0R9nettLAgqZov11ZB1/UZ+jMAVliF1yTiJlzUAW7VzT2+U9bjcyiHv8lbiK/fLI8psEm8ZY7RoTuPSMWb4/RhyO2nGO07LacmRaOq9W0asWIJ+nysZtzZq7C+pgqkH0rUklHEYDCPpFPAU=}
+    account-no: ${KIS_SANDBOX_ACCOUNT_NO:50138942}
+    environment: sandbox
+
+logging:
+  level:
+    com.quantum: DEBUG
+    org.springframework.web.reactive.function.client: DEBUG

@@ -1,0 +1,190 @@
+package com.quantum.core.architecture;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.*;
+
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+
+/**
+ * Domain-Driven Design (DDD) 원칙 검증 테스트
+ * 
+ * DDD의 핵심 원칙들을 ArchUnit으로 강제한다:
+ * 1. Entity와 Value Object의 올바른 설계
+ * 2. Repository 패턴의 올바른 구현
+ * 3. Domain Service의 순수성
+ * 4. Aggregate 경계 준수
+ * 5. 금융 도메인 특화 규칙 (BigDecimal 사용 등)
+ */
+@DisplayName("🎯 Domain-Driven Design Rules")
+class DomainDrivenDesignTest {
+
+    private static final String BASE_PACKAGE = "com.quantum.core";
+    private static final JavaClasses classes = new ClassFileImporter()
+            .importPackages(BASE_PACKAGE);
+
+    @Test
+    @DisplayName("Entity는 도메인 모델 패키지에 있어야 한다")
+    void entities_should_be_in_domain_model_package() {
+        classes()
+                .that().areAnnotatedWith("jakarta.persistence.Entity")
+                .should().resideInAPackage("..domain.model..")
+                .because("Entity는 도메인 모델의 핵심이며 적절한 패키지에 위치해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Value Object는 불변이어야 한다")
+    void value_objects_should_be_immutable() {
+        classes()
+                .that().resideInAPackage("..domain.model.common..")
+                .and().areNotEnums()
+                .and().areNotInterfaces()
+                .should().haveOnlyFinalFields()
+                .because("Value Object는 불변성을 보장해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Repository 인터페이스는 domain.port.repository 패키지에 있어야 한다")
+    void repository_interfaces_should_be_in_domain_ports() {
+        classes()
+                .that().haveSimpleNameEndingWith("Repository")
+                .and().areInterfaces()
+                .should().resideInAPackage("..domain.port.repository..")
+                .because("Repository 인터페이스는 도메인 포트로 정의되어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Repository 구현체는 infrastructure 패키지에 있어야 한다")
+    void repository_implementations_should_be_in_infrastructure() {
+        classes()
+                .that().haveSimpleNameEndingWith("Repository")
+                .and().areNotInterfaces()
+                .should().resideInAPackage("..infrastructure..")
+                .because("Repository 구현체는 인프라스트럭처의 관심사임")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Domain Service는 순수해야 한다 (외부 의존성 최소)")
+    void domain_services_should_be_pure() {
+        classes()
+                .that().resideInAPackage("..domain.service..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "..domain..",
+                        "java..",
+                        "org.springframework.stereotype..",
+                        "lombok.."
+                )
+                .because("Domain Service는 순수한 비즈니스 로직만 포함해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("금융 계산에는 BigDecimal을 사용해야 한다")
+    void financial_calculations_should_use_bigdecimal() {
+        noFields()
+                .that().areDeclaredInClassesThat().resideInAPackage("..domain.model..")
+                .and().haveRawType(double.class)
+                .or().haveRawType(float.class)
+                .should().exist()
+                .because("금융 계산에서는 정밀도 손실을 방지하기 위해 BigDecimal을 사용해야 함");
+
+        // Price 관련 필드들은 BigDecimal이어야 함
+        fields()
+                .that().areDeclaredInClassesThat().resideInAPackage("..domain.model..")
+                .and().haveName("price")
+                .or().haveName("amount")
+                .or().haveName("value")
+                .should().haveRawType(BigDecimal.class)
+                .because("가격과 금액 필드는 BigDecimal이어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Event는 불변이어야 한다")
+    void events_should_be_immutable() {
+        classes()
+                .that().haveSimpleNameEndingWith("Event")
+                .and().resideInAPackage("..application.event..")
+                .should().haveOnlyFinalFields()
+                .because("Event는 발생한 사실을 나타내므로 불변이어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Command는 요청 의도를 명확히 표현해야 한다")
+    void commands_should_express_intent_clearly() {
+        classes()
+                .that().haveSimpleNameEndingWith("Command")
+                .should().resideInAPackage("..application.command..")
+                .because("Command는 애플리케이션 계층에서 비즈니스 의도를 표현함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("State는 Event Sourcing의 상태를 나타내야 한다")
+    void states_should_represent_aggregate_state() {
+        classes()
+                .that().haveSimpleNameEndingWith("State")
+                .should().resideInAPackage("..application.state..")
+                .because("State는 Event Sourcing에서 집계의 현재 상태를 나타냄")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Entity는 ID 필드를 가져야 한다")
+    void entities_should_have_id_field() {
+        classes()
+                .that().areAnnotatedWith("jakarta.persistence.Entity")
+                .should().containNumberOfElements(0)
+                .orShould().haveFieldThat(field -> 
+                    field.getName().equals("id") || 
+                    field.getName().endsWith("Id") ||
+                    field.isAnnotatedWith("jakarta.persistence.Id")
+                )
+                .because("Entity는 식별자를 가져야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Enum은 비즈니스 규칙을 캡슐화해야 한다")
+    void enums_should_encapsulate_business_rules() {
+        classes()
+                .that().areEnums()
+                .and().resideInAPackage("..domain.model.common..")
+                .should().haveMethodThat(method -> !method.getName().equals("values") && !method.getName().equals("valueOf"))
+                .because("Enum은 단순한 상수가 아닌 비즈니스 로직을 포함해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Builder 패턴은 복잡한 객체 생성에 사용되어야 한다")
+    void complex_objects_should_use_builder_pattern() {
+        classes()
+                .that().haveSimpleNameContaining("Result")
+                .or().haveSimpleNameContaining("Request")
+                .or().haveSimpleNameContaining("Response")
+                .should().haveMethodThat(method -> method.getName().equals("builder"))
+                .orShould().haveInnerClassThat(innerClass -> innerClass.getSimpleName().equals("Builder"))
+                .because("복잡한 객체는 Builder 패턴을 사용하여 생성해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("도메인 예외는 명확한 메시지를 제공해야 한다")
+    void domain_exceptions_should_provide_clear_messages() {
+        classes()
+                .that().areAssignableTo(RuntimeException.class)
+                .and().resideInAPackage("..domain..")
+                .should().haveSimpleNameEndingWith("Exception")
+                .because("도메인 예외는 명확한 네이밍을 가져야 함")
+                .check(classes);
+    }
+}

@@ -1,0 +1,24 @@
+# 실전투자 환경 설정 (production)
+# 보안상 실제 값은 환경변수로 주입
+kis:
+  api:
+    app-key: ${KIS_PROD_APP_KEY:REQUIRED}
+    app-secret: ${KIS_PROD_APP_SECRET:REQUIRED}
+    base-url: https://openapi.koreainvestment.com:9443
+    account-no: ${KIS_PROD_ACCOUNT_NO:REQUIRED}
+    environment: production
+
+# 실전 환경에서는 로그 레벨 제한
+logging:
+  level:
+    com.quantum: INFO
+    org.springframework.web.reactive.function.client: WARN
+    org.springframework.batch: INFO
+    org.quartz: WARN
+
+# 실전 환경 추가 보안 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info  # 민감한 엔드포인트 제한

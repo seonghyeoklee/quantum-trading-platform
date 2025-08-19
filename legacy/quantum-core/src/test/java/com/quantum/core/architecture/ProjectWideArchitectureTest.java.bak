@@ -1,0 +1,292 @@
+package com.quantum.core.architecture;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.*;
+
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * 전체 프로젝트 모듈간 의존성 규칙 검증 테스트
+ * 
+ * Quantum Trading System 전체 모듈의 의존성 원칙들을 ArchUnit으로 강제한다:
+ * 1. 모듈간 의존성 방향 (quantum-core가 중심)
+ * 2. 순환 의존성 금지
+ * 3. 각 모듈의 책임 범위 준수
+ * 4. 헥사고날 아키텍처 + DDD + Event Sourcing 통합 규칙
+ * 5. 보안 및 성능 관련 제약사항
+ */
+@DisplayName("🌐 Project-Wide Architecture Rules")
+class ProjectWideArchitectureTest {
+
+    private static final String BASE_PACKAGE = "com.quantum";
+    private static final JavaClasses allClasses = new ClassFileImporter()
+            .importPackages(BASE_PACKAGE);
+
+    @Test
+    @DisplayName("quantum-core는 다른 quantum 모듈에 의존하지 않아야 한다")
+    void quantum_core_should_not_depend_on_other_quantum_modules() {
+        noClasses()
+                .that().resideInAPackage("com.quantum.core..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.quantum.api..",
+                        "com.quantum.batch..",
+                        "com.quantum.kis..",
+                        "com.quantum.analysis.."
+                )
+                .because("quantum-core는 핵심 도메인으로서 다른 모듈에 의존하지 않아야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("quantum-api는 quantum-core와 quantum-kis에만 의존해야 한다")
+    void quantum_api_should_only_depend_on_core_and_kis() {
+        classes()
+                .that().resideInAPackage("com.quantum.api..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.api..",
+                        "com.quantum.core..",
+                        "com.quantum.kis..",  // KIS API 클라이언트 허용
+                        "java..",
+                        "org.springframework..",
+                        "io.swagger..",
+                        "lombok..",
+                        "jakarta..",
+                        "com.fasterxml.jackson.."
+                )
+                .because("quantum-api는 core와 kis 모듈에만 의존해야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("quantum-batch는 quantum-core와 quantum-kis에만 의존해야 한다")
+    void quantum_batch_should_only_depend_on_core_and_kis() {
+        classes()
+                .that().resideInAPackage("com.quantum.batch..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.batch..",
+                        "com.quantum.core..",
+                        "com.quantum.kis..",  // KIS API 클라이언트 허용
+                        "java..",
+                        "org.springframework..",
+                        "org.quartz..",
+                        "lombok..",
+                        "jakarta..",
+                        "com.fasterxml.jackson.."
+                )
+                .because("quantum-batch는 core와 kis 모듈에만 의존해야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("quantum-kis 어댑터는 적절한 모듈 의존성을 가져야 한다")
+    void quantum_kis_should_have_appropriate_dependencies() {
+        classes()
+                .that().resideInAPackage("com.quantum.kis..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.kis..",
+                        "java..",
+                        "org.springframework..",
+                        "feign..",
+                        "lombok..",
+                        "jakarta..",
+                        "com.fasterxml.jackson.."
+                )
+                .because("quantum-kis는 외부 API 어댑터로서 최소한의 의존성만 가져야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("모든 모듈은 순환 의존성을 가지지 않아야 한다")
+    void all_modules_should_not_have_circular_dependencies() {
+        // quantum-api → quantum-batch 금지
+        noClasses()
+                .that().resideInAPackage("com.quantum.api..")
+                .should().dependOnClassesThat().resideInAPackage("com.quantum.batch..")
+                .because("API 모듈은 배치 모듈에 의존하지 않아야 함");
+
+        // quantum-batch → quantum-api 금지
+        noClasses()
+                .that().resideInAPackage("com.quantum.batch..")
+                .should().dependOnClassesThat().resideInAPackage("com.quantum.api..")
+                .because("배치 모듈은 API 모듈에 의존하지 않아야 함");
+
+        // quantum-kis → quantum-api/batch 금지
+        noClasses()
+                .that().resideInAPackage("com.quantum.kis..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.quantum.api..",
+                        "com.quantum.batch.."
+                )
+                .because("어댑터 모듈은 다른 애플리케이션 모듈에 의존하지 않아야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("도메인 모델은 모든 모듈에서 공유 가능해야 한다")
+    void domain_models_should_be_shareable_across_modules() {
+        classes()
+                .that().resideInAPackage("com.quantum.core.domain.model..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.core.domain..",
+                        "java..",
+                        "jakarta.persistence..",
+                        "jakarta.validation..",
+                        "lombok..",
+                        "com.fasterxml.jackson.."
+                )
+                .because("도메인 모델은 순수해야 하고 다른 모듈에서 안전하게 사용할 수 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("Event Sourcing 컴포넌트는 올바른 모듈 배치를 가져야 한다")
+    void event_sourcing_components_should_have_correct_module_placement() {
+        // Event Store 인터페이스는 core에
+        classes()
+                .that().haveSimpleName("EventStore")
+                .and().areInterfaces()
+                .should().resideInAPackage("com.quantum.core.domain.port.eventsourcing..")
+                .because("Event Store 인터페이스는 core 도메인에 있어야 함");
+
+        // Event Store 구현체는 core infrastructure에
+        classes()
+                .that().haveSimpleNameContaining("EventStore")
+                .and().areNotInterfaces()
+                .should().resideInAPackage("com.quantum.core.infrastructure.eventsourcing..")
+                .because("Event Store 구현체는 core infrastructure에 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("Configuration 클래스는 적절한 모듈에 배치되어야 한다")
+    void configuration_classes_should_be_in_appropriate_modules() {
+        // API 관련 설정은 quantum-api에
+        classes()
+                .that().haveSimpleNameMatching(".*Web.*Config.*|.*Swagger.*Config.*|.*Security.*Config.*")
+                .should().resideInAPackage("com.quantum.api..")
+                .because("Web/API 관련 설정은 quantum-api 모듈에 있어야 함");
+
+        // 배치 관련 설정은 quantum-batch에
+        classes()
+                .that().haveSimpleNameMatching(".*Batch.*Config.*|.*Quartz.*Config.*|.*Scheduler.*Config.*")
+                .should().resideInAPackage("com.quantum.batch..")
+                .because("배치 관련 설정은 quantum-batch 모듈에 있어야 함");
+
+        // KIS API 관련 설정은 quantum-kis에
+        classes()
+                .that().haveSimpleNameMatching(".*Kis.*Config.*|.*Feign.*Config.*|.*RateLimit.*Config.*")
+                .should().resideInAPackage("com.quantum.kis..")
+                .because("KIS API 관련 설정은 quantum-kis 모듈에 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("데이터베이스 관련 어노테이션은 적절히 사용되어야 한다")
+    void database_annotations_should_be_used_appropriately() {
+        // JPA Entity는 core 도메인에만
+        classes()
+                .that().areAnnotatedWith("jakarta.persistence.Entity")
+                .should().resideInAPackage("com.quantum.core.domain.model..")
+                .because("JPA Entity는 core 도메인 모델에만 있어야 함");
+
+        // Repository 인터페이스는 core port에
+        classes()
+                .that().haveSimpleNameEndingWith("Repository")
+                .and().areInterfaces()
+                .should().resideInAPackage("com.quantum.core.domain.port.repository..")
+                .because("Repository 인터페이스는 core port에 있어야 함");
+
+        // Repository 구현체는 core infrastructure에
+        classes()
+                .that().haveSimpleNameEndingWith("Repository")
+                .and().areNotInterfaces()
+                .should().resideInAPackage("com.quantum.core.infrastructure..")
+                .because("Repository 구현체는 core infrastructure에 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("보안 정보는 어떤 모듈에도 하드코딩되지 않아야 한다")
+    void security_information_should_not_be_hardcoded_in_any_module() {
+        noClasses()
+                .that().resideInAPackage("com.quantum..")
+                .should().haveFieldThat(field -> {
+                    String fieldName = field.getName().toLowerCase();
+                    return fieldName.contains("password") ||
+                           fieldName.contains("secret") ||
+                           fieldName.contains("key") ||
+                           fieldName.contains("token");
+                })
+                .because("보안 정보는 어떤 모듈에도 하드코딩되지 않아야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("외부 API 의존성은 어댑터 모듈에만 있어야 한다")
+    void external_api_dependencies_should_only_be_in_adapter_modules() {
+        noClasses()
+                .that().resideInAnyPackage(
+                        "com.quantum.core..",
+                        "com.quantum.api..",
+                        "com.quantum.batch.."
+                )
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "feign..",
+                        "retrofit..",
+                        "okhttp3.."
+                )
+                .because("외부 API 의존성은 어댑터 모듈에만 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("비즈니스 로직은 core 모듈에만 있어야 한다")
+    void business_logic_should_only_be_in_core_module() {
+        classes()
+                .that().haveSimpleNameEndingWith("DomainService")
+                .or().haveSimpleNameEndingWith("BusinessService")
+                .should().resideInAPackage("com.quantum.core.domain.service..")
+                .because("비즈니스 로직은 core 도메인 서비스에만 있어야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("전체 프로젝트에서 일관된 코딩 스타일을 사용해야 한다")
+    void entire_project_should_use_consistent_coding_style() {
+        // Controller 네이밍
+        classes()
+                .that().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+                .should().haveSimpleNameEndingWith("Controller")
+                .because("RestController는 Controller로 끝나야 함");
+
+        // Service 네이밍
+        classes()
+                .that().areAnnotatedWith("org.springframework.stereotype.Service")
+                .should().haveSimpleNameEndingWith("Service")
+                .because("Service는 Service로 끝나야 함");
+
+        // Configuration 네이밍
+        classes()
+                .that().areAnnotatedWith("org.springframework.context.annotation.Configuration")
+                .should().haveSimpleNameEndingWith("Config")
+                .orShould().haveSimpleNameEndingWith("Configuration")
+                .because("Configuration은 Config 또는 Configuration으로 끝나야 함")
+                .check(allClasses);
+    }
+
+    @Test
+    @DisplayName("테스트 코드는 적절한 패키지 구조를 가져야 한다")
+    void test_code_should_have_appropriate_package_structure() {
+        classes()
+                .that().haveSimpleNameEndingWith("Test")
+                .should().resideInAPackage("..test..")
+                .because("테스트 클래스는 test 패키지에 있어야 함")
+                .check(allClasses);
+    }
+}

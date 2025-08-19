@@ -1,0 +1,287 @@
+package com.quantum.core.architecture;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.*;
+
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Event-Driven Architecture 규칙 검증 테스트
+ * 
+ * Quantum Trading System의 이벤트 드리븐 아키텍처 원칙들을 ArchUnit으로 강제한다:
+ * 1. Event Sourcing과 Message Bus의 올바른 사용
+ * 2. 이벤트의 발행과 구독 패턴
+ * 3. 비동기 처리와 동기 처리의 명확한 분리
+ * 4. 이벤트 기반 상태 관리
+ * 5. 시스템 간 느슨한 결합
+ */
+@DisplayName("⚡ Event-Driven Architecture Rules")
+class EventDrivenArchitectureTest {
+
+    private static final String BASE_PACKAGE = "com.quantum.core";
+    private static final JavaClasses classes = new ClassFileImporter()
+            .importPackages(BASE_PACKAGE);
+
+    @Test
+    @DisplayName("이벤트는 과거형 명명을 사용하고 불변이어야 한다")
+    void events_should_use_past_tense_naming_and_be_immutable() {
+        classes()
+                .that().haveSimpleNameEndingWith("Event")
+                .should().haveSimpleNameMatching(".*ed$|.*Event$")
+                .andShould().haveOnlyFinalFields()
+                .because("이벤트는 발생한 사실을 나타내므로 과거형이고 불변이어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 핸들러는 단일 책임을 가져야 한다")
+    void event_handlers_should_have_single_responsibility() {
+        classes()
+                .that().haveSimpleNameEndingWith("EventHandler")
+                .should().haveMethodsThat().areFinal()
+                .orShould().haveOnlyOneMethodThat(method -> 
+                    method.getName().startsWith("handle") || 
+                    method.getName().startsWith("on")
+                )
+                .because("이벤트 핸들러는 단일 이벤트 타입에 대한 처리만 담당해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Message Bus는 이벤트 발행과 구독을 관리해야 한다")
+    void message_bus_should_manage_event_publishing_and_subscription() {
+        classes()
+                .that().haveSimpleName("MessageBus")
+                .should().beInterfaces()
+                .andShould().haveMethodThat(method -> 
+                    method.getName().contains("publish") || 
+                    method.getName().contains("send") ||
+                    method.getName().contains("dispatch")
+                )
+                .andShould().haveMethodThat(method -> 
+                    method.getName().contains("subscribe") || 
+                    method.getName().contains("register") ||
+                    method.getName().contains("handle")
+                )
+                .because("Message Bus는 이벤트 발행과 구독 기능을 제공해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 발행자는 Message Bus에만 의존해야 한다")
+    void event_publishers_should_only_depend_on_message_bus() {
+        classes()
+                .that().resideInAPackage("..domain.service..")
+                .or().resideInAPackage("..application..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.core.domain..",
+                        "com.quantum.core.application..",
+                        "java..",
+                        "org.springframework.stereotype..",
+                        "lombok.."
+                )
+                .because("이벤트 발행자는 Message Bus를 통해서만 이벤트를 발행해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("도메인 이벤트는 집계 내부에서 발생해야 한다")
+    void domain_events_should_originate_from_aggregates() {
+        classes()
+                .that().haveSimpleNameEndingWith("Event")
+                .and().resideInAPackage("..application.event..")
+                .should().haveFieldThat(field -> 
+                    field.getName().contains("aggregateId") ||
+                    field.getName().contains("entityId") ||
+                    field.getName().endsWith("Id")
+                )
+                .because("도메인 이벤트는 특정 집계에서 발생하므로 집계 ID를 포함해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트는 타임스탬프와 메타데이터를 포함해야 한다")
+    void events_should_include_timestamp_and_metadata() {
+        classes()
+                .that().haveSimpleNameEndingWith("Event")
+                .should().haveFieldThat(field -> 
+                    field.getName().contains("timestamp") ||
+                    field.getName().contains("occurredAt") ||
+                    field.getName().contains("createdAt")
+                )
+                .because("이벤트는 발생 시간을 기록해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 스토어는 순서 보장과 버전 관리를 지원해야 한다")
+    void event_store_should_support_ordering_and_versioning() {
+        classes()
+                .that().haveSimpleName("EventStore")
+                .and().areInterfaces()
+                .should().haveMethodThat(method -> 
+                    method.getName().contains("version") ||
+                    method.getName().contains("sequence") ||
+                    method.getName().contains("order")
+                )
+                .because("Event Store는 이벤트 순서와 버전을 관리해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("상태 복원은 이벤트 스트림을 통해서만 이루어져야 한다")
+    void state_rehydration_should_only_use_event_streams() {
+        classes()
+                .that().haveSimpleNameContaining("StateRehydrator")
+                .or().haveSimpleNameContaining("Rehydra")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "com.quantum.core.domain.port.eventsourcing..",
+                        "com.quantum.core.application.event..",
+                        "com.quantum.core.application.state..",
+                        "java..",
+                        "org.springframework.stereotype..",
+                        "lombok.."
+                )
+                .because("상태 복원은 이벤트 스트림만을 사용해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Command와 Event는 명확히 분리되어야 한다")
+    void commands_and_events_should_be_clearly_separated() {
+        noClasses()
+                .that().haveSimpleNameEndingWith("Command")
+                .should().haveSimpleNameEndingWith("Event")
+                .because("Command와 Event는 서로 다른 개념이므로 명확히 분리되어야 함");
+
+        noClasses()
+                .that().haveSimpleNameEndingWith("Event")
+                .should().haveSimpleNameEndingWith("Command")
+                .because("Event와 Command는 서로 다른 개념이므로 명확히 분리되어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 핸들러는 멱등성을 보장해야 한다")
+    void event_handlers_should_be_idempotent() {
+        classes()
+                .that().resideInAPackage("..infrastructure.eventsourcing..")
+                .and().haveSimpleNameEndingWith("EventHandler")
+                .should().haveMethodThat(method -> 
+                    method.getName().contains("handle") &&
+                    method.getParameterTypes().size() == 1  // 단일 이벤트 처리
+                )
+                .because("이벤트 핸들러는 멱등성을 보장하기 위해 단일 이벤트만 처리해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("비동기 이벤트 처리는 별도 스레드에서 실행되어야 한다")
+    void async_event_processing_should_run_in_separate_threads() {
+        classes()
+                .that().resideInAPackage("..infrastructure.messaging..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "java.util.concurrent..",
+                        "org.springframework.scheduling..",
+                        "org.springframework.context.event.."
+                )
+                .orShould().haveMethodThat(method -> 
+                    method.isAnnotatedWith("org.springframework.scheduling.annotation.Async") ||
+                    method.isAnnotatedWith("org.springframework.context.event.EventListener")
+                )
+                .because("비동기 이벤트 처리는 별도 스레드에서 실행되어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 직렬화는 버전 호환성을 고려해야 한다")
+    void event_serialization_should_consider_version_compatibility() {
+        classes()
+                .that().haveSimpleNameContaining("EventSerializer")
+                .should().haveMethodThat(method -> 
+                    method.getName().contains("version") ||
+                    method.getName().contains("schema") ||
+                    method.getName().contains("migrate")
+                )
+                .orShould().dependOnClassesThat().resideInAnyPackage(
+                        "com.fasterxml.jackson.annotation..",
+                        "jakarta.validation.."
+                )
+                .because("이벤트 직렬화는 버전 호환성을 고려해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("Saga 패턴은 분산 트랜잭션 관리에 사용되어야 한다")
+    void saga_pattern_should_be_used_for_distributed_transaction_management() {
+        // 향후 Saga 구현 시 적용될 규칙
+        classes()
+                .that().haveSimpleNameContaining("Saga")
+                .should().resideInAPackage("..application.saga..")
+                .orShould().resideInAPackage("..domain.saga..")
+                .because("Saga는 분산 트랜잭션 관리를 위한 패턴임")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 스트림은 파티셔닝을 고려해야 한다")
+    void event_streams_should_consider_partitioning() {
+        classes()
+                .that().haveSimpleName("EventStore")
+                .and().areNotInterfaces()
+                .should().haveMethodThat(method -> 
+                    method.getName().contains("partition") ||
+                    method.getName().contains("shard") ||
+                    method.getParameterTypes().stream().anyMatch(type -> 
+                        type.getSimpleName().contains("Partition") ||
+                        type.getSimpleName().contains("Shard")
+                    )
+                )
+                .orShould().haveFieldThat(field -> 
+                    field.getName().contains("partition") ||
+                    field.getName().contains("shard")
+                )
+                .because("대용량 이벤트 스트림은 파티셔닝을 고려해야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트는 도메인 경계를 넘나들 수 있어야 한다")
+    void events_should_be_able_to_cross_domain_boundaries() {
+        classes()
+                .that().haveSimpleNameEndingWith("Event")
+                .should().bePublic()
+                .andShould().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "java..",
+                        "com.quantum.core.application.event..",
+                        "com.fasterxml.jackson.annotation..",
+                        "lombok.."
+                )
+                .because("이벤트는 도메인 경계를 넘나들며 시스템 간 통신에 사용되어야 함")
+                .check(classes);
+    }
+
+    @Test
+    @DisplayName("이벤트 처리 실패는 적절히 관리되어야 한다")
+    void event_processing_failures_should_be_properly_managed() {
+        classes()
+                .that().resideInAPackage("..infrastructure.messaging..")
+                .should().haveMethodThat(method -> 
+                    method.getName().contains("retry") ||
+                    method.getName().contains("deadLetter") ||
+                    method.getName().contains("error") ||
+                    method.getName().contains("failure")
+                )
+                .orShould().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.retry..",
+                        "org.springframework.amqp.."  // 향후 RabbitMQ 사용 시
+                )
+                .because("이벤트 처리 실패는 재시도, 데드레터 큐 등으로 관리되어야 함")
+                .check(classes);
+    }
+}

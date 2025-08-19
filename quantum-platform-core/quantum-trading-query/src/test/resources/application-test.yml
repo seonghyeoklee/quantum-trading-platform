@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+    defer-datasource-initialization: false
+    
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  sql:
+    init:
+      mode: never # H2에서는 schema.sql, data.sql 비활성화
+
+axon:
+  serializer:
+    events: jackson
+    messages: jackson
+    general: jackson
+
+logging:
+  level:
+    com.quantum.trading: DEBUG
+    org.springframework: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/quantum_trading
+    username: quantum_user
+    password: quantum_password
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: true
+    
+  sql:
+    init:
+      mode: always
+      
+axon:
+  serializer:
+    events: jackson
+    messages: jackson
+    general: jackson
+
+logging:
+  level:
+    com.quantum.trading: DEBUG
+    org.axonframework: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

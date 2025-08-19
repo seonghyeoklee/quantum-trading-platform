@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: quantum-batch
+
+  profiles:
+    active: sandbox  # 기본값을 sandbox로 변경 (모의투자)
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/quantum_trading
+    username: quantum
+    password: quantum123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Seoul
+
+  flyway:
+    enabled: false  # Flyway 대신 Spring Boot 스키마 초기화 사용
+
+  batch:
+    jdbc:
+      initialize-schema: always  # Spring Boot 자체 스키마 초기화 사용
+    job:
+      enabled: false  # Disable auto-start of jobs
+
+  cloud:
+    compatibility-verifier:
+      enabled: false  # Disable Spring Cloud compatibility check
+
+  quartz:
+    auto-startup: true
+    scheduler-name: quantum-scheduler
+    wait-for-jobs-to-complete-on-shutdown: true
+    overwrite-existing-jobs: false
+    startup-delay: 5s
+    job-store-type: memory  # 메모리 기반 안정적 운영 (JDBC는 추후 별도 설정)
+    properties:
+      org:
+        quartz:
+          scheduler:
+            instanceName: quantum-scheduler
+            instanceId: AUTO
+            skipUpdateCheck: true
+            timeZone: Asia/Seoul
+          jobStore:
+            class: org.quartz.simpl.RAMJobStore
+            misfireThreshold: 60000
+          threadPool:
+            class: org.quartz.simpl.SimpleThreadPool
+            threadCount: 10
+            threadPriority: 5
+            threadsInheritContextClassLoaderOfInitializingThread: true
+
+server:
+  port: 8090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# KIS API 설정 (기본값 - 환경별 프로파일에서 오버라이드)
+kis:
+  api:
+    app-key: ${KIS_APP_KEY:PLACEHOLDER_APP_KEY}
+    app-secret: ${KIS_APP_SECRET:PLACEHOLDER_APP_SECRET}
+    base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}  # 모의투자 기본값
+    account-no: ${KIS_ACCOUNT_NO:PLACEHOLDER_ACCOUNT}
+    environment: ${KIS_ENVIRONMENT:sandbox} # sandbox or production
+    rate-limit:
+      rest-calls-per-second: 2  # 모의투자 기본값
+      token-calls-per-second: 1
+      calls-per-minute: 100
+      calls-per-hour: 5000
+      websocket-max-subscriptions: 41
+      wait-time-on-limit-ms: 100
+      max-retry-attempts: 3
+      statistics-retention-hours: 24
+  websocket:
+    url: ws://ops.koreainvestment.com:31000  # 모의투자 WebSocket
+    max-subscriptions-per-session: 41
+    connection-timeout-ms: 10000
+    read-timeout-ms: 30000
+    ping-interval-ms: 30000
+    max-reconnect-attempts: 5
+    reconnect-delay-ms: 5000
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: production
+
+kis:
+  api:
+    base-url: https://openapi.koreainvestment.com:9443  # 실전투자 URL
+    rate-limit:
+      rest-calls-per-second: 20  # 실전투자 설정
+      calls-per-minute: 1000
+      calls-per-hour: 50000
+  websocket:
+    url: ws://ops.koreainvestment.com:21000  # 실전투자 WebSocket
+
+logging:
+  level:
+    com.quantum: DEBUG
+    org.springframework.batch: INFO
+    org.springframework.web.reactive.function.client: DEBUG

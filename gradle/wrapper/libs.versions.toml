@@ -1,0 +1,243 @@
+[versions]
+# Core Framework
+spring-boot = "3.3.5"
+spring-dependency-management = "1.1.7"
+java = "21"
+
+# Spring Framework
+spring-statemachine = "4.0.0"
+spring-retry = "2.0.4"
+
+# Database
+h2 = "2.2.224"
+postgresql = "42.7.2"
+mysql = "8.3.0"
+flyway = "10.4.1"
+hikari = "5.1.0"
+
+# JPA & QueryDSL
+querydsl = "5.0.0"
+hibernate = "6.4.1.Final"
+
+# Redis & Caching
+caffeine = "3.1.8"
+
+# Message Queue
+spring-amqp = "3.1.1"
+
+# Security & JWT
+jjwt = "0.12.3"
+
+# API Documentation
+springdoc = "2.3.0"
+
+# Rules Engine
+drools = "8.44.0.Final"
+
+# Technical Analysis
+ta4j = "0.16"
+
+# Testing
+junit = "5.10.1"
+testcontainers = "1.19.3"
+
+# Build Tools
+lombok = "1.18.30"
+mapstruct = "1.5.5.Final"
+
+# JSON Processing
+jackson = "2.16.1"
+
+# Quartz Scheduler
+quartz = "2.3.2"
+
+# Validation
+jakarta-validation = "3.0.2"
+
+# WebSocket
+spring-websocket = "6.1.1"
+
+# Monitoring & Observability
+micrometer = "1.14.0"
+
+# HTTP Clients
+spring-cloud = "2023.0.6"
+
+[libraries]
+# Spring Boot Starters
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-webflux = { module = "org.springframework.boot:spring-boot-starter-webflux" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-websocket = { module = "org.springframework.boot:spring-boot-starter-websocket" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-data-redis = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
+spring-boot-starter-cache = { module = "org.springframework.boot:spring-boot-starter-cache" }
+spring-boot-starter-batch = { module = "org.springframework.boot:spring-boot-starter-batch" }
+spring-boot-starter-quartz = { module = "org.springframework.boot:spring-boot-starter-quartz" }
+spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+spring-boot-starter-amqp = { module = "org.springframework.boot:spring-boot-starter-amqp" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+
+# Spring Framework
+spring-context = { module = "org.springframework:spring-context" }
+spring-websocket = { module = "org.springframework:spring-websocket", version.ref = "spring-websocket" }
+spring-messaging = { module = "org.springframework:spring-messaging" }
+spring-aspects = { module = "org.springframework:spring-aspects" }
+spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
+
+# Database Drivers
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+mysql = { module = "com.mysql:mysql-connector-j", version.ref = "mysql" }
+
+# JPA & QueryDSL
+querydsl-jpa = { module = "com.querydsl:querydsl-jpa", version.ref = "querydsl" }
+querydsl-apt = { module = "com.querydsl:querydsl-apt", version.ref = "querydsl" }
+jakarta-persistence = { module = "jakarta.persistence:jakarta.persistence-api" }
+
+# Connection Pool & Migration
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+flyway = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+
+# Caching
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+
+# Security & JWT
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+
+# API Documentation
+springdoc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# State Machine
+spring-statemachine = { module = "org.springframework.statemachine:spring-statemachine-core", version.ref = "spring-statemachine" }
+
+# Rules Engine
+drools-core = { module = "org.drools:drools-core", version.ref = "drools" }
+drools-compiler = { module = "org.drools:drools-compiler", version.ref = "drools" }
+
+# Technical Analysis
+ta4j = { module = "org.ta4j:ta4j-core", version.ref = "ta4j" }
+
+# JSON Processing
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310", version.ref = "jackson" }
+
+# Validation
+jakarta-validation = { module = "jakarta.validation:jakarta.validation-api", version.ref = "jakarta-validation" }
+
+# Utilities
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+
+# Object Mapping
+mapstruct = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+
+# Testing
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+spring-batch-test = { module = "org.springframework.batch:spring-batch-test" }
+reactor-test = { module = "io.projectreactor:reactor-test" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+
+# Logging
+slf4j = { module = "org.slf4j:slf4j-api" }
+
+# Monitoring & Observability
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+
+# HTTP Clients & Spring Cloud
+spring-cloud-openfeign = { module = "org.springframework.cloud:spring-cloud-starter-openfeign" }
+
+[bundles]
+# Spring Boot Web
+spring-web = [
+    "spring-boot-starter-web",
+    "spring-boot-starter-validation",
+    "spring-boot-starter-websocket"
+]
+
+# Spring Boot Security
+spring-security = [
+    "spring-boot-starter-security",
+    "jjwt-api",
+    "jjwt-impl",
+    "jjwt-jackson"
+]
+
+# Database
+database-drivers = [
+    "postgresql",
+    "mysql",
+    "h2"
+]
+
+# JPA & QueryDSL
+jpa-querydsl = [
+    "spring-boot-starter-data-jpa",
+    "querydsl-jpa"
+]
+
+# Testing
+testing = [
+    "spring-boot-starter-test",
+    "junit-jupiter",
+    "junit-platform-launcher"
+]
+
+# Rules Engine
+rules-engine = [
+    "drools-core",
+    "drools-compiler"
+]
+
+# WebFlux & Reactive
+reactive = [
+    "spring-boot-starter-webflux",
+    "spring-retry",
+    "spring-aspects"
+]
+
+# Caching
+caching = [
+    "spring-boot-starter-cache",
+    "caffeine"
+]
+
+# Batch & Scheduling
+batch-scheduling = [
+    "spring-boot-starter-batch",
+    "spring-boot-starter-quartz",
+    "spring-boot-starter-jdbc"
+]
+
+# Monitoring & Observability
+monitoring = [
+    "spring-boot-starter-actuator",
+    "micrometer-registry-prometheus"
+]
+
+# HTTP Clients
+http-clients = [
+    "spring-cloud-openfeign"
+]
+
+# Testing with Containers
+testing-containers = [
+    "spring-boot-starter-test",
+    "testcontainers",
+    "testcontainers-postgresql"
+]
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+
+# Spring Cloud BOM
+spring-cloud-dependencies = { id = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }

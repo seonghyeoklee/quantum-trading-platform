@@ -1,0 +1,14 @@
+# KIS API 설정
+kis:
+  api:
+    base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+    app-key: ${KIS_APP_KEY:}
+    app-secret: ${KIS_APP_SECRET:}
+    account-no: ${KIS_ACCOUNT_NO:}
+    environment: ${KIS_ENVIRONMENT:sandbox}
+
+  # 토큰 관리 설정
+  token:
+    cache-duration-hours: 6      # KIS 정책: 6시간 갱신 주기
+    expiry-duration-hours: 24    # KIS 정책: 24시간 유효기간
+    safety-margin-minutes: 5     # 만료 5분 전 갱신
