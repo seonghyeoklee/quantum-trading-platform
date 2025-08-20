@@ -308,16 +308,19 @@ public class AuthService {
     }
 
     /**
-     * 키움 앱키/시크릿 검증 (실제 키 포함)
+     * 키움 앱키/시크릿 검증 (환경변수 검증)
      */
     private boolean isValidKiwoomCredentials(String appkey, String secretkey) {
-        // 실제 키움증권 API 키 + 테스트용 자격증명
+        // 환경변수에서 설정된 키와 비교
+        String currentAppKey = kiwoomProperties.getCurrentAppKey();
+        String currentAppSecret = kiwoomProperties.getCurrentAppSecret();
+        
+        if (currentAppKey != null && currentAppSecret != null) {
+            return currentAppKey.equals(appkey) && currentAppSecret.equals(secretkey);
+        }
+        
+        // 테스트용 자격증명 (개발/테스트 환경용)
         return java.util.Map.of(
-            // 실전투자 키
-            "[REDACTED_API_KEY]", "[REDACTED_SECRET]",
-            // 모의투자 키
-            "[REDACTED_MOCK_KEY]", "[REDACTED_MOCK_SECRET]",
-            // 테스트용 키
             "AxserEsdrcdica", "S5afcLwerebDreJ4xvc",              // 키움 샘플과 유사한 형태
             "KiwoomAppKey01", "KiwoomSecretKey01",                // 테스트용
             "PSAxserEsdrcd", "PSS5afcLwerebDreJ4",               // 모의투자용
