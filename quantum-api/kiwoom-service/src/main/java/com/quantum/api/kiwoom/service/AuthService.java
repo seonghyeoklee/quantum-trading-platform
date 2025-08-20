@@ -1,5 +1,6 @@
 package com.quantum.api.kiwoom.service;
 
+import com.quantum.api.kiwoom.config.KiwoomProperties;
 import com.quantum.api.kiwoom.dto.auth.TokenRequest;
 import com.quantum.api.kiwoom.dto.auth.TokenResponse;
 import com.quantum.api.kiwoom.dto.auth.TokenRevokeRequest;
@@ -23,6 +24,7 @@ public class AuthService {
 
     private final KiwoomApiClient kiwoomApiClient;
     private final KiwoomTokenCacheService tokenCacheService;
+    private final KiwoomProperties kiwoomProperties;
 
     /**
      * 키움증권 OAuth 2.0 토큰 발급 (키움 API 스펙 + 캐시 정책)
@@ -306,11 +308,16 @@ public class AuthService {
     }
 
     /**
-     * 키움 앱키/시크릿 검증 (시뮬레이션)
+     * 키움 앱키/시크릿 검증 (실제 키 포함)
      */
     private boolean isValidKiwoomCredentials(String appkey, String secretkey) {
-        // 키움증권 테스트용 유효한 자격증명 (실제 키움 API와 유사한 형태)
+        // 실제 키움증권 API 키 + 테스트용 자격증명
         return java.util.Map.of(
+            // 실전투자 키
+            "[REDACTED_API_KEY]", "[REDACTED_SECRET]",
+            // 모의투자 키
+            "[REDACTED_MOCK_KEY]", "[REDACTED_MOCK_SECRET]",
+            // 테스트용 키
             "AxserEsdrcdica", "S5afcLwerebDreJ4xvc",              // 키움 샘플과 유사한 형태
             "KiwoomAppKey01", "KiwoomSecretKey01",                // 테스트용
             "PSAxserEsdrcd", "PSS5afcLwerebDreJ4",               // 모의투자용
@@ -328,6 +335,35 @@ public class AuthService {
         String prefix = "WQUOywbI";  // 키움 토큰 고정 prefix
         String randomPart = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24);
         return prefix + randomPart;
+    }
+    
+    /**
+     * 현재 모드에 따른 기본 토큰 발급 (환경변수 키 사용)
+     */
+    public Mono<TokenResponse> issueDefaultToken() {
+        String appKey = kiwoomProperties.getCurrentAppKey();
+        String appSecret = kiwoomProperties.getCurrentAppSecret();
+        
+        if (appKey == null || appKey.trim().isEmpty() || 
+            appSecret == null || appSecret.trim().isEmpty()) {
+            
+            log.error("환경변수에서 키움 API 키를 찾을 수 없습니다. 모드: {}", 
+                    kiwoomProperties.getModeDescription());
+            return Mono.error(new IllegalStateException(
+                    "키움 API 키가 설정되지 않았습니다. .env 파일을 확인해주세요."));
+        }
+        
+        log.info("기본 토큰 발급 시작 - 모드: {}, 앱키: {}***", 
+                kiwoomProperties.getModeDescription(),
+                appKey.substring(0, Math.min(8, appKey.length())));
+        
+        TokenRequest request = TokenRequest.builder()
+                .grantType("client_credentials")
+                .appkey(appKey)
+                .secretkey(appSecret)
+                .build();
+                
+        return issueKiwoomOAuthToken(request);
     }
 
     /**
