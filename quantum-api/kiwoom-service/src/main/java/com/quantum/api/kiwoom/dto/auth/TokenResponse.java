@@ -24,4 +24,6 @@ public class TokenResponse {
     // 키움증권 API 전용 필드
     private String expiresDt;       // 만료일시 (YYYYMMDDHHMISS)
     private String token;           // 키움 토큰 (accessToken과 동일)
+    private Integer returnCode;     // 응답 코드 (0: 성공, 기타: 오류)
+    private String returnMsg;       // 응답 메시지 ("정상적으로 처리되었습니다" 등)
 }

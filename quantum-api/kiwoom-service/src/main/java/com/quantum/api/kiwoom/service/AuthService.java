@@ -97,48 +97,70 @@ public class AuthService {
     }
 
     /**
-     * 새 토큰 생성 및 캐시 저장
+     * 새 토큰 생성 및 캐시 저장 (실제 키움 API 호출)
      */
     private Mono<TokenResponse> generateAndCacheNewToken(String appkey, String secretkey) {
-        return Mono.fromCallable(() -> {
-            // 1. 새 토큰 생성
-            String accessToken = generateKiwoomAccessToken();
-            LocalDateTime now = LocalDateTime.now();
-            LocalDateTime expiresAt = now.plusHours(24);
-            String expiresDt = expiresAt.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            
-            // 2. 캐시 정보 생성
-            CachedTokenInfo tokenInfo = CachedTokenInfo.builder()
-                    .appkey(appkey)
-                    .token(accessToken)
-                    .issuedAt(now)
-                    .expiresAt(expiresAt)
-                    .expiresDt(expiresDt)
-                    .build();
+        log.info("키움 API를 통한 새 토큰 발급 시작 - appkey: {}***", 
+                appkey.substring(0, Math.min(5, appkey.length())));
+        
+        // 1. 실제 키움 API 토큰 요청
+        TokenRequest request = TokenRequest.builder()
+                .grantType("client_credentials")
+                .appkey(appkey)
+                .secretkey(secretkey)
+                .build();
+                
+        return kiwoomApiClient.requestToken(request)
+                .doOnNext(response -> {
+                    // 토큰이 정상적으로 발급되었는지 검증
+                    if (response.getToken() == null || response.getToken().trim().isEmpty()) {
+                        throw new IllegalStateException("키움 API에서 유효한 토큰을 반환하지 않았습니다");
+                    }
+                    log.info("키움 API 토큰 발급 성공 - token: {}***, expires: {}", 
+                            response.getToken().substring(0, Math.min(8, response.getToken().length())),
+                            response.getExpiresDt());
+                })
+                .flatMap(response -> {
+                    // 2. 캐시 정보 생성 (키움 API 응답 기반)
+                    LocalDateTime now = LocalDateTime.now();
+                    LocalDateTime expiresAt = parseKiwoomDateTime(response.getExpiresDt());
                     
-            // 3. 응답 생성
-            TokenResponse response = buildTokenResponse(tokenInfo);
-            
-            log.info("새 토큰 생성 - appkey: {}***, token: {}***, expires: {}", 
-                    appkey.substring(0, Math.min(5, appkey.length())),
-                    accessToken.substring(0, Math.min(8, accessToken.length())),
-                    expiresDt);
-            
-            return response;
-        })
-        .flatMap(response -> {
-            // 4. 캐시에 저장
-            CachedTokenInfo tokenInfo = CachedTokenInfo.builder()
-                    .appkey(appkey)
-                    .token(response.getToken())
-                    .issuedAt(LocalDateTime.now())
-                    .expiresAt(LocalDateTime.now().plusHours(24))
-                    .expiresDt(response.getExpiresDt())
-                    .build();
-                    
-            return tokenCacheService.cacheToken(tokenInfo)
-                    .thenReturn(response);
-        });
+                    CachedTokenInfo tokenInfo = CachedTokenInfo.builder()
+                            .appkey(appkey)
+                            .token(response.getToken())
+                            .issuedAt(now)
+                            .expiresAt(expiresAt)
+                            .expiresDt(response.getExpiresDt())
+                            .build();
+                            
+                    // 3. 캐시에 저장 ("default" 키로도 저장하여 차트 서비스 호환성 확보)
+                    return tokenCacheService.cacheToken(tokenInfo)
+                            .then(tokenCacheService.cacheToken("default", tokenInfo))
+                            .thenReturn(response)
+                            .doOnSuccess(result -> log.info("토큰 캐시 저장 완료 (appkey: {}***, default 키 포함)", 
+                                    appkey.substring(0, Math.min(5, appkey.length()))));
+                })
+                .onErrorMap(error -> {
+                    log.error("키움 API 토큰 발급 및 캐시 저장 실패 - appkey: {}***", 
+                            appkey.substring(0, Math.min(5, appkey.length())), error);
+                    return new RuntimeException("실제 키움 API 토큰 발급에 실패했습니다: " + error.getMessage(), error);
+                });
+    }
+    
+    /**
+     * 키움 API 날짜시간 문자열을 LocalDateTime으로 파싱
+     */
+    private LocalDateTime parseKiwoomDateTime(String expiresDt) {
+        try {
+            if (expiresDt == null || expiresDt.length() != 14) {
+                // 기본값: 24시간 후
+                return LocalDateTime.now().plusHours(24);
+            }
+            return LocalDateTime.parse(expiresDt, DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        } catch (Exception e) {
+            log.warn("키움 API 만료시간 파싱 실패, 기본값 사용: {}", expiresDt, e);
+            return LocalDateTime.now().plusHours(24);
+        }
     }
     
     /**
@@ -151,6 +173,8 @@ public class AuthService {
                 .token(tokenInfo.getToken())                 // 키움 API 스펙
                 .accessToken(tokenInfo.getToken())           // OAuth 2.0 호환
                 .expiresIn(86400L)                          // OAuth 2.0 호환 (24시간)
+                .returnCode(0)                              // 키움 API 성공 코드
+                .returnMsg("정상적으로 처리되었습니다")          // 키움 API 성공 메시지
                 .build();
     }
 
@@ -184,8 +208,14 @@ public class AuthService {
             return Mono.error(new IllegalArgumentException("유효하지 않은 앱키 또는 시크릿키입니다"));
         }
 
-        // 3. 토큰 검증 및 캐시에서 폐기
-        return validateAndRevokeToken(token)
+        // 3. 실제 키움 API를 통한 토큰 폐기
+        TokenRevokeRequest revokeRequest = TokenRevokeRequest.builder()
+                .appkey(appkey)
+                .secretkey(secretkey)
+                .token(token)
+                .build();
+                
+        return kiwoomApiClient.revokeToken(token)
                 .then(tokenCacheService.evictTokenByValue(token))
                 .doOnSuccess(v -> log.info("키움 OAuth 토큰 폐기 성공"))
                 .onErrorMap(error -> {
@@ -275,37 +305,6 @@ public class AuthService {
         }
     }
 
-    /**
-     * 키움증권 토큰 생성 (시뮬레이션)
-     */
-    private Mono<TokenResponse> generateKiwoomToken(String appkey, String secretkey) {
-        return Mono.fromCallable(() -> {
-            // 1. 앱키/시크릿 검증 (시뮬레이션)
-            if (!isValidKiwoomCredentials(appkey, secretkey)) {
-                throw new IllegalArgumentException("유효하지 않은 앱키 또는 시크릿키입니다");
-            }
-
-            // 2. 키움 스타일 토큰 생성 (실제 키움 API 응답과 유사하게)
-            String accessToken = generateKiwoomAccessToken();
-
-            // 3. 만료시간 계산 (24시간 후, 키움 API 스펙 형식)
-            LocalDateTime expiresAt = LocalDateTime.now().plusHours(24);
-            String expiresDt = expiresAt.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-
-            log.info("키움 토큰 생성 성공 - appkey: {}***, expires: {}",
-                    appkey.substring(0, Math.min(5, appkey.length())), expiresDt);
-
-            // 4. 키움 API 응답 스펙에 맞는 응답 생성
-            return TokenResponse.builder()
-                    .expiresDt(expiresDt)         // 키움 필수: "20241107083713"
-                    .tokenType("bearer")          // 키움 필수: "bearer"
-                    .token(accessToken)           // 키움 필수: "WQUOywbI..."
-                    // OAuth 2.0 호환 필드들 (클라이언트 호환성)
-                    .accessToken(accessToken)
-                    .expiresIn(86400L)
-                    .build();
-        });
-    }
 
     /**
      * 키움 앱키/시크릿 검증 (환경변수 검증)
@@ -329,16 +328,6 @@ public class AuthService {
         ).getOrDefault(appkey, "").equals(secretkey);
     }
 
-    /**
-     * 키움 스타일 액세스 토큰 생성
-     */
-    private String generateKiwoomAccessToken() {
-        // 키움 API 실제 토큰과 유사한 형태로 생성
-        // 예: "WQUOywbIhknhRmbIhmhTXJcxwFdVvYxH..."
-        String prefix = "WQUOywbI";  // 키움 토큰 고정 prefix
-        String randomPart = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        return prefix + randomPart;
-    }
     
     /**
      * 현재 모드에 따른 기본 토큰 발급 (환경변수 키 사용)
@@ -369,26 +358,4 @@ public class AuthService {
         return issueKiwoomOAuthToken(request);
     }
 
-    /**
-     * 토큰 검증 및 폐기 (시뮬레이션)
-     */
-    private Mono<Void> validateAndRevokeToken(String token) {
-        return Mono.fromRunnable(() -> {
-            // 1. 토큰 형식 검증 (키움 토큰은 "WQUOywbI"로 시작)
-            if (!token.startsWith("WQUOywbI")) {
-                throw new IllegalArgumentException("유효하지 않은 토큰 형식입니다");
-            }
-            
-            // 2. 토큰 길이 검증 (키움 토큰은 보통 32자 이상)
-            if (token.length() < 16) {
-                throw new IllegalArgumentException("토큰 길이가 유효하지 않습니다");
-            }
-            
-            // 3. 토큰 폐기 처리 (실제로는 Redis나 DB에서 토큰 제거)
-            log.info("토큰 폐기 처리: {}***", token.substring(0, Math.min(8, token.length())));
-            
-            // 시뮬레이션: 실제로는 토큰 저장소에서 제거
-            // tokenRepository.deleteByToken(token);
-        });
-    }
 }
