@@ -1,2 +1,0 @@
-org.springframework.boot.env.EnvironmentPostProcessor=\
-com.quantum.api.kiwoom.config.DotEnvEnvironmentPostProcessor
