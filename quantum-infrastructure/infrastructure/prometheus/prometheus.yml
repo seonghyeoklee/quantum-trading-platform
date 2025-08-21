@@ -1,0 +1,49 @@
+# Prometheus Configuration for Quantum Trading Platform
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Axon Server metrics
+  - job_name: 'axon-server'
+    static_configs:
+      - targets: ['quantum-axon-server:8024']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  # API Gateway metrics
+  - job_name: 'quantum-api-gateway'
+    static_configs:
+      - targets: ['quantum-api-gateway:8080']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  # Batch service metrics
+  - job_name: 'quantum-batch'
+    static_configs:
+      - targets: ['quantum-batch:8080']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  # Kiwoom API metrics
+  - job_name: 'kiwoom-api'
+    static_configs:
+      - targets: ['quantum-kiwoom-api:8100']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # KIS Mock API metrics
+  - job_name: 'kis-mock-api'
+    static_configs:
+      - targets: ['quantum-kis-mock-api:8200']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
