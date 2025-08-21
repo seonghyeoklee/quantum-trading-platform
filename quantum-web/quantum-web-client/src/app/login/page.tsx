@@ -16,13 +16,15 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // 로그인된 상태라면 로딩 표시
-  if (isAuthenticated) {
+  // 로딩 중이거나 로그인된 상태라면 로딩 표시
+  if (isLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">대시보드로 이동 중...</p>
+          <p className="text-gray-600">
+            {isAuthenticated ? '대시보드로 이동 중...' : '인증 상태 확인 중...'}
+          </p>
         </div>
       </div>
     );

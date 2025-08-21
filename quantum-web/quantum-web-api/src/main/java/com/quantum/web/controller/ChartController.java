@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Slf4j
 @RestController
-@RequestMapping("/charts")
+@RequestMapping("/api/v1/charts")
 @RequiredArgsConstructor
 @Tag(name = "Chart", description = "차트 데이터 API")
 public class ChartController {
