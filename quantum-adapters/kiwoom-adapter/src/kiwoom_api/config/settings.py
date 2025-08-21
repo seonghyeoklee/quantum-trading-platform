@@ -29,6 +29,12 @@ class KiwoomSettings(BaseSettings):
     # 로깅 설정
     LOG_LEVEL: str = Field("INFO", description="로깅 레벨")
     
+    # WebSocket 설정
+    WEBSOCKET_PING_INTERVAL: int = Field(60, description="WebSocket Ping 간격 (초)")
+    WEBSOCKET_PING_TIMEOUT: int = Field(10, description="WebSocket Ping 타임아웃 (초)")
+    WEBSOCKET_CLOSE_TIMEOUT: int = Field(10, description="WebSocket 종료 타임아웃 (초)")
+    WEBSOCKET_MAX_CONNECTIONS: int = Field(100, description="최대 WebSocket 연결 수")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -40,6 +46,13 @@ class KiwoomSettings(BaseSettings):
         if self.KIWOOM_SANDBOX_MODE:
             return "https://mockapi.kiwoom.com"  # 키움 샌드박스 환경
         return "https://api.kiwoom.com"  # 키움 실전 환경
+    
+    @property
+    def kiwoom_websocket_url(self) -> str:
+        """키움 WebSocket URL"""
+        if self.KIWOOM_SANDBOX_MODE:
+            return "wss://mockapi.kiwoom.com:10000/api/dostk/websocket"  # 샌드박스
+        return "wss://api.kiwoom.com:10000/api/dostk/websocket"  # 실전
     
     @property
     def KIWOOM_APP_KEY(self) -> str:

@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const isAuthenticated = !!user && !!token;
 
@@ -67,9 +68,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     apiClient.clearAuthToken();
   };
 
+  // 클라이언트 측 하이드레이션 확인
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
   // 컴포넌트 마운트 시 저장된 토큰으로 자동 로그인 시도
   useEffect(() => {
     const initAuth = async () => {
+      // 하이드레이션이 완료된 후에만 실행
+      if (!isHydrated) return;
+      
       try {
         const storedToken = storage.get<string>('access_token');
         
@@ -85,7 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-  }, []);
+  }, [isHydrated]);
 
   // 로그인
   const login = async (username: string, password: string) => {

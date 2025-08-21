@@ -7,6 +7,7 @@ plugins {
 dependencies {
     // Platform Core Dependencies
     implementation(project(":quantum-platform-core:quantum-shared-kernel"))
+    implementation(project(":quantum-platform-core:quantum-trading-command"))
     implementation(project(":quantum-platform-core:quantum-trading-query"))
 
     // Spring Boot Web

@@ -15,7 +15,7 @@ from fastapi.responses import RedirectResponse
 
 # Handle both relative and absolute imports for different execution contexts
 try:
-    from .api import auth, chart
+    from .api import auth, chart, websocket
     from .config.settings import settings
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
@@ -23,7 +23,7 @@ except ImportError:
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
 
-    from kiwoom_api.api import auth, chart
+    from kiwoom_api.api import auth, chart, websocket
     from kiwoom_api.config.settings import settings
 
 # 로깅 설정
@@ -77,6 +77,7 @@ app.add_middleware(
 # API 라우터 등록
 app.include_router(auth.router, prefix="")
 app.include_router(chart.router, prefix="")
+app.include_router(websocket.router, prefix="")
 
 
 @app.get("/", include_in_schema=False)
