@@ -1,0 +1,21 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "kiwoom-api"
+version = "0.1.0"
+description = "Kiwoom Securities REST API Python Client"
+authors = ["Quantum Trading Platform <quantum@trading.com>"]
+readme = "README.md"
+packages = [{include = "kiwoom_api", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.104.0"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+httpx = "^0.25.0"
+pydantic = "^2.4.0"
+pydantic-settings = "^2.0.0"
+python-dotenv = "^1.0.0"
+
