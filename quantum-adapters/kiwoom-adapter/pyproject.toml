@@ -18,4 +18,11 @@ httpx = "^0.25.0"
 pydantic = "^2.4.0"
 pydantic-settings = "^2.0.0"
 python-dotenv = "^1.0.0"
+# Distributed Tracing
+opentelemetry-api = "^1.21.0"
+opentelemetry-sdk = "^1.21.0"
+opentelemetry-instrumentation-fastapi = "^0.42b0"
+opentelemetry-exporter-zipkin-json = "^1.21.0"
+# Structured Logging
+structlog = "^23.2.0"
 

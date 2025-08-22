@@ -30,9 +30,9 @@ class KiwoomSettings(BaseSettings):
     LOG_LEVEL: str = Field("INFO", description="로깅 레벨")
     
     # WebSocket 설정
-    WEBSOCKET_PING_INTERVAL: int = Field(60, description="WebSocket Ping 간격 (초)")
-    WEBSOCKET_PING_TIMEOUT: int = Field(10, description="WebSocket Ping 타임아웃 (초)")
-    WEBSOCKET_CLOSE_TIMEOUT: int = Field(10, description="WebSocket 종료 타임아웃 (초)")
+    WEBSOCKET_PING_INTERVAL: int = Field(20, description="WebSocket Ping 간격 (초)")
+    WEBSOCKET_PING_TIMEOUT: int = Field(20, description="WebSocket Ping 타임아웃 (초)")
+    WEBSOCKET_CLOSE_TIMEOUT: int = Field(15, description="WebSocket 종료 타임아웃 (초)")
     WEBSOCKET_MAX_CONNECTIONS: int = Field(100, description="최대 WebSocket 연결 수")
     
     class Config:

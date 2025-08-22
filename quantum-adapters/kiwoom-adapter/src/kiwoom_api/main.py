@@ -13,9 +13,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
+# Distributed Tracing
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.zipkin.json import ZipkinExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+# Structured Logging
+import structlog
+
 # Handle both relative and absolute imports for different execution contexts
 try:
-    from .api import auth, chart, websocket, websocket_rest, stock
+    from .api import auth, chart, stock
     from .config.settings import settings
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
@@ -23,19 +33,63 @@ except ImportError:
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
 
-    from kiwoom_api.api import auth, chart, websocket, websocket_rest, stock
+    from kiwoom_api.api import auth, chart, stock
     from kiwoom_api.config.settings import settings
 
-# 로깅 설정
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+# OpenTelemetry 설정
+def setup_tracing():
+    """분산 추적 설정 (Zipkin 서버가 없으면 비활성화)"""
+    try:
+        # Zipkin 서버 연결 테스트
+        import requests
+        zipkin_endpoint = "http://quantum-zipkin:9411/api/v2/spans"
+        requests.get("http://quantum-zipkin:9411/health", timeout=1)
+        
+        # Tracer Provider 설정
+        trace.set_tracer_provider(TracerProvider())
+        tracer = trace.get_tracer(__name__)
+        
+        # Zipkin Exporter 설정
+        zipkin_exporter = ZipkinExporter(
+            endpoint=zipkin_endpoint,
+            local_node_ipv4="127.0.0.1",
+            local_node_port=8100,
+        )
+        
+        # Span Processor 추가
+        span_processor = BatchSpanProcessor(zipkin_exporter)
+        trace.get_tracer_provider().add_span_processor(span_processor)
+        
+        return tracer
+    except:
+        # Zipkin 서버가 없으면 기본 tracer 반환 (트레이싱 비활성화)
+        trace.set_tracer_provider(TracerProvider())
+        return trace.get_tracer(__name__)
 
-logger = logging.getLogger(__name__)
+# Structured Logging 설정
+def setup_logging():
+    """구조화된 로깅 설정"""
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer()
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+# 추적 및 로깅 초기화
+tracer = setup_tracing()
+setup_logging()
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
@@ -74,11 +128,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# FastAPI 자동 계측 설정
+FastAPIInstrumentor.instrument_app(app, tracer_provider=trace.get_tracer_provider())
+
 # API 라우터 등록
 app.include_router(auth.router, prefix="")
 app.include_router(chart.router, prefix="")
-app.include_router(websocket.router, prefix="")
-app.include_router(websocket_rest.router, prefix="")
 app.include_router(stock.router, prefix="")
 
 

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from .common import KiwoomApiResponse
 
 
@@ -13,7 +13,8 @@ class TokenRequest(BaseModel):
     appkey: str = Field(..., description="키움 앱키")
     secretkey: str = Field(..., description="키움 시크릿키")
     
-    @validator("grant_type")
+    @field_validator("grant_type")
+    @classmethod
     def validate_grant_type(cls, v):
         if v != "client_credentials":
             raise ValueError("grant_type은 'client_credentials'이어야 합니다")
@@ -69,6 +70,10 @@ class CachedTokenInfo(BaseModel):
         """토큰 만료 여부 확인 (버퍼 시간 포함)"""
         buffer_time = datetime.now() + timedelta(minutes=buffer_minutes)
         return self.expires_at <= buffer_time
+    
+    def is_valid(self, buffer_minutes: int = 5) -> bool:
+        """토큰 유효성 확인 (만료되지 않았으면 유효)"""
+        return not self.is_expired(buffer_minutes)
     
     def get_token(self) -> str:
         """토큰 반환 (마스킹 없이)"""

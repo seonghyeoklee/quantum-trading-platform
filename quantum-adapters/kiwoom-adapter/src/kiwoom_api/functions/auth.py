@@ -125,6 +125,66 @@ async def fn_au10001(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         }
 
 
+async def get_valid_access_token() -> str:
+    """
+    유효한 Access Token을 반환하는 의존성 함수
+    
+    캐시된 토큰이 있고 유효하면 반환, 없으면 새로 발급
+    
+    Returns:
+        str: 유효한 access token
+        
+    Raises:
+        HTTPException: 토큰 발급 실패 시
+    """
+    try:
+        # 1. 캐시된 토큰 확인
+        cached_token = await token_cache.get_cached_token(settings.KIWOOM_APP_KEY)
+        if cached_token and cached_token.is_valid():
+            logger.info(f"✅ 캐시된 토큰 사용: {cached_token.token[:20]}...")
+            return cached_token.token
+        
+        # 2. 새 토큰 발급
+        logger.info("🔄 새 토큰 발급 중...")
+        result = await fn_au10001()
+        
+        if result['Code'] != 200:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=401, 
+                detail=f"토큰 발급 실패: {result.get('Body', {}).get('error', '알 수 없는 오류')}"
+            )
+        
+        token = result['Body'].get('token')
+        if not token:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=401, detail="토큰이 응답에 없습니다")
+        
+        logger.info(f"✅ 새 토큰 발급 성공: {token[:20]}...")
+        return token
+        
+    except Exception as e:
+        logger.error(f"❌ 토큰 발급 실패: {str(e)}")
+        from fastapi import HTTPException
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"토큰 발급 중 오류: {str(e)}")
+
+
+async def get_access_token() -> Dict[str, Any]:
+    """
+    키움 OAuth2 토큰 발급 (호환성을 위한 래퍼 함수)
+    
+    Returns:
+        Dict: 토큰 정보가 담긴 딕셔너리
+    """
+    result = await fn_au10001()
+    if result['Code'] == 200:
+        return result['Body']
+    else:
+        raise Exception(f"토큰 발급 실패: {result}")
+
+
 async def _cache_token_from_au10001_response(body: Dict[str, Any]) -> None:
     """fn_au10001 응답에서 토큰을 캐시에 저장"""
     try:
