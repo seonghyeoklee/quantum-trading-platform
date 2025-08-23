@@ -1,9 +1,10 @@
 """
 종목정보 관련 데이터 모델 (ka10001, ka10099 API)
+주식 거래주문 관련 데이터 모델 (kt10000~kt10003 API)
 키움 API 스펙에 완전히 맞춰진 최소한의 모델
 """
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 class StockInfoRequest(BaseModel):
@@ -75,3 +76,168 @@ class ProgramTradeRequest(BaseModel):
                 "stex_tp": "1"         # KRX
             }
         }
+
+
+# ============== 주식 거래주문 관련 API 모델 ==============
+
+class StockBuyOrderRequest(BaseModel):
+    """주식 매수주문 요청 모델 (kt10000)"""
+    
+    dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")
+    stk_cd: str = Field(..., max_length=12, description="종목코드")
+    ord_qty: str = Field(..., max_length=12, description="주문수량")
+    ord_uv: Optional[str] = Field("", max_length=12, description="주문단가 (시장가일 때는 공백)")
+    trde_tp: str = Field(..., max_length=2, description="매매구분")
+    cond_uv: Optional[str] = Field("", max_length=12, description="조건단가")
+    
+    @validator('dmst_stex_tp')
+    def validate_dmst_stex_tp(cls, v):
+        valid_values = ['KRX', 'NXT', 'SOR']
+        if v not in valid_values:
+            raise ValueError(f'국내거래소구분은 다음 값 중 하나여야 합니다: {", ".join(valid_values)}')
+        return v
+    
+    @validator('trde_tp')
+    def validate_trde_tp(cls, v):
+        valid_values = ['0', '3', '5', '81', '61', '62', '6', '7', '10', '13', '16', '20', '23', '26', '28', '29', '30', '31']
+        if v not in valid_values:
+            raise ValueError(f'매매구분은 다음 값 중 하나여야 합니다: {", ".join(valid_values)}')
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "dmst_stex_tp": "KRX",
+                "stk_cd": "005930", 
+                "ord_qty": "1",
+                "ord_uv": "",  # 시장가일 때 공백
+                "trde_tp": "3",  # 시장가
+                "cond_uv": ""
+            }
+        }
+
+
+class StockSellOrderRequest(BaseModel):
+    """주식 매도주문 요청 모델 (kt10001)"""
+    
+    dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")
+    stk_cd: str = Field(..., max_length=12, description="종목코드")
+    ord_qty: str = Field(..., max_length=12, description="주문수량")
+    ord_uv: Optional[str] = Field("", max_length=12, description="주문단가 (시장가일 때는 공백)")
+    trde_tp: str = Field(..., max_length=2, description="매매구분")
+    cond_uv: Optional[str] = Field("", max_length=12, description="조건단가")
+    
+    @validator('dmst_stex_tp')
+    def validate_dmst_stex_tp(cls, v):
+        valid_values = ['KRX', 'NXT', 'SOR']
+        if v not in valid_values:
+            raise ValueError(f'국내거래소구분은 다음 값 중 하나여야 합니다: {", ".join(valid_values)}')
+        return v
+    
+    @validator('trde_tp')
+    def validate_trde_tp(cls, v):
+        valid_values = ['0', '3', '5', '81', '61', '62', '6', '7', '10', '13', '16', '20', '23', '26', '28', '29', '30', '31']
+        if v not in valid_values:
+            raise ValueError(f'매매구분은 다음 값 중 하나여야 합니다: {", ".join(valid_values)}')
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "dmst_stex_tp": "KRX",
+                "stk_cd": "005930", 
+                "ord_qty": "1",
+                "ord_uv": "",  # 시장가일 때 공백
+                "trde_tp": "3",  # 시장가
+                "cond_uv": ""
+            }
+        }
+
+
+class StockModifyOrderRequest(BaseModel):
+    """주식 정정주문 요청 모델 (kt10002)"""
+    
+    dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")
+    orig_ord_no: str = Field(..., max_length=7, description="원주문번호")
+    stk_cd: str = Field(..., max_length=12, description="종목코드")
+    mdfy_qty: str = Field(..., max_length=12, description="정정수량")
+    mdfy_uv: str = Field(..., max_length=12, description="정정단가")
+    mdfy_cond_uv: Optional[str] = Field("", max_length=12, description="정정조건단가")
+    
+    @validator("dmst_stex_tp")
+    def validate_dmst_stex_tp(cls, v):
+        valid_values = ["KRX", "NXT", "SOR"]
+        if v not in valid_values:
+            raise ValueError(f"국내거래소구분은 다음 값 중 하나여야 합니다: {', '.join(valid_values)}")
+        return v
+    
+    @validator("orig_ord_no")
+    def validate_orig_ord_no(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("원주문번호는 필수입니다")
+        return v
+    
+    @validator("mdfy_qty")
+    def validate_mdfy_qty(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("정정수량은 필수입니다")
+        return v
+        
+    @validator("mdfy_uv")
+    def validate_mdfy_uv(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("정정단가는 필수입니다")
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "dmst_stex_tp": "KRX",
+                "orig_ord_no": "0000139",  # 원주문번호
+                "stk_cd": "005930",
+                "mdfy_qty": "1",           # 정정수량  
+                "mdfy_uv": "199700",       # 정정단가
+                "mdfy_cond_uv": ""         # 정정조건단가
+            }
+        }
+
+
+
+
+class StockCancelOrderRequest(BaseModel):
+    """주식 취소주문 요청 모델 (kt10003)"""
+    
+    dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")
+    orig_ord_no: str = Field(..., max_length=7, description="원주문번호")
+    stk_cd: str = Field(..., max_length=12, description="종목코드")
+    cncl_qty: str = Field(..., max_length=12, description="취소수량 (0 입력시 잔량 전부 취소)")
+    
+    @validator("dmst_stex_tp")
+    def validate_dmst_stex_tp(cls, v):
+        valid_values = ["KRX", "NXT", "SOR"]
+        if v not in valid_values:
+            raise ValueError(f"국내거래소구분은 다음 값 중 하나여야 합니다: {', '.join(valid_values)}")
+        return v
+    
+    @validator("orig_ord_no")
+    def validate_orig_ord_no(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("원주문번호는 필수입니다")
+        return v
+    
+    @validator("cncl_qty")
+    def validate_cncl_qty(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("취소수량은 필수입니다")
+        return v
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "dmst_stex_tp": "KRX",
+                "orig_ord_no": "0000140",  # 원주문번호
+                "stk_cd": "005930",
+                "cncl_qty": "1"            # 취소수량 (0=잔량전부취소)
+            }
+        }
+
