@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키움증권 실시간 WebSocket 테스트 대시보드</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .status-bar {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-connected {
+            background: #27ae60;
+        }
+        
+        .status-disconnected {
+            background: #e74c3c;
+        }
+        
+        .status-pending {
+            background: #f39c12;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .control-group h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .control-group h3::before {
+            content: "🔧";
+            margin-right: 8px;
+            font-size: 1.5rem;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+        
+        .type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .type-badge {
+            background: #e9ecef;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            user-select: none;
+        }
+        
+        .type-badge:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+        }
+        
+        .type-badge.selected {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: #5a67d8;
+        }
+        
+        .type-badge .type-code {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .type-badge .type-name {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .data-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            min-height: 400px;
+            overflow: hidden;
+        }
+        
+        .data-header {
+            background: #495057;
+            color: white;
+            padding: 15px 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .data-content {
+            padding: 20px;
+            height: 350px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #2c3e50;
+            color: #ecf0f1;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .log-entry.success {
+            border-left-color: #27ae60;
+            background: rgba(39, 174, 96, 0.1);
+        }
+        
+        .log-entry.error {
+            border-left-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+        }
+        
+        .log-entry.warning {
+            border-left-color: #f39c12;
+            background: rgba(243, 156, 18, 0.1);
+        }
+        
+        .timestamp {
+            color: #95a5a6;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            z-index: 1000;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast.error {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 키움증권 실시간 WebSocket 테스트</h1>
+            <p>18개 실시간 데이터 타입 종합 모니터링 대시보드 (100% 구현 완료)</p>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot status-disconnected" id="connectionStatus"></div>
+                <span id="connectionText">연결 대기 중</span>
+            </div>
+            <div class="status-item">
+                <span>📊 구독 중인 타입: <strong id="subscribedTypes">0</strong></span>
+            </div>
+            <div class="status-item">
+                <span>📈 수신된 메시지: <strong id="messageCount">0</strong></span>
+            </div>
+            <div class="status-item">
+                <span>⏱️ 마지막 수신: <strong id="lastReceived">-</strong></span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="control-panel">
+                <div class="control-group">
+                    <h3>WebSocket 연결 관리</h3>
+                    <div class="input-group">
+                        <label for="serverUrl">서버 URL</label>
+                        <select id="serverUrl">
+                            <option value="wss://api.kiwoom.com:10000/api/dostk/websocket">실제 서버</option>
+                            <option value="wss://mockapi.kiwoom.com:10000/api/dostk/websocket">모의투자</option>
+                            <option value="ws://localhost:8100/ws">로컬 테스트</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="accessToken">액세스 토큰 (선택)</label>
+                        <input type="text" id="accessToken" placeholder="키움 액세스 토큰 입력">
+                    </div>
+                    <button class="btn btn-success" onclick="connectWebSocket()">🔌 연결</button>
+                    <button class="btn btn-danger" onclick="disconnectWebSocket()">❌ 연결 해제</button>
+                </div>
+                
+                <div class="control-group">
+                    <h3>실시간 구독 관리</h3>
+                    <div class="input-group">
+                        <label for="symbols">종목코드 (쉼표로 구분)</label>
+                        <input type="text" id="symbols" placeholder="005930,000660,035420" value="005930,000660">
+                    </div>
+                    <div class="input-group">
+                        <label for="refresh">기존 구독 유지</label>
+                        <select id="refresh">
+                            <option value="1">유지 (권장)</option>
+                            <option value="0">해지</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="subscribeSelected()">📡 선택된 타입 구독</button>
+                    <button class="btn btn-danger" onclick="unsubscribeAll()">🚫 모든 구독 해제</button>
+                </div>
+                
+                <div class="control-group">
+                    <h3>테스트 시나리오</h3>
+                    <button class="btn" onclick="testScenario('basic')">🔰 기본 테스트</button>
+                    <button class="btn" onclick="testScenario('comprehensive')">🎯 종합 테스트</button>
+                    <button class="btn" onclick="testScenario('balance')">💰 잔고 모니터링</button>
+                    <button class="btn" onclick="testScenario('trading')">📈 거래 모니터링</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>실시간 데이터 타입 선택 (18개 타입 - 100% 구현 완료)</h3>
+                <div class="type-grid" id="typeGrid">
+                    <!-- JavaScript로 동적 생성 -->
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <button class="btn" onclick="selectAllTypes()">✅ 모두 선택</button>
+                    <button class="btn" onclick="clearAllTypes()">❌ 모두 해제</button>
+                    <button class="btn" onclick="selectPopularTypes()">🔥 인기 타입만</button>
+                </div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTypes">18</div>
+                    <div class="stat-label">전체 타입</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="selectedCount">0</div>
+                    <div class="stat-label">선택된 타입</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeSubscriptions">0</div>
+                    <div class="stat-label">활성 구독</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="dataReceived">0</div>
+                    <div class="stat-label">수신 데이터</div>
+                </div>
+            </div>
+            
+            <div class="data-panel">
+                <div class="data-header">
+                    <span>📊 실시간 데이터 스트림</span>
+                    <div>
+                        <button class="btn" onclick="clearLog()">🗑️ 로그 지우기</button>
+                        <button class="btn" onclick="toggleAutoScroll()" id="autoScrollBtn">⏸️ 자동 스크롤</button>
+                    </div>
+                </div>
+                <div class="data-content" id="dataLog">
+                    <div class="log-entry">
+                        <span class="timestamp">[시스템]</span> 키움증권 실시간 WebSocket 테스트 대시보드를 시작합니다.
+                    </div>
+                    <div class="log-entry">
+                        <span class="timestamp">[정보]</span> 18개 실시간 데이터 타입이 구현되어 있습니다.
+                    </div>
+                    <div class="log-entry warning">
+                        <span class="timestamp">[주의]</span> 실제 거래에 연결하기 전에 모의투자 서버로 충분히 테스트하세요.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>🎯 Kiwoom Securities Real-time WebSocket Test Dashboard | 18/18 Types Implemented (100% Complete)</p>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        // 키움증권 실시간 타입 정의 (18개 - 100% 완성)
+        const REALTIME_TYPES = {
+            "00": { name: "주문체결", icon: "📋", popular: true },
+            "04": { name: "잔고", icon: "💰", popular: true },
+            "0A": { name: "주식기세", icon: "📊", popular: true },
+            "0B": { name: "주식체결", icon: "⚡", popular: true },
+            "0C": { name: "주식우선호가", icon: "🎯", popular: false },
+            "0D": { name: "주식호가잔량", icon: "📈", popular: true },
+            "0E": { name: "주식시간외호가", icon: "🌙", popular: false },
+            "0F": { name: "주식당일거래원", icon: "🏢", popular: false },
+            "0G": { name: "ETF NAV", icon: "🎁", popular: false },
+            "0H": { name: "주식예상체결", icon: "🔮", popular: false },
+            "0J": { name: "업종지수", icon: "📊", popular: false },
+            "0U": { name: "업종등락", icon: "📊", popular: false },
+            "0g": { name: "주식종목정보", icon: "ℹ️", popular: false },
+            "0m": { name: "ELW 이론가", icon: "🧮", popular: false },
+            "0s": { name: "장시작시간", icon: "⏰", popular: false },
+            "0u": { name: "ELW 지표", icon: "📏", popular: false },
+            "0w": { name: "종목프로그램매매", icon: "🤖", popular: true },
+            "1h": { name: "VI발동/해제", icon: "⚠️", popular: true }
+        };
+        
+        // 전역 변수
+        let websocket = null;
+        let selectedTypes = new Set();
+        let messageCount = 0;
+        let autoScroll = true;
+        let connectionStartTime = null;
+        
+        // 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTypeGrid();
+            updateStats();
+            logMessage('시스템', '대시보드 초기화 완료. 연결을 시작하세요.', 'success');
+        });
+        
+        // 타입 그리드 초기화
+        function initializeTypeGrid() {
+            const grid = document.getElementById('typeGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(REALTIME_TYPES).forEach(([code, info]) => {
+                const badge = document.createElement('div');
+                badge.className = 'type-badge';
+                badge.dataset.code = code;
+                badge.innerHTML = `
+                    <div class="type-code">${info.icon} ${code}</div>
+                    <div class="type-name">${info.name}</div>
+                `;
+                badge.addEventListener('click', () => toggleType(code));
+                grid.appendChild(badge);
+            });
+        }
+        
+        // 타입 선택/해제
+        function toggleType(code) {
+            const badge = document.querySelector(`[data-code="${code}"]`);
+            if (selectedTypes.has(code)) {
+                selectedTypes.delete(code);
+                badge.classList.remove('selected');
+            } else {
+                selectedTypes.add(code);
+                badge.classList.add('selected');
+            }
+            updateStats();
+        }
+        
+        // 모든 타입 선택
+        function selectAllTypes() {
+            Object.keys(REALTIME_TYPES).forEach(code => {
+                selectedTypes.add(code);
+                document.querySelector(`[data-code="${code}"]`).classList.add('selected');
+            });
+            updateStats();
+            showToast('모든 타입이 선택되었습니다.', 'success');
+        }
+        
+        // 모든 타입 해제
+        function clearAllTypes() {
+            selectedTypes.clear();
+            document.querySelectorAll('.type-badge').forEach(badge => {
+                badge.classList.remove('selected');
+            });
+            updateStats();
+            showToast('모든 선택이 해제되었습니다.', 'info');
+        }
+        
+        // 인기 타입만 선택
+        function selectPopularTypes() {
+            clearAllTypes();
+            Object.entries(REALTIME_TYPES).forEach(([code, info]) => {
+                if (info.popular) {
+                    selectedTypes.add(code);
+                    document.querySelector(`[data-code="${code}"]`).classList.add('selected');
+                }
+            });
+            updateStats();
+            showToast('인기 타입이 선택되었습니다.', 'success');
+        }
+        
+        // 통계 업데이트
+        function updateStats() {
+            document.getElementById('selectedCount').textContent = selectedTypes.size;
+            document.getElementById('subscribedTypes').textContent = selectedTypes.size;
+            document.getElementById('dataReceived').textContent = messageCount;
+        }
+        
+        // WebSocket 연결
+        function connectWebSocket() {
+            const url = document.getElementById('serverUrl').value;
+            const token = document.getElementById('accessToken').value;
+            
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                showToast('이미 연결되어 있습니다.', 'warning');
+                return;
+            }
+            
+            try {
+                websocket = new WebSocket(url);
+                connectionStartTime = new Date();
+                
+                websocket.onopen = function(event) {
+                    updateConnectionStatus(true);
+                    logMessage('WebSocket', '연결 성공', 'success');
+                    
+                    // 로그인 시도
+                    if (token) {
+                        const loginMessage = {
+                            trnm: 'LOGIN',
+                            token: token
+                        };
+                        websocket.send(JSON.stringify(loginMessage));
+                        logMessage('로그인', '토큰으로 로그인 시도', 'info');
+                    }
+                    
+                    showToast('WebSocket 연결 성공!', 'success');
+                };
+                
+                websocket.onmessage = function(event) {
+                    handleMessage(event.data);
+                };
+                
+                websocket.onclose = function(event) {
+                    updateConnectionStatus(false);
+                    logMessage('WebSocket', `연결 종료 (코드: ${event.code})`, 'warning');
+                    showToast('WebSocket 연결이 종료되었습니다.', 'warning');
+                };
+                
+                websocket.onerror = function(error) {
+                    logMessage('오류', `WebSocket 오류: ${error}`, 'error');
+                    showToast('WebSocket 연결 오류가 발생했습니다.', 'error');
+                };
+                
+            } catch (error) {
+                logMessage('오류', `연결 실패: ${error}`, 'error');
+                showToast('연결에 실패했습니다.', 'error');
+            }
+        }
+        
+        // WebSocket 연결 해제
+        function disconnectWebSocket() {
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+                updateConnectionStatus(false);
+                logMessage('WebSocket', '연결을 종료했습니다.', 'info');
+                showToast('연결이 해제되었습니다.', 'info');
+            }
+        }
+        
+        // 메시지 처리
+        function handleMessage(data) {
+            try {
+                const message = JSON.parse(data);
+                messageCount++;
+                
+                document.getElementById('lastReceived').textContent = new Date().toLocaleTimeString();
+                document.getElementById('messageCount').textContent = messageCount;
+                
+                // 메시지 타입별 처리
+                switch (message.trnm) {
+                    case 'LOGIN':
+                        if (message.return_code === 0) {
+                            logMessage('로그인', '✅ 로그인 성공', 'success');
+                        } else {
+                            logMessage('로그인', `❌ 로그인 실패: ${message.return_msg}`, 'error');
+                        }
+                        break;
+                    
+                    case 'REG':
+                        if (message.return_code === 0) {
+                            logMessage('구독', '✅ 실시간 구독 등록 성공', 'success');
+                        } else {
+                            logMessage('구독', `❌ 구독 실패: ${message.return_msg}`, 'error');
+                        }
+                        break;
+                    
+                    case 'REMOVE':
+                        logMessage('구독', '🚫 실시간 구독 해제', 'info');
+                        break;
+                    
+                    case 'REAL':
+                        handleRealtimeData(message);
+                        break;
+                    
+                    case 'PING':
+                        // PING에 대한 응답 (자동으로 처리)
+                        websocket.send(JSON.stringify(message));
+                        logMessage('핑', '🏓 PING/PONG', 'info');
+                        break;
+                    
+                    default:
+                        logMessage('기타', `📨 ${message.trnm}: ${JSON.stringify(message).substring(0, 100)}...`, 'info');
+                }
+                
+                updateStats();
+                
+            } catch (error) {
+                logMessage('오류', `메시지 파싱 실패: ${error}`, 'error');
+            }
+        }
+        
+        // 실시간 데이터 처리
+        function handleRealtimeData(message) {
+            if (message.data && message.data.length > 0) {
+                message.data.forEach(item => {
+                    const typeInfo = REALTIME_TYPES[item.type];
+                    const typeName = typeInfo ? typeInfo.name : '알수없음';
+                    const icon = typeInfo ? typeInfo.icon : '📊';
+                    
+                    logMessage(
+                        '실시간',
+                        `${icon} [${item.type}:${typeName}] ${item.item} | ${Object.keys(item.values || {}).length}개 필드`,
+                        'success'
+                    );
+                    
+                    // 주요 필드 표시
+                    const values = item.values || {};
+                    const importantFields = ['10', '302', '930', '931']; // 현재가, 종목명, 보유수량, 매입단가
+                    const displayFields = importantFields
+                        .filter(field => values[field])
+                        .map(field => `${field}:${values[field]}`)
+                        .join(' | ');
+                    
+                    if (displayFields) {
+                        logMessage('데이터', `  └ ${displayFields}`, 'info');
+                    }
+                });
+            }
+        }
+        
+        // 연결 상태 업데이트
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            
+            if (connected) {
+                statusDot.className = 'status-dot status-connected';
+                statusText.textContent = '연결됨';
+            } else {
+                statusDot.className = 'status-dot status-disconnected';
+                statusText.textContent = '연결 안됨';
+            }
+        }
+        
+        // 선택된 타입 구독
+        function subscribeSelected() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                showToast('먼저 WebSocket에 연결하세요.', 'error');
+                return;
+            }
+            
+            if (selectedTypes.size === 0) {
+                showToast('구독할 타입을 선택하세요.', 'warning');
+                return;
+            }
+            
+            const symbols = document.getElementById('symbols').value.split(',').map(s => s.trim());
+            const refresh = document.getElementById('refresh').value;
+            
+            const subscribeMessage = {
+                trnm: 'REG',
+                grp_no: '1',
+                refresh: refresh,
+                data: [{
+                    item: symbols,
+                    type: Array.from(selectedTypes)
+                }]
+            };
+            
+            websocket.send(JSON.stringify(subscribeMessage));
+            logMessage('구독', `📡 ${selectedTypes.size}개 타입 구독 요청: [${Array.from(selectedTypes).join(', ')}]`, 'info');
+            showToast(`${selectedTypes.size}개 타입 구독 요청 전송`, 'success');
+        }
+        
+        // 모든 구독 해제
+        function unsubscribeAll() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                showToast('WebSocket이 연결되어 있지 않습니다.', 'error');
+                return;
+            }
+            
+            const unsubscribeMessage = {
+                trnm: 'REMOVE',
+                grp_no: '1'
+            };
+            
+            websocket.send(JSON.stringify(unsubscribeMessage));
+            logMessage('구독', '🚫 모든 구독 해제 요청', 'warning');
+            showToast('모든 구독 해제 요청 전송', 'info');
+        }
+        
+        // 테스트 시나리오
+        function testScenario(scenario) {
+            clearAllTypes();
+            
+            switch (scenario) {
+                case 'basic':
+                    ['00', '0A', '0D'].forEach(code => {
+                        selectedTypes.add(code);
+                        document.querySelector(`[data-code="${code}"]`).classList.add('selected');
+                    });
+                    document.getElementById('symbols').value = '005930';
+                    showToast('기본 테스트 시나리오 설정 완료', 'success');
+                    break;
+                
+                case 'comprehensive':
+                    selectPopularTypes();
+                    document.getElementById('symbols').value = '005930,000660,035420,207940';
+                    showToast('종합 테스트 시나리오 설정 완료', 'success');
+                    break;
+                
+                case 'balance':
+                    ['04', '00'].forEach(code => {
+                        selectedTypes.add(code);
+                        document.querySelector(`[data-code="${code}"]`).classList.add('selected');
+                    });
+                    document.getElementById('symbols').value = '';
+                    showToast('잔고 모니터링 시나리오 설정 완료', 'success');
+                    break;
+                
+                case 'trading':
+                    ['0B', '0w', '1h'].forEach(code => {
+                        selectedTypes.add(code);
+                        document.querySelector(`[data-code="${code}"]`).classList.add('selected');
+                    });
+                    document.getElementById('symbols').value = '005930,000660';
+                    showToast('거래 모니터링 시나리오 설정 완료', 'success');
+                    break;
+            }
+            
+            updateStats();
+        }
+        
+        // 로그 메시지 추가
+        function logMessage(category, message, type = 'info') {
+            const log = document.getElementById('dataLog');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `
+                <span class="timestamp">[${timestamp}] [${category}]</span> ${message}
+            `;
+            
+            log.appendChild(entry);
+            
+            if (autoScroll) {
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+        
+        // 로그 지우기
+        function clearLog() {
+            document.getElementById('dataLog').innerHTML = '';
+            messageCount = 0;
+            updateStats();
+            showToast('로그가 지워졌습니다.', 'info');
+        }
+        
+        // 자동 스크롤 토글
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            btn.textContent = autoScroll ? '⏸️ 자동 스크롤' : '▶️ 자동 스크롤';
+            showToast(autoScroll ? '자동 스크롤 활성화' : '자동 스크롤 비활성화', 'info');
+        }
+        
+        // 토스트 메시지
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 키보드 단축키
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        connectWebSocket();
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        disconnectWebSocket();
+                        break;
+                    case 'a':
+                        e.preventDefault();
+                        selectAllTypes();
+                        break;
+                    case 'c':
+                        e.preventDefault();
+                        clearAllTypes();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
