@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     @Override
     protected void doFilterInternal(
@@ -42,8 +44,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 1. 요청에서 JWT 토큰 추출
             String token = extractTokenFromRequest(request);
             
-            // 2. 토큰이 있고 유효한지 검증
-            if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
+            // 2. 토큰이 있고 유효한지 검증 (블랙리스트 확인 포함)
+            if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token) && !isTokenBlacklisted(token)) {
                 
                 // 3. 토큰에서 인증 정보 생성
                 Authentication authentication = jwtTokenProvider.getAuthentication(token);
@@ -58,6 +60,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                              principal.getUsername(), 
                              principal.getAuthorities());
                 }
+            } else if (StringUtils.hasText(token) && isTokenBlacklisted(token)) {
+                log.warn("Blacklisted token attempted to access: {}", request.getRequestURI());
             }
             
         } catch (Exception e) {
@@ -77,8 +81,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Authorization 헤더에서 토큰 추출
         String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
         
+        // 디버깅용 로그 추가
+        log.debug("[JWT Filter] Request URI: {}, Authorization header: {}", 
+                 request.getRequestURI(), 
+                 bearerToken != null ? bearerToken.substring(0, Math.min(20, bearerToken.length())) + "..." : "NULL");
+        
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
-            return bearerToken.substring(BEARER_PREFIX.length());
+            String token = bearerToken.substring(BEARER_PREFIX.length());
+            log.debug("[JWT Filter] Extracted token: {}...", token.substring(0, Math.min(20, token.length())));
+            return token;
+        } else {
+            log.debug("[JWT Filter] No valid Bearer token found in Authorization header");
         }
         
         // 쿠키에서 토큰 추출 (선택적)
@@ -95,14 +108,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
+     * 토큰 블랙리스트 확인
+     */
+    private boolean isTokenBlacklisted(String token) {
+        try {
+            String blacklistKey = "blacklist_token:" + token;
+            return redisTemplate.hasKey(blacklistKey);
+        } catch (Exception e) {
+            log.error("Failed to check token blacklist: {}", e.getMessage());
+            return false; // Redis 연결 실패 시 토큰을 유효한 것으로 처리
+        }
+    }
+
+    /**
      * 필터를 건너뛸 경로 판단 (성능 최적화)
      */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
         
-        // 인증이 필요없는 경로들
-        return path.startsWith("/api/auth/") ||
+        // 인증이 필요없는 경로들 (로그인, 토큰 갱신 등)
+        return path.equals("/api/v1/auth/login") ||
+               path.equals("/api/v1/auth/refresh") ||
+               path.equals("/api/v1/auth/logout") ||
                path.startsWith("/swagger-ui/") ||
                path.startsWith("/v3/api-docs/") ||
                path.equals("/api/health") ||

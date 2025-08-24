@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.5rem;
+  
+  /* Light Mode - Clean Professional */
+  --background: 255 255 255;           /* Pure white #ffffff */
+  --foreground: 36 41 47;              /* Clean dark text #24292f */
+  --card: 255 255 255;                 /* White cards #ffffff */
+  --card-foreground: 36 41 47;         /* Clean card text */
+  --popover: 255 255 255;
+  --popover-foreground: 36 41 47;
+  
+  /* Primary - Professional Blue */
+  --primary: 9 105 218;                /* GitHub blue #0969da */
+  --primary-foreground: 255 255 255;
+  
+  /* Secondary - Clean Light Gray */
+  --secondary: 246 248 250;            /* Clean light gray #f6f8fa */
+  --secondary-foreground: 101 109 118; /* Medium gray text #656d76 */
+  
+  /* Muted - Soft Background */
+  --muted: 246 248 250;                /* Soft gray #f6f8fa */
+  --muted-foreground: 101 109 118;     /* Muted text #656d76 */
+  
+  /* Accent - Subtle Highlight */
+  --accent: 246 248 250;               /* Light accent #f6f8fa */
+  --accent-foreground: 36 41 47;       /* Dark accent text */
+  
+  /* Destructive - Clean Red */
+  --destructive: 218 54 51;            /* Clean red #da3633 */
+  --destructive-foreground: 255 255 255;
+  --border: 208 215 222;               /* Light border #d0d7de */
+  --input: 246 248 250;                /* Input background #f6f8fa */
+  --ring: 9 105 218;                   /* Focus ring blue */
+  
+  /* Financial Trading Colors - Clean Professional */
+  --bull-green: 26 175 68;      /* Clean Bull Green #1aaf44 */
+  --bear-red: 218 54 51;        /* Clean Bear Red #da3633 */
+  --warning-amber: 251 189 35;  /* Clean Warning #fbbd23 */
+  --info-blue: 9 105 218;       /* Clean Info Blue #0969da */
+  --success-emerald: 26 175 68; /* Clean Success #1aaf44 */
+  
+  /* Chart Colors - Clean Professional Palette */
+  --chart-1: 9 105 218;         /* Clean Blue #0969da */
+  --chart-2: 26 175 68;         /* Clean Bull Green #1aaf44 */
+  --chart-3: 218 54 51;         /* Clean Bear Red #da3633 */
+  --chart-4: 251 189 35;        /* Clean Warning #fbbd23 */
+  --chart-5: 130 80 223;        /* Clean Purple #8250df */
+  --chart-6: 31 136 201;        /* Clean Cyan #1f88c9 */
+  --chart-7: 218 54 115;        /* Clean Pink #da3673 */
+  --chart-8: 87 171 39;         /* Clean Lime #57ab27 */
+  
+  /* Sidebar - Clean Professional Light */
+  --sidebar: 246 248 250;              /* Clean sidebar background #f6f8fa */
+  --sidebar-foreground: 36 41 47;      /* Clean sidebar text #24292f */
+  --sidebar-primary: 9 105 218;        /* Clean sidebar primary #0969da */
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 246 248 250;       /* Clean sidebar accent #f6f8fa */
+  --sidebar-accent-foreground: 101 109 118; /* Clean accent text #656d76 */
+  --sidebar-border: 208 215 222;       /* Clean sidebar border #d0d7de */
+  --sidebar-ring: 9 105 218;
+}
+
+.dark {
+  /* Dark Mode - Pure Black & Cool Gray */
+  --background: 32 33 36;              /* Discord dark background #202124 */
+  --foreground: 220 221 222;           /* Pure light text #dcddde */
+  --card: 54 57 63;                    /* Cool dark card #36393f */
+  --card-foreground: 220 221 222;      /* Clean card text */
+  --popover: 54 57 63;
+  --popover-foreground: 220 221 222;
+  
+  /* Primary - Discord Blue */
+  --primary: 88 101 242;               /* Discord blue #5865f2 */
+  --primary-foreground: 255 255 255;
+  
+  /* Secondary - Dark Panels */
+  --secondary: 47 49 54;               /* Dark secondary #2f3136 */
+  --secondary-foreground: 185 187 190; /* Light secondary text #b9bbbe */
+  
+  /* Muted - Very Dark Panels */
+  --muted: 47 49 54;                   /* Dark muted #2f3136 */
+  --muted-foreground: 142 146 151;     /* Muted text #8e9297 */
+  
+  /* Accent - Dark Accent */
+  --accent: 66 70 77;                  /* Dark accent #42464d */
+  --accent-foreground: 220 221 222;    /* Light accent text */
+  
+  /* Destructive - Discord Red */
+  --destructive: 237 66 69;            /* Discord red #ed4245 */
+  --destructive-foreground: 255 255 255;
+  --border: 79 84 92;                  /* Cool border #4f545c */
+  --input: 64 68 75;                   /* Dark input background #40444b */
+  --ring: 88 101 242;                  /* Discord focus ring */
+  
+  /* Financial Trading Colors - Discord Dark Style */
+  --bull-green: 87 242 135;     /* Discord green #57f287 */
+  --bear-red: 237 66 69;        /* Discord red #ed4245 */
+  --warning-amber: 254 231 92;  /* Discord yellow #fee75c */
+  --info-blue: 88 101 242;      /* Discord blue #5865f2 */
+  --success-emerald: 87 242 135; /* Discord success green */
+  
+  /* Chart Colors - Discord Dark Style */
+  --chart-1: 88 101 242;         /* Discord Blue #5865f2 */
+  --chart-2: 87 242 135;         /* Discord Green #57f287 */
+  --chart-3: 237 66 69;          /* Discord Red #ed4245 */
+  --chart-4: 254 231 92;         /* Discord Yellow #fee75c */
+  --chart-5: 180 131 255;        /* Discord Purple #b483ff */
+  --chart-6: 0 198 255;          /* Discord Cyan #00c6ff */
+  --chart-7: 255 115 250;        /* Discord Pink #ff73fa */
+  --chart-8: 128 255 128;        /* Discord Lime #80ff80 */
+  
+  /* Sidebar - Discord Dark Style */
+  --sidebar: 47 49 54;                 /* Discord sidebar #2f3136 */
+  --sidebar-foreground: 220 221 222;   /* Discord sidebar text #dcddde */
+  --sidebar-primary: 88 101 242;       /* Discord sidebar primary #5865f2 */
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 54 57 63;          /* Discord sidebar accent #36393f */
+  --sidebar-accent-foreground: 185 187 190; /* Light accent text #b9bbbe */
+  --sidebar-border: 79 84 92;          /* Discord sidebar border #4f545c */
+  --sidebar-ring: 88 101 242;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Financial Trading Utilities */
+@layer utilities {
+  .text-bull {
+    color: rgb(var(--bull-green));
+  }
+  
+  .text-bear {
+    color: rgb(var(--bear-red));
+  }
+  
+  .bg-bull {
+    background-color: rgb(var(--bull-green));
+  }
+  
+  .bg-bear {
+    background-color: rgb(var(--bear-red));
+  }
+  
+  .border-bull {
+    border-color: rgb(var(--bull-green));
+  }
+  
+  .border-bear {
+    border-color: rgb(var(--bear-red));
+  }
+  
+  /* Professional Financial Card Styles */
+  .trading-card {
+    @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-lg transition-all duration-200;
+    background: linear-gradient(135deg, rgb(var(--card)), rgb(var(--card) / 0.95));
+  }
+  
+  .trading-card:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--primary) / 0.2);
+  }
+  
+  .trading-card-header {
+    @apply px-6 py-4 border-b border-border;
+    background: linear-gradient(135deg, rgb(var(--muted) / 0.5), rgb(var(--muted) / 0.3));
+  }
+  
+  .trading-card-content {
+    @apply px-6 py-4;
+  }
+  
+  /* Data Table Styles */
+  .data-table {
+    @apply w-full border-collapse border border-border rounded-lg overflow-hidden;
+  }
+  
+  .data-table th {
+    @apply bg-muted/50 px-4 py-3 text-left text-sm font-semibold text-muted-foreground border-b border-border;
+  }
+  
+  .data-table td {
+    @apply px-4 py-3 text-sm border-b border-border last:border-b-0;
+  }
+  
+  .data-table tr:hover {
+    @apply bg-muted/30;
+  }
+  
+  /* Chart Container */
+  .chart-container {
+    @apply bg-card rounded-lg border border-border p-6 shadow-lg;
+    background: linear-gradient(135deg, rgb(var(--card)), rgb(var(--card) / 0.98));
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Professional Button Variants */
+  .btn-trading {
+    @apply px-4 py-2 rounded-md font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+  
+  .btn-buy {
+    @apply btn-trading text-white hover:shadow-lg transition-all duration-200;
+    background: linear-gradient(135deg, rgb(var(--bull-green)), rgb(var(--success-emerald)));
+    box-shadow: 0 2px 4px rgb(var(--bull-green) / 0.2);
+  }
+  
+  .btn-buy:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(var(--bull-green) / 0.3);
+  }
+  
+  .btn-sell {
+    @apply btn-trading text-white hover:shadow-lg transition-all duration-200;
+    background: linear-gradient(135deg, rgb(var(--bear-red)), rgb(var(--destructive)));
+    box-shadow: 0 2px 4px rgb(var(--bear-red) / 0.2);
+  }
+  
+  .btn-sell:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(var(--bear-red) / 0.3);
+  }
+  
+  /* Status Indicators */
+  .status-indicator {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-active {
+    @apply status-indicator;
+    background: linear-gradient(135deg, rgb(var(--success-emerald) / 0.1), rgb(var(--bull-green) / 0.1));
+    color: rgb(var(--success-emerald));
+    border: 1px solid rgb(var(--success-emerald) / 0.2);
+  }
+  
+  .status-pending {
+    @apply status-indicator;
+    background: linear-gradient(135deg, rgb(var(--warning-amber) / 0.1), rgb(var(--warning-amber) / 0.15));
+    color: rgb(var(--warning-amber));
+    border: 1px solid rgb(var(--warning-amber) / 0.2);
+  }
+  
+  .status-inactive {
+    @apply status-indicator;
+    background: linear-gradient(135deg, rgb(var(--destructive) / 0.1), rgb(var(--bear-red) / 0.1));
+    color: rgb(var(--destructive));
+    border: 1px solid rgb(var(--destructive) / 0.2);
+  }
+}

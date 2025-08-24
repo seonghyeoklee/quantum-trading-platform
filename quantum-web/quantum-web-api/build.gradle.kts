@@ -44,6 +44,13 @@ dependencies {
     // API Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0")
 
+    // Distributed Tracing (Zipkin)
+    implementation("io.micrometer:micrometer-tracing-bridge-brave")
+    implementation("io.zipkin.reporter2:zipkin-reporter-brave")
+    
+    // Structured Logging (JSON)
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+
     // Development
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 

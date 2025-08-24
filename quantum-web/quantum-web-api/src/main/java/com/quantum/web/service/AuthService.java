@@ -13,6 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import jakarta.annotation.PostConstruct;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -110,7 +112,7 @@ public class AuthService {
     /**
      * 사용자 인증 및 토큰 발급 (Event-Driven 방식)
      */
-    public AuthResult authenticateUser(String username, String password) {
+    public AuthResult authenticateUser(String username, String password, HttpServletRequest request) {
         log.info("Attempting authentication for user: {}", username);
         
         // 디버깅을 위해 사용자 존재 여부 확인
@@ -147,8 +149,8 @@ public class AuthService {
         
         // 세션 ID 생성
         String sessionId = "SESSION-" + UUID.randomUUID().toString();
-        String clientIp = getCurrentClientIp(); // 실제 구현에서는 HttpServletRequest에서 IP 추출
-        String userAgent = getCurrentUserAgent(); // 실제 구현에서는 HttpServletRequest에서 User-Agent 추출
+        String clientIp = extractClientIp(request);
+        String userAgent = extractUserAgent(request);
         
         try {
             // 저장된 사용자의 실제 비밀번호 해시를 사용하여 검증
@@ -214,19 +216,41 @@ public class AuthService {
     }
     
     /**
-     * 현재 클라이언트 IP 조회 (임시 구현)
+     * HttpServletRequest에서 클라이언트 IP 추출
      */
-    private String getCurrentClientIp() {
-        // 실제 구현에서는 HttpServletRequest에서 IP 추출
-        return "127.0.0.1";
+    private String extractClientIp(HttpServletRequest request) {
+        // 프록시를 통한 요청인 경우 원본 IP 확인
+        String clientIp = request.getHeader("X-Forwarded-For");
+        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+            clientIp = request.getHeader("Proxy-Client-IP");
+        }
+        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+            clientIp = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+            clientIp = request.getHeader("HTTP_CLIENT_IP");
+        }
+        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+            clientIp = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+            clientIp = request.getRemoteAddr();
+        }
+        
+        // X-Forwarded-For 헤더에서 첫 번째 IP만 추출 (체인된 경우)
+        if (clientIp != null && clientIp.contains(",")) {
+            clientIp = clientIp.split(",")[0].trim();
+        }
+        
+        return clientIp != null ? clientIp : "unknown";
     }
     
     /**
-     * 현재 사용자 에이전트 조회 (임시 구현)
+     * HttpServletRequest에서 User-Agent 추출
      */
-    private String getCurrentUserAgent() {
-        // 실제 구현에서는 HttpServletRequest에서 User-Agent 추출
-        return "Quantum-Trading-Platform/1.0";
+    private String extractUserAgent(HttpServletRequest request) {
+        String userAgent = request.getHeader("User-Agent");
+        return userAgent != null ? userAgent : "unknown";
     }
 
     /**
@@ -271,16 +295,15 @@ public class AuthService {
     /**
      * 토큰 무효화 (로그아웃) - Event-Driven 방식
      */
-    public void invalidateToken(String token) {
+    public void invalidateToken(String token, HttpServletRequest request) {
         try {
             String userId = jwtTokenProvider.getUserIdFromToken(token);
             String username = jwtTokenProvider.getUsernameFromToken(token);
             
-            // Query Side에서 사용자 세션 정보 조회
-            UserQueryService.UserSessionInfo sessionInfo = userQueryService.findSessionInfo(token)
-                    .orElse(null);
-            
-            String sessionId = sessionInfo != null ? "SESSION-FROM-TOKEN" : "UNKNOWN-SESSION";
+            // Query Side에서 사용자 정보 조회하여 활성 세션 ID 가져오기
+            String sessionId = userQueryService.findById(userId)
+                    .map(userView -> userView.getActiveSessionId())
+                    .orElse("UNKNOWN-SESSION");
             
             // Command를 통한 로그아웃 처리
             try {
@@ -288,7 +311,7 @@ public class AuthService {
                         .userId(UserId.of(userId))
                         .sessionId(sessionId)
                         .reason("USER_LOGOUT")
-                        .ipAddress(getCurrentClientIp())
+                        .ipAddress(extractClientIp(request))
                         .build();
                 
                 commandGateway.sendAndWait(logoutCommand);

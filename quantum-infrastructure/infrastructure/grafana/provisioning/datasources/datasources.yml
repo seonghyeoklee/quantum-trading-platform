@@ -7,3 +7,25 @@ datasources:
     url: http://quantum-prometheus:9090
     isDefault: true
     editable: true
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://quantum-loki:3100
+    isDefault: false
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: zipkin
+          matcherRegex: "traceId=(\\w+)"
+          name: "TraceID"
+          url: "$${__value.raw}"
+
+  - name: Zipkin
+    type: zipkin
+    access: proxy
+    url: http://quantum-zipkin:9411
+    uid: zipkin
+    isDefault: false
+    editable: true

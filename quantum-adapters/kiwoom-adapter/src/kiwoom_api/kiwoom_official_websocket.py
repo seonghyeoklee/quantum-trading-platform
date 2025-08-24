@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-키움증권 공식 가이드 기반 WebSocket 실시간 시세 클라이언트
+키움증권 공식 가이드 기반 WebSocket 실시간 시세 클라이언트 (Legacy)
+
+⚠️ 이 파일은 하위 호환성을 위해 유지되며, 새로운 구조의 래퍼입니다.
+새로운 개발은 realtime.client.RealtimeClient를 사용하세요.
 
 공식 문서 기준으로 구현:
 - 서버: wss://api.kiwoom.com:10000/api/dostk/websocket
@@ -9,226 +12,207 @@
 """
 
 import asyncio
-import websockets
-import json
 import sys
 import os
 from pathlib import Path
+from typing import Dict, Any, List
 
 # 환경 설정 로드 (상대 경로 import)
 try:
-    from .config.settings import settings
-    from .functions.auth import get_access_token
+    from .realtime.client import RealtimeClient
+    from .realtime.models.realtime_data import RealtimeResponse
 except ImportError:
     # 직접 실행 시 절대 경로 import
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from kiwoom_api.config.settings import settings
-    from kiwoom_api.functions.auth import get_access_token
+    # 프로젝트 루트를 PYTHONPATH에 추가
+    project_root = Path(__file__).parent.parent.parent
+    sys.path.insert(0, str(project_root / 'src'))
+    
+    # .env 파일 로드를 위한 경로 설정
+    os.chdir(project_root)
+    
+    from kiwoom_api.realtime.client import RealtimeClient
+    from kiwoom_api.realtime.models.realtime_data import RealtimeResponse
 
 # 키움 공식 WebSocket 서버 URL
 SOCKET_URL = 'wss://api.kiwoom.com:10000/api/dostk/websocket'
 
+
 class KiwoomWebSocketClient:
-    """키움증권 공식 가이드 기반 WebSocket 클라이언트"""
+    """키움증권 공식 가이드 기반 WebSocket 클라이언트 (Legacy Wrapper)
+    
+    ⚠️ 하위 호환성을 위한 래퍼 클래스입니다.
+    새로운 기능 개발은 RealtimeClient를 직접 사용하세요.
+    """
     
     def __init__(self, uri):
         self.uri = uri
+        self._client = RealtimeClient(uri)
+        
+        # Legacy 호환성을 위한 속성들
         self.websocket = None
         self.connected = False
         self.keep_running = True
         self.access_token = None
         
+        # 새로운 클라이언트의 상태를 동기화하는 콜백 설정
+        self._client.add_connection_callback(self._sync_connection_state)
+        
+    def _sync_connection_state(self, connected: bool):
+        """연결 상태 동기화"""
+        self.connected = connected
+        self.websocket = self._client.websocket if connected else None
+        self.access_token = self._client.access_token
+        
     async def get_access_token(self):
-        """액세스 토큰 획득"""
-        try:
-            print("🔑 액세스 토큰 획득 중...")
-            token_response = await get_access_token()
-            self.access_token = token_response.get('token')
-            if self.access_token:
-                print(f"✅ 토큰 획득 성공: {self.access_token[:20]}...")
-            return self.access_token
-        except Exception as e:
-            print(f"❌ 토큰 획득 실패: {e}")
-            return None
+        """액세스 토큰 획득 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
+        token = await self._client.get_access_token()
+        self.access_token = token
+        return token
     
     async def connect(self):
-        """웹소켓 서버에 연결"""
-        try:
-            print("🔌 서버와 연결을 시도 중입니다.")
-            self.websocket = await websockets.connect(self.uri)
-            self.connected = True
-            print("✅ WebSocket 연결 성공!")
-            
-            # 액세스 토큰 획득
-            if not self.access_token:
-                await self.get_access_token()
-            
-            if not self.access_token:
-                raise Exception("액세스 토큰이 필요합니다")
-            
-            # 로그인 패킷 전송 (공식 가이드 방식)
-            login_packet = {
-                'trnm': 'LOGIN',
-                'token': self.access_token
-            }
-            
-            print('🔑 실시간 시세 서버로 로그인 패킷을 전송합니다.')
-            await self.send_message(message=login_packet)
-            
-        except Exception as e:
-            print(f'❌ Connection error: {e}')
-            self.connected = False
+        """웹소켓 서버에 연결 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
+        success = await self._client.connect()
+        return success
     
     async def send_message(self, message):
-        """서버에 메시지 전송"""
-        if not self.connected:
-            await self.connect()  # 연결이 끊어졌다면 재연결
-            
-        if self.connected and self.websocket:
+        """서버에 메시지 전송 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
+        
+        # 딕셔너리가 아니면 변환
+        if isinstance(message, str):
+            import json
             try:
-                # message가 문자열이 아니면 JSON으로 직렬화
-                if not isinstance(message, str):
-                    message = json.dumps(message, ensure_ascii=False)
+                message = json.loads(message)
+            except json.JSONDecodeError:
+                print("❌ 잘못된 JSON 형식")
+                return False
                 
-                await self.websocket.send(message)
-                
-                # PING 메시지가 아닌 경우만 출력
-                if not (isinstance(message, str) and 'PING' in message):
-                    print(f'📤 Message sent: {message}')
-                    
-            except Exception as e:
-                print(f'❌ Send error: {e}')
-                self.connected = False
+        return await self._client.send_message(message)
     
     async def receive_messages(self):
-        """서버에서 메시지 수신 및 처리"""
-        while self.keep_running and self.connected:
-            try:
-                # 서버로부터 수신한 메시지를 JSON 형식으로 파싱
-                message_str = await self.websocket.recv()
-                response = json.loads(message_str)
-                
-                # 메시지 유형별 처리
-                trnm = response.get('trnm')
-                
-                if trnm == 'LOGIN':
-                    await self.handle_login_response(response)
-                elif trnm == 'PING':
-                    await self.handle_ping(response)
-                elif trnm == 'REAL':
-                    await self.handle_real_data(response)
-                elif trnm in ['REG', 'REMOVE']:
-                    await self.handle_registration_response(response)
-                else:
-                    print(f'📥 Unknown message type: {response}')
-                    
-            except websockets.ConnectionClosed:
-                print('📡 Connection closed by the server')
-                self.connected = False
-                break
-            except json.JSONDecodeError as e:
-                print(f'❌ JSON parse error: {e}')
-            except Exception as e:
-                print(f'❌ Receive error: {e}')
-    
-    async def handle_login_response(self, response):
-        """로그인 응답 처리 (공식 가이드 방식)"""
-        return_code = response.get('return_code')
-        return_msg = response.get('return_msg', '')
-        
-        if return_code != 0:
-            print(f'❌ 로그인 실패하였습니다: {return_msg}')
-            await self.disconnect()
-        else:
-            print('✅ 로그인 성공하였습니다.')
-    
-    async def handle_ping(self, response):
-        """PING 메시지 처리 - 수신값 그대로 송신 (공식 가이드 방식)"""
-        await self.send_message(response)
-    
-    async def handle_real_data(self, response):
-        """실시간 데이터 처리"""
-        print(f'📊 실시간 시세 서버 응답 수신: {json.dumps(response, ensure_ascii=False, indent=2)}')
-    
-    async def handle_registration_response(self, response):
-        """등록/해지 응답 처리"""
-        return_code = response.get('return_code')
-        return_msg = response.get('return_msg', '')
-        trnm = response.get('trnm')
-        
-        if return_code == 0:
-            print(f'✅ {trnm} 성공: {return_msg}')
-        else:
-            print(f'❌ {trnm} 실패: {return_msg}')
-    
-    async def register_realtime(self, symbols, types=['0B']):
-        """실시간 항목 등록 (공식 가이드 방식)"""
-        reg_message = {
-            'trnm': 'REG',        # 서비스명
-            'grp_no': '1',        # 그룹번호  
-            'refresh': '1',       # 기존등록유지여부
-            'data': [{            # 실시간 등록 리스트
-                'item': symbols,  # 실시간 등록 요소 (종목코드 리스트)
-                'type': types,    # 실시간 항목 (데이터 타입 리스트)
-            }]
-        }
-        
-        print(f"📝 실시간 시세 등록: {symbols} - {types}")
-        await self.send_message(reg_message)
+        """서버에서 오는 메시지를 수신하여 출력 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
+        await self._client.receive_messages()
     
     async def run(self):
-        """웹소켓 클라이언트 실행"""
-        await self.connect()
-        if self.connected:
-            await self.receive_messages()
+        """WebSocket 실행 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
+        await self._client.run()
     
     async def disconnect(self):
-        """웹소켓 연결 종료"""
+        """WebSocket 연결 종료 (Legacy 메서드)"""
+        print("⚠️ 이 메서드는 deprecated입니다. RealtimeClient를 사용하세요.")
         self.keep_running = False
-        if self.connected and self.websocket:
-            await self.websocket.close()
-            self.connected = False
-            print('🔌 Disconnected from WebSocket server')
+        await self._client.disconnect()
+        
+    # 새로운 기능에 대한 편의 메서드들
+    async def subscribe(self, symbols: List[str], types: List[str] = None):
+        """실시간 시세 구독 (새로운 기능)"""
+        return await self._client.subscribe(symbols, types)
+        
+    async def unsubscribe(self, symbols: List[str], types: List[str] = None):
+        """실시간 시세 구독 해지 (새로운 기능)"""
+        return await self._client.unsubscribe(symbols, types)
+        
+    def get_realtime_client(self) -> RealtimeClient:
+        """새로운 RealtimeClient 인스턴스 반환"""
+        return self._client
 
 
 async def main():
-    """메인 실행 함수 (공식 가이드 방식)"""
-    print("🚀 키움증권 공식 WebSocket 클라이언트 시작")
-    print("=" * 50)
+    """향상된 테스트용 메인 함수 - 실시간 데이터 + TR 명령어 통합 테스트"""
+    print("🚀 키움증권 WebSocket 클라이언트 시작 (실시간 + TR 통합)")
+    print("=" * 60)
     
-    # WebSocketClient 전역 변수 선언
-    websocket_client = KiwoomWebSocketClient(SOCKET_URL)
+    # 새로운 구조 사용 권장
+    print("✨ 통합 구조로 실행 중...")
+    client = RealtimeClient(SOCKET_URL)
+    
+    # TR 콜백 등록
+    def tr_callback(tr_name: str, result: Dict[str, Any]):
+        if tr_name == "CNSRLST":
+            print(f"\n📋 조건검색 목록: {result.get('total_count', 0)}개 조건식")
+            for condition in result.get('conditions', []):
+                print(f"   - {condition['seq']}: {condition['name']}")
+        elif tr_name == "CNSRREQ":
+            print(f"\n🔍 조건검색 결과: {result.get('total_results', 0)}개 종목 발견")
+            if result.get('realtime_enabled'):
+                print(f"   ⚡ 실시간 감시 모드 활성화됨")
+        elif tr_name == "SCREENER_REALTIME":
+            print(f"\n🚨 조건검색 알림: {result['stock_code']} - {result['action_description']}")
+        elif tr_name == "CNSRCLR":
+            print(f"\n⏹️ 실시간 감시 중단: 조건식 {result.get('seq')}")
+    
+    client.add_tr_callback(tr_callback)
     
     try:
-        # WebSocket 클라이언트를 백그라운드에서 실행
-        receive_task = asyncio.create_task(websocket_client.run())
-        
-        # 로그인 완료까지 대기
-        await asyncio.sleep(2)
-        
-        if websocket_client.connected:
-            # 실시간 항목 등록 (공식 가이드 예시)
-            print("\n📝 실시간 시세 등록 중...")
-            await websocket_client.register_realtime(
-                symbols=['005930', '000660', '035420'],  # 삼성전자, SK하이닉스, NAVER
-                types=['0B']  # 주식체결
-            )
+        # 연결
+        if await client.connect():
+            print("✅ 연결 성공!")
             
-            print("\n📊 실시간 데이터 수신 대기 중... (Ctrl+C로 종료)")
+            # 로그인 완료 후 3초 대기 (안정적인 구독을 위해)
+            print("⏳ 로그인 완료 대기 중... (3초)")
+            await asyncio.sleep(3)
             
-            # 수신 작업이 종료될 때까지 대기
-            await receive_task
-        else:
-            print("❌ WebSocket 연결 실패")
+            print(f"\n📊 지원 기능:")
+            stats = client.get_subscription_statistics()
+            tr_stats = client.get_tr_statistics()
+            print(f"   - 실시간 데이터: 18종 지원")
+            print(f"   - TR 명령어: {len(tr_stats['supported_trs'])}개 지원")
+            print(f"     * {', '.join(tr_stats['supported_trs'])}")
+            
+            # 실시간 시세 구독 테스트 (기존 기능)
+            print("\n📝 실시간 시세 구독 테스트...")
+            await client.subscribe(['005930'], ['0A', '0B'])
+            await asyncio.sleep(0.5)
+            
+            # TR 명령어 테스트 (신규 기능)  
+            print("\n🔧 TR 명령어 테스트...")
+            
+            # 1. 조건검색 목록조회
+            print("1️⃣ 조건검색 목록조회 요청...")
+            await client.get_screener_list()
+            await asyncio.sleep(1)
+            
+            # 2. 조건검색 실행 (일반 모드)
+            print("2️⃣ 조건검색 실행 (일반 모드)...")
+            await client.execute_screener_search("0", "0")  # 첫 번째 조건식, 일반 모드
+            await asyncio.sleep(1)
+            
+            # 3. 조건검색 실행 (실시간 모드)
+            print("3️⃣ 조건검색 실행 (실시간 모드)...")
+            await client.execute_screener_search("0", "1")  # 첫 번째 조건식, 실시간 모드
+            await asyncio.sleep(2)
+            
+            print(f"\n📊 현재 구독 상태:")
+            stats = client.get_subscription_statistics()
+            print(f"   - 실시간 종목: {stats['total_symbols']}개")
+            print(f"   - 실시간 타입: {stats['total_types']}개")
+            print(f"   - 연결 상태: {'✅ 연결됨' if stats['connected'] else '❌ 연결 끊김'}")
+            
+            print("\n📊 데이터 수신 중... (실시간 시세 + 조건검색 알림)")
+            print("   * Ctrl+C로 종료")
+            await client.receive_messages()
             
     except KeyboardInterrupt:
-        print("\n⚠️ 사용자에 의해 중단됨")
-        await websocket_client.disconnect()
+        print("\n🛑 사용자에 의해 중단됨")
+        
+        # 종료 전 정리 작업
+        print("🧹 실시간 감시 정리 중...")
+        try:
+            await client.clear_screener_realtime("0")  # 활성화된 조건검색 정리
+            await asyncio.sleep(0.5)
+        except:
+            pass
+            
     except Exception as e:
-        print(f"\n❌ 예상치 못한 오류: {e}")
-        await websocket_client.disconnect()
+        print(f"\n❌ 오류 발생: {e}")
+    finally:
+        await client.disconnect()
+        print("🏁 클라이언트 종료")
 
 
-# asyncio로 프로그램을 실행합니다.
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

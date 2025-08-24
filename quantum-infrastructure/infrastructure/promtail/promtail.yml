@@ -1,0 +1,128 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://quantum-loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Quantum Web API 로그
+  - job_name: quantum-web-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: quantum-web-api
+          service: web-api
+          environment: docker
+          __path__: /var/log/quantum/api/*.log
+
+  # Quantum Kiwoom Adapter 로그
+  - job_name: quantum-kiwoom-adapter
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: quantum-kiwoom-adapter
+          service: kiwoom-adapter
+          environment: docker
+          __path__: /var/log/quantum/kiwoom/*.log
+
+  # Docker 컨테이너 로그
+  - job_name: docker-logs
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["quantum-logs=true"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'logstream'
+      - source_labels: ['__meta_docker_container_label_quantum_service']
+        target_label: 'service'
+
+  # 시스템 로그
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          service: system
+          __path__: /var/log/syslog
+
+  # PostgreSQL 로그
+  - job_name: postgresql
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: postgresql
+          service: database
+          __path__: /var/log/postgresql/*.log
+
+# Pipeline stages for log processing
+pipeline_stages:
+  # JSON 파싱 (Spring Boot 앱들)
+  - match:
+      selector: '{service="web-api"}'
+      stages:
+        - json:
+            expressions:
+              timestamp: timestamp
+              level: level
+              thread: thread
+              logger: logger
+              message: message
+              mdc: mdc
+        - labels:
+            level:
+            thread:
+        - timestamp:
+            source: timestamp
+            format: '2006-01-02T15:04:05.000Z'
+
+  # Python 로그 파싱 (Kiwoom Adapter)
+  - match:
+      selector: '{service="kiwoom-adapter"}'
+      stages:
+        - regex:
+            expression: '(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>\w+) - (?P<logger>[\w.]+) - (?P<message>.*)'
+        - labels:
+            level:
+            logger:
+        - timestamp:
+            source: timestamp
+            format: '2006-01-02 15:04:05,000'
+
+  # Docker 로그 파싱
+  - match:
+      selector: '{job="docker-logs"}'
+      stages:
+        - docker: {}
+        - labels:
+            stream:
+
+  # 로그 레벨별 메트릭
+  - metrics:
+      log_entries_total:
+        type: Counter
+        description: "Total number of log entries"
+        source: level
+        config:
+          action: inc
+      log_errors_total:
+        type: Counter
+        description: "Total number of error log entries"
+        source: level
+        config:
+          match_all: false
+          count_entry_bytes: false
+          action: inc

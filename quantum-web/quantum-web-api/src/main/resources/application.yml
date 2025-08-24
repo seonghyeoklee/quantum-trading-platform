@@ -49,10 +49,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,tracing
   endpoint:
     health:
       show-details: always
+  tracing:
+    sampling:
+      probability: 1.0  # 개발 환경에서는 100% 샘플링
+  zipkin:
+    tracing:
+      endpoint: http://quantum-zipkin:9411/api/v2/spans
 
 # CORS Configuration
 cors:

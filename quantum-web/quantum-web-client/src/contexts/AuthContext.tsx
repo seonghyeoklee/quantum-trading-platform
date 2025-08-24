@@ -1,0 +1,246 @@
+'use client';
+
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  roles: string[];
+  lastLoginAt: string;
+  preferences?: {
+    language: string;
+    timezone: string;
+    theme: string;
+  };
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  const isAuthenticated = !!user;
+
+  useEffect(() => {
+    // 페이지 로드 시 기존 인증 상태 확인
+    checkExistingAuth();
+  }, []);
+
+  const checkExistingAuth = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      await refreshUser();
+    } catch (error) {
+      console.error('Failed to check existing auth:', error);
+      clearAuth();
+    }
+  };
+
+  const login = async (username: string, password: string) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '로그인에 실패했습니다.');
+      }
+
+      const data = await response.json();
+      
+      // JWT 토큰 저장
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        console.log('Setting initial user from login response:', data.user);
+        setUser(data.user);
+
+        // 사용자 정보 추가 업데이트 (최신 정보 확보)
+        try {
+          await refreshUser();
+        } catch (error) {
+          console.warn('Failed to refresh user data after login:', error);
+          // 기본 사용자 정보로 계속 진행
+        } finally {
+          // 페이지 이동 (사용자 정보 업데이트 성공/실패와 무관하게)
+          const returnUrl = localStorage.getItem('returnUrl') || '/';
+          localStorage.removeItem('returnUrl');
+          router.push(returnUrl);
+        }
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      if (token) {
+        // 백엔드에 로그아웃 요청
+        await fetch('http://localhost:8080/api/v1/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+      }
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      // 클라이언트 상태 정리
+      clearAuth();
+      router.push('/login');
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      
+      if (!token) {
+        throw new Error('No access token found');
+      }
+
+      console.log('Fetching user data from /api/v1/auth/me...');
+
+      const response = await fetch('http://localhost:8080/api/v1/auth/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // 토큰 만료, 리프레시 시도
+          await tryRefreshToken();
+          return;
+        }
+        throw new Error('Failed to fetch user data');
+      }
+
+      const userData = await response.json();
+      console.log('User data fetched successfully:', userData);
+      console.log('Setting user state and isLoading to false...');
+      setUser(userData);
+      setIsLoading(false);
+      console.log('User state updated, should trigger re-render');
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+      clearAuth();
+      throw error;
+    }
+  };
+
+  const tryRefreshToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      
+      if (!refreshToken) {
+        throw new Error('No refresh token found');
+      }
+
+      const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+
+      // 사용자 정보 다시 가져오기
+      await refreshUser();
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      clearAuth();
+      throw error;
+    }
+  };
+
+  const clearAuth = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    setUser(null);
+    setIsLoading(false);
+  };
+
+  const hasRole = (role: string): boolean => {
+    return user?.roles?.includes(role) || false;
+  };
+
+  const hasAnyRole = (roles: string[]): boolean => {
+    return roles.some(role => hasRole(role));
+  };
+
+  const value: AuthContextType = {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    logout,
+    refreshUser,
+    hasRole,
+    hasAnyRole,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

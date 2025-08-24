@@ -1,0 +1,99 @@
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 컬러를 포함한 콘솔 출력 패턴 -->
+    <property name="CONSOLE_PATTERN" value="%cyan(%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}) [%highlight(%-5level)] [%yellow(%thread)] [%magenta(%C)] [traceId:%X{traceId:-}] - %m%n" />
+
+    <!-- 콘솔 로그 설정 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${CONSOLE_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- JSON format for structured logging (Docker/Production) -->
+    <appender name="STDOUT_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <version/>
+                <logLevel/>
+                <message/>
+                <mdc/>
+                <loggerName/>
+                <stackTrace/>
+                <pattern>
+                    <pattern>
+                        {
+                        "service": "quantum-web-api",
+                        "traceId": "%X{traceId:-}",
+                        "spanId": "%X{spanId:-}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
+        </encoder>
+    </appender>
+
+    <!-- 파일 로그 설정 -->
+    <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>/app/logs/quantum-web-api.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>/app/logs/quantum-web-api.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <version/>
+                <logLevel/>
+                <message/>
+                <mdc/>
+                <loggerName/>
+                <stackTrace/>
+                <pattern>
+                    <pattern>
+                        {
+                        "service": "quantum-web-api",
+                        "traceId": "%X{traceId:-}",
+                        "spanId": "%X{spanId:-}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
+        </encoder>
+    </appender>
+
+    <!-- Development profile: Console logging -->
+    <springProfile name="development,default">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.quantum" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+    </springProfile>
+
+    <!-- Docker profile: JSON logging -->
+    <springProfile name="docker">
+        <root level="INFO">
+            <appender-ref ref="STDOUT_JSON"/>
+            <appender-ref ref="FILE_JSON"/>
+        </root>
+        <logger name="com.quantum" level="INFO"/>
+        <logger name="org.springframework.web" level="INFO"/>
+    </springProfile>
+
+    <!-- Production profile: JSON logging only to file -->
+    <springProfile name="production">
+        <root level="WARN">
+            <appender-ref ref="FILE_JSON"/>
+        </root>
+        <logger name="com.quantum" level="INFO"/>
+        <logger name="org.springframework.security" level="INFO"/>
+    </springProfile>
+</configuration>

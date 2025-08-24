@@ -1,0 +1,71 @@
+groups:
+  # 기본 시스템 알림
+  - name: quantum-system-alerts
+    rules:
+      # 서비스 다운 알림
+      - alert: ServiceDown
+        expr: up{job=~"quantum-.*"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} service is down"
+          description: "{{ $labels.job }} 서비스가 30초 이상 응답하지 않습니다."
+      
+      # 서비스 복구 알림
+      - alert: ServiceRecovered
+        expr: up{job=~"quantum-.*"} == 1
+        for: 30s
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.job }} service recovered"
+          description: "{{ $labels.job }} 서비스가 정상적으로 복구되었습니다."
+
+  # HTTP 성능 알림
+  - name: quantum-http-alerts
+    rules:
+      # 높은 에러율
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }}에서 5분간 HTTP 5xx 에러율이 10%를 초과했습니다."
+      
+      # 응답 시간 지연
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "{{ $labels.job }}의 95th percentile 응답시간이 1초를 초과했습니다."
+
+  # 시스템 리소스 알림
+  - name: quantum-resource-alerts
+    rules:
+      # 메모리 사용률 높음 (컨테이너 기준)
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.name }}"
+          description: "{{ $labels.name }} 컨테이너의 메모리 사용률이 90%를 초과했습니다."
+
+  # 간단한 테스트 알림 (수동 트리거용)
+  - name: quantum-test-alerts
+    rules:
+      - alert: TestAlert
+        expr: prometheus_build_info > 0
+        for: 0s
+        labels:
+          severity: info
+        annotations:
+          summary: "Quantum Trading Platform - Test Alert"
+          description: "이것은 알림 시스템 테스트용 알림입니다. Prometheus가 정상 작동 중입니다."

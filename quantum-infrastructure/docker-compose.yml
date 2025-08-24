@@ -109,6 +109,7 @@ services:
       - "9090:9090"
     volumes:
       - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -117,6 +118,9 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    depends_on:
+      - alertmanager
     networks:
       - quantum-network
 
@@ -137,72 +141,176 @@ services:
     networks:
       - quantum-network
 
-  # Quantum Trading API Gateway
-  quantum-api-gateway:
-    image: openjdk:17-jdk-slim
-    container_name: quantum-api-gateway
+  # Quantum Web API (Spring Boot)
+#  quantum-web-api:
+#    image: openjdk:17-jdk-slim
+#    container_name: quantum-web-api
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+#      - AXON_SERVER_HOST=quantum-axon-server
+#      - DB_HOST=quantum-postgres
+#      - DB_PORT=5432
+#      - DB_NAME=quantum_trading
+#      - DB_USER=quantum
+#      - DB_PASSWORD=quantum123
+#      - REDIS_HOST=quantum-redis
+#      - KAFKA_BROKERS=quantum-kafka:9092
+#      - KIWOOM_API_URL=http://quantum-kiwoom-adapter:8100
+#    volumes:
+#      - ../quantum-web/quantum-web-api/build/libs:/app
+#      - ./logs/api:/app/logs
+#    working_dir: /app
+#    command: java -jar quantum-web-api-1.0.0.jar
+#    depends_on:
+#      - axon-server
+#      - postgres
+#      - redis
+#      - kafka
+#    networks:
+#      - quantum-network
+#    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 5
+#
+#  # ============== ADAPTER SERVICES ==============
+#
+#  # Kiwoom Python API Adapter
+#  quantum-kiwoom-adapter:
+#    build:
+#      context: ../quantum-adapters/kiwoom-adapter
+#      dockerfile: ../../quantum-infrastructure/docker/kiwoom-service.Dockerfile
+#    container_name: quantum-kiwoom-adapter
+#    ports:
+#      - "8100:8100"
+#    environment:
+#      - ENVIRONMENT=docker
+#      - HOST=0.0.0.0
+#      - PORT=8100
+#      - LOG_LEVEL=INFO
+#      - KIWOOM_CLIENT_ID=${KIWOOM_CLIENT_ID:-}
+#      - KIWOOM_CLIENT_SECRET=${KIWOOM_CLIENT_SECRET:-}
+#    volumes:
+#      - ./logs/kiwoom:/app/logs
+#    networks:
+#      - quantum-network
+#    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 5
+#
+#  # ============== WEB SERVICES ==============
+#
+#  # Quantum Web Client (Next.js)
+#  quantum-web-client:
+#    image: node:18-alpine
+#    container_name: quantum-web-client
+#    ports:
+#      - "3001:3000"
+#    environment:
+#      - NODE_ENV=production
+#      - NEXT_PUBLIC_API_URL=http://localhost:8080
+#      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+#    volumes:
+#      - ../quantum-web/quantum-web-client:/app
+#      - /app/node_modules
+#      - /app/.next
+#    working_dir: /app
+#    command: sh -c "npm ci && npm run build && npm start"
+#    depends_on:
+#      - quantum-web-api
+#    networks:
+#      - quantum-network
+#    restart: unless-stopped
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 5
+
+  # ============== MONITORING & MANAGEMENT ==============
+
+  # Loki - Log Aggregation System
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: quantum-loki
     ports:
-      - "8080:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - AXON_SERVER_HOST=quantum-axon-server
-      - DB_HOST=quantum-postgres
-      - DB_PORT=5432
-      - DB_NAME=quantum_trading
-      - DB_USER=quantum
-      - DB_PASSWORD=quantum123
-      - REDIS_HOST=quantum-redis
-      - KAFKA_BROKERS=quantum-kafka:9092
-      - KIWOOM_API_URL=http://quantum-kiwoom-api:8100
-      - KIS_API_URL=http://quantum-kis-mock-api:8200
+      - "3100:3100"
     volumes:
-      - ../quantum-api/build/libs:/app
-      - ./logs/api:/app/logs
-    working_dir: /app
-    command: java -jar quantum-api-1.0.0.jar
-    depends_on:
-      - axon-server
-      - postgres
-      - redis
-      - kafka
+      - ./infrastructure/loki/loki.yml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
     networks:
       - quantum-network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
       interval: 30s
       timeout: 10s
       retries: 5
 
-  # Quantum Trading Batch Processor
-  quantum-batch:
-    image: openjdk:17-jdk-slim
-    container_name: quantum-batch
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - AXON_SERVER_HOST=quantum-axon-server
-      - DB_HOST=quantum-postgres
-      - DB_PORT=5432
-      - DB_NAME=quantum_trading
-      - DB_USER=quantum
-      - DB_PASSWORD=quantum123
-      - REDIS_HOST=quantum-redis
-      - KAFKA_BROKERS=quantum-kafka:9092
+  # Promtail - Log Collection Agent
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: quantum-promtail
+    ports:
+      - "9080:9080"
     volumes:
-      - ../quantum-batch/build/libs:/app
-      - ./logs/batch:/app/logs
-    working_dir: /app
-    command: java -jar quantum-batch-1.0.0.jar
+      - ./infrastructure/promtail/promtail.yml:/etc/promtail/config.yml
+      - ./logs:/var/log/quantum
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
     depends_on:
-      - axon-server
-      - postgres
-      - redis
-      - kafka
+      - loki
     networks:
       - quantum-network
-    restart: unless-stopped
 
-  # ============== MONITORING & MANAGEMENT ==============
+  # Zipkin - Distributed Tracing
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: quantum-zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      - STORAGE_TYPE=mem
+      - JAVA_OPTS=-Xms512m -Xmx1024m
+    volumes:
+      - zipkin-data:/zipkin
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # AlertManager - Alert Routing and Notification
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: quantum-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--cluster.listen-address=0.0.0.0:9094'
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # Kafka UI for monitoring
   kafka-ui:
@@ -254,7 +362,11 @@ volumes:
     driver: local
   grafana-data:
     driver: local
-  kiwoom-data:
+  loki-data:
+    driver: local
+  zipkin-data:
+    driver: local
+  alertmanager-data:
     driver: local
 
 networks:

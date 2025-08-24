@@ -3,9 +3,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# AlertManager 연동 설정
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - quantum-alertmanager:9093
+
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - "/etc/prometheus/alert_rules.yml"
 
 scrape_configs:
   # Prometheus itself
@@ -20,30 +26,37 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
 
-  # API Gateway metrics
-  - job_name: 'quantum-api-gateway'
+  # Quantum Web API metrics
+  - job_name: 'quantum-web-api'
     static_configs:
-      - targets: ['quantum-api-gateway:8080']
+      - targets: ['quantum-web-api:8080']
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
 
-  # Batch service metrics
-  - job_name: 'quantum-batch'
+  # Kiwoom Adapter metrics
+  - job_name: 'quantum-kiwoom-adapter'
     static_configs:
-      - targets: ['quantum-batch:8080']
-    metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
-
-  # Kiwoom API metrics
-  - job_name: 'kiwoom-api'
-    static_configs:
-      - targets: ['quantum-kiwoom-api:8100']
+      - targets: ['quantum-kiwoom-adapter:8100']
     metrics_path: '/metrics'
     scrape_interval: 30s
 
-  # KIS Mock API metrics
-  - job_name: 'kis-mock-api'
+  # Loki metrics
+  - job_name: 'loki'
     static_configs:
-      - targets: ['quantum-kis-mock-api:8200']
+      - targets: ['quantum-loki:3100']
     metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Promtail metrics
+  - job_name: 'promtail'
+    static_configs:
+      - targets: ['quantum-promtail:9080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Zipkin metrics
+  - job_name: 'zipkin'
+    static_configs:
+      - targets: ['quantum-zipkin:9411']
+    metrics_path: '/prometheus'
     scrape_interval: 30s

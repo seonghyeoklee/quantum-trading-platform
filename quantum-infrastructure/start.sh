@@ -61,23 +61,26 @@ start_infrastructure() {
     sleep 30
 }
 
-start_brokers() {
-    echo -e "${GREEN}브로커 서비스 시작...${NC}"
+start_adapters() {
+    echo -e "${GREEN}어댑터 서비스 시작...${NC}"
     docker-compose --env-file .env.docker up -d \
-        kiwoom-api \
-        kis-mock-api
+        quantum-kiwoom-adapter
 }
 
-start_applications() {
-    echo -e "${GREEN}애플리케이션 서비스 시작...${NC}"
+start_web_services() {
+    echo -e "${GREEN}웹 서비스 시작...${NC}"
     docker-compose --env-file .env.docker up -d \
-        quantum-api-gateway \
-        quantum-batch
+        quantum-web-api \
+        quantum-web-client
 }
 
 start_monitoring() {
     echo -e "${GREEN}모니터링 도구 시작...${NC}"
     docker-compose --env-file .env.docker up -d \
+        alertmanager \
+        loki \
+        promtail \
+        zipkin \
         kafka-ui \
         redis-commander
 }
@@ -115,15 +118,15 @@ case "$COMMAND" in
     up|start)
         if [ "$SERVICES" == "all" ]; then
             start_infrastructure
-            start_brokers
-            start_applications
+            start_adapters
+            start_web_services
             start_monitoring
         elif [ "$SERVICES" == "infra" ]; then
             start_infrastructure
-        elif [ "$SERVICES" == "brokers" ]; then
-            start_brokers
-        elif [ "$SERVICES" == "apps" ]; then
-            start_applications
+        elif [ "$SERVICES" == "adapters" ]; then
+            start_adapters
+        elif [ "$SERVICES" == "web" ]; then
+            start_web_services
         elif [ "$SERVICES" == "monitoring" ]; then
             start_monitoring
         else
@@ -139,10 +142,13 @@ case "$COMMAND" in
         echo "Redis:                 localhost:6379"
         echo "Kafka:                 localhost:9092"
         echo "Prometheus:            http://localhost:9090"
+        echo "AlertManager:          http://localhost:9093"
         echo "Grafana:               http://localhost:3000"
-        echo "Kiwoom API:            http://localhost:8100"
-        echo "KIS Mock API:          http://localhost:8200"
-        echo "API Gateway:           http://localhost:8080"
+        echo "Loki:                  http://localhost:3100"
+        echo "Zipkin:                http://localhost:9411"
+        echo "Kiwoom Adapter:        http://localhost:8100"
+        echo "Web API:               http://localhost:8080"
+        echo "Web Client:            http://localhost:3001"
         echo "Kafka UI:              http://localhost:8090"
         echo "Redis Commander:       http://localhost:8091"
         echo "================================================"
@@ -194,8 +200,8 @@ case "$COMMAND" in
         echo "서비스 그룹:"
         echo "  all        - 모든 서비스"
         echo "  infra      - 인프라 서비스 (DB, Kafka, Redis 등)"
-        echo "  brokers    - 브로커 서비스 (Kiwoom, KIS)"
-        echo "  apps       - 애플리케이션 서비스"
+        echo "  adapters   - 어댑터 서비스 (Kiwoom 등)"
+        echo "  web        - 웹 서비스 (API, Client)"
         echo "  monitoring - 모니터링 도구"
         exit 1
         ;;

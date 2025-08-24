@@ -1,6 +1,8 @@
 package com.quantum.trading.platform.query.service;
 
+import com.quantum.trading.platform.query.repository.LoginHistoryViewRepository;
 import com.quantum.trading.platform.query.repository.UserViewRepository;
+import com.quantum.trading.platform.query.view.LoginHistoryView;
 import com.quantum.trading.platform.query.view.UserView;
 import com.quantum.trading.platform.shared.value.UserId;
 import com.quantum.trading.platform.shared.value.UserStatus;
@@ -32,6 +34,7 @@ import java.util.stream.Collectors;
 public class UserQueryService {
     
     private final UserViewRepository userViewRepository;
+    private final LoginHistoryViewRepository loginHistoryRepository;
     
     /**
      * 사용자 ID로 조회
@@ -308,5 +311,176 @@ public class UserQueryService {
             String username,
             java.util.Set<String> roles,
             Instant sessionStartTime
+    ) {}
+    
+    // ============== 로그인 이력 관련 메서드들 ==============
+    
+    /**
+     * 전체 로그인 이력 조회 (최신순)
+     */
+    public Page<LoginHistoryView> findAllLoginHistory(Pageable pageable) {
+        return loginHistoryRepository.findAllByOrderByAttemptTimeDesc(pageable);
+    }
+    
+    /**
+     * 로그인 실패 이력만 조회 (최신순)
+     */
+    public Page<LoginHistoryView> findLoginFailureHistory(Pageable pageable) {
+        return loginHistoryRepository.findBySuccessFalseOrderByAttemptTimeDesc(pageable);
+    }
+    
+    /**
+     * 계정 잠금된 이력 조회
+     */
+    public Page<LoginHistoryView> findAccountLockedHistory(Pageable pageable) {
+        return loginHistoryRepository.findByAccountLockedTrueOrderByAttemptTimeDesc(pageable);
+    }
+    
+    /**
+     * 특정 사용자의 로그인 이력 조회
+     */
+    public Page<LoginHistoryView> findUserLoginHistory(String userId, Pageable pageable) {
+        return loginHistoryRepository.findByUserIdOrderByAttemptTimeDesc(userId, pageable);
+    }
+    
+    /**
+     * 특정 IP의 로그인 시도 이력
+     */
+    public Page<LoginHistoryView> findLoginHistoryByIp(String ipAddress, Pageable pageable) {
+        return loginHistoryRepository.findByIpAddressOrderByAttemptTimeDesc(ipAddress, pageable);
+    }
+    
+    /**
+     * 특정 기간 내 로그인 실패 조회
+     */
+    public Page<LoginHistoryView> findLoginFailuresBetween(LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        Instant startInstant = startDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant endInstant = endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        return loginHistoryRepository.findFailuresBetween(startInstant, endInstant, pageable);
+    }
+    
+    /**
+     * 의심스러운 IP 목록 조회 (최근 24시간)
+     */
+    public List<SuspiciousIpInfo> findSuspiciousIps(int minFailures) {
+        Instant since = Instant.now().minusSeconds(24 * 3600); // 24시간 전
+        List<Object[]> results = loginHistoryRepository.findSuspiciousIps(since, minFailures);
+        
+        return results.stream()
+                .map(result -> new SuspiciousIpInfo(
+                        (String) result[0],  // IP address
+                        (Long) result[1]     // failure count
+                ))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 오늘의 로그인 통계
+     */
+    public LoginStats getTodayLoginStats() {
+        Instant startOfDay = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC);
+        Object[] result = loginHistoryRepository.getTodayLoginStats(startOfDay);
+        
+        if (result != null && result.length >= 3) {
+            // 안전한 타입 변환 - Number 타입을 Long으로 변환
+            Long successCount = convertToLong(result[0]);
+            Long failureCount = convertToLong(result[1]);
+            Long uniqueIps = convertToLong(result[2]);
+            
+            return new LoginStats(successCount, failureCount, uniqueIps);
+        }
+        
+        return new LoginStats(0L, 0L, 0L);
+    }
+    
+    /**
+     * Object를 Long으로 안전하게 변환
+     */
+    private Long convertToLong(Object value) {
+        if (value == null) return 0L;
+        if (value instanceof Long) return (Long) value;
+        if (value instanceof Number) return ((Number) value).longValue();
+        if (value instanceof String) {
+            try {
+                return Long.parseLong((String) value);
+            } catch (NumberFormatException e) {
+                return 0L;
+            }
+        }
+        return 0L;
+    }
+    
+    /**
+     * 사용자별 로그인 통계 (특정 기간)
+     */
+    public List<UserLoginStats> getUserLoginStats(LocalDate startDate, LocalDate endDate) {
+        Instant startInstant = startDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant endInstant = endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        
+        List<Object[]> results = loginHistoryRepository.getUserLoginStats(startInstant, endInstant);
+        
+        return results.stream()
+                .map(result -> new UserLoginStats(
+                        (String) result[0],  // username
+                        (Long) result[1],    // success count
+                        (Long) result[2]     // failure count
+                ))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 최근 활성 사용자 목록 (최근 7일간 로그인한 사용자)
+     */
+    public List<RecentActiveUser> findRecentActiveUsers() {
+        Instant since = Instant.now().minusSeconds(7 * 24 * 3600); // 7일 전
+        List<Object[]> results = loginHistoryRepository.findRecentActiveUsers(since);
+        
+        return results.stream()
+                .map(result -> new RecentActiveUser(
+                        (String) result[0],  // username
+                        (String) result[1]   // userId
+                ))
+                .collect(Collectors.toList());
+    }
+    
+    // 로그인 이력 관련 DTO 클래스들
+    public record LoginStats(
+            Long successCount,
+            Long failureCount,
+            Long uniqueIps
+    ) {
+        public Long getTotalAttempts() {
+            return successCount + failureCount;
+        }
+        
+        public double getSuccessRate() {
+            Long total = getTotalAttempts();
+            return total > 0 ? (double) successCount / total * 100.0 : 0.0;
+        }
+    }
+    
+    public record UserLoginStats(
+            String username,
+            Long successCount,
+            Long failureCount
+    ) {
+        public Long getTotalAttempts() {
+            return successCount + failureCount;
+        }
+        
+        public double getSuccessRate() {
+            Long total = getTotalAttempts();
+            return total > 0 ? (double) successCount / total * 100.0 : 0.0;
+        }
+    }
+    
+    public record SuspiciousIpInfo(
+            String ipAddress,
+            Long failureCount
+    ) {}
+    
+    public record RecentActiveUser(
+            String username,
+            String userId
     ) {}
 }

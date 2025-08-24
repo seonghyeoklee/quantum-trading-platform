@@ -100,27 +100,25 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 허용할 Origin (프론트엔드 URL)
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",    // Next.js 개발 서버 (기본)
-            "http://localhost:3001",    // Next.js 개발 서버 (현재 사용)
-            "http://127.0.0.1:3000",    // localhost 대안
-            "http://127.0.0.1:3001"     // localhost 대안
-        ));
+        // 개발 환경: 모든 Origin 허용
+        configuration.setAllowedOriginPatterns(Arrays.asList("*")); // 모든 Origin 허용
 
-        // 허용할 HTTP 메서드
+        // 허용할 HTTP 메서드 - 모든 메서드 허용
         configuration.setAllowedMethods(Arrays.asList(
-            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD", "TRACE"
         ));
 
-        // 허용할 헤더
-        configuration.setAllowedHeaders(Arrays.asList("*")); // 모든 헤더 허용 (개발환경)
+        // 허용할 헤더 - 모든 헤더 허용
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        
+        // 노출할 헤더 - 모든 헤더 허용
+        configuration.setExposedHeaders(Arrays.asList("*"));
 
         // 인증정보 포함 허용
         configuration.setAllowCredentials(true);
 
-        // 캐시 시간 (preflight 요청)
-        configuration.setMaxAge(3600L);
+        // 캐시 시간 (preflight 요청) - 더 길게 설정
+        configuration.setMaxAge(86400L); // 24시간
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
