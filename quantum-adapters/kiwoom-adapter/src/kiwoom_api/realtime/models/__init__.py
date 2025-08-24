@@ -16,7 +16,7 @@ __all__ = [
     "RealtimeData", "RealtimeResponse", "RealtimeManager",
     "TRRequest", "TRResponse",
     "ScreenerListRequest", "ScreenerListResponse",
-    "ScreenerSearchRequest", "ScreenerSearchResponse", 
+    "ScreenerSearchRequest", "ScreenerSearchResponse",
     "ScreenerClearRequest", "ScreenerClearResponse",
     "ScreenerRealtimeAlert",
     "ScreenerManager"

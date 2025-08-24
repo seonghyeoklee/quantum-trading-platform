@@ -1,9 +1,16 @@
 """
-키움증권 실시간 WebSocket 모듈
+키움증권 실시간 시세 패키지
 
-실시간 데이터 수신과 TR 명령어 처리를 통합 지원
+18개 실시간 시세 타입을 지원하는 확장 가능한 WebSocket 클라이언트
 """
 
 from .client import RealtimeClient
+from .subscription_manager import SubscriptionManager
+from .models.realtime_data import RealtimeData, RealtimeResponse
 
-__all__ = ["RealtimeClient"]
+__all__ = [
+    'RealtimeClient',
+    'SubscriptionManager',
+    'RealtimeData',
+    'RealtimeResponse'
+]

@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 # Distributed Tracing
 from opentelemetry import trace
@@ -137,11 +138,20 @@ app.include_router(chart.router, prefix="")
 app.include_router(stock.router, prefix="")
 app.include_router(account.router, prefix="")
 
+# 정적 파일 서빙 (대시보드용)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/", include_in_schema=False)
 async def root():
     """루트 경로에서 Swagger UI로 리다이렉트"""
     return RedirectResponse(url="/docs")
+
+
+@app.get("/dashboard", include_in_schema=False)
+async def dashboard():
+    """실시간 WebSocket 대시보드로 리다이렉트"""
+    return RedirectResponse(url="/static/kiwoom_realtime_dashboard.html")
 
 
 @app.get("/health")
