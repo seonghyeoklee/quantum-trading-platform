@@ -17,19 +17,16 @@ import os
 from pathlib import Path
 from typing import Dict, Any, List
 
-# 환경 설정 로드 (상대 경로 import)
+# Handle both relative and absolute imports for different execution contexts
 try:
     from .realtime.client import RealtimeClient
     from .realtime.models.realtime_data import RealtimeResponse
 except ImportError:
-    # 직접 실행 시 절대 경로 import
-    # 프로젝트 루트를 PYTHONPATH에 추가
-    project_root = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(project_root / 'src'))
-    
-    # .env 파일 로드를 위한 경로 설정
-    os.chdir(project_root)
-    
+    # If relative imports fail, add src to path and use absolute imports
+    src_path = Path(__file__).parent.parent
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+
     from kiwoom_api.realtime.client import RealtimeClient
     from kiwoom_api.realtime.models.realtime_data import RealtimeResponse
 

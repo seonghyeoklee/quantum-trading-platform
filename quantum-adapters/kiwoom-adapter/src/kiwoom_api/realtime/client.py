@@ -22,12 +22,16 @@ try:
     from .models.realtime_data import RealtimeData, RealtimeResponse
     from .models.tr_data import TRRequest, TRResponse
     from .handlers.tr_handlers import TRHandlerRegistry
+    from ..events.kafka_publisher import get_kafka_publisher
+    from ..events.realtime_transformer import RealtimeEventTransformer
 except ImportError:
     from kiwoom_api.auth.oauth_client import KiwoomOAuthClient
     from kiwoom_api.config.settings import settings
     from kiwoom_api.realtime.models.realtime_data import RealtimeData, RealtimeResponse
     from kiwoom_api.realtime.models.tr_data import TRRequest, TRResponse
     from kiwoom_api.realtime.handlers.tr_handlers import TRHandlerRegistry
+    from kiwoom_api.events.kafka_publisher import get_kafka_publisher
+    from kiwoom_api.events.realtime_transformer import RealtimeEventTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +47,19 @@ class RealtimeClient:
         - CNSRCLR: 조건검색 실시간 해제
     """
 
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, enable_kafka: bool = True):
         self.uri = uri
         self.websocket = None
         self.access_token = None
         self.connected = False
+        self.enable_kafka = enable_kafka
 
         # OAuth 클라이언트 초기화
-        self.oauth_client = KiwoomOAuthClient()
+        self.oauth_client = KiwoomOAuthClient(
+            app_key=settings.get_app_key(),
+            app_secret=settings.get_app_secret(),
+            sandbox_mode=settings.KIWOOM_SANDBOX_MODE
+        )
 
         # 실시간 데이터 구독 관리
         self.subscriptions = {}  # {symbol: [types]}
@@ -64,7 +73,11 @@ class RealtimeClient:
         self.message_callbacks = []
         self.tr_callbacks = []
 
-        logger.info("RealtimeClient 초기화 완료 - 실시간 데이터 + TR 명령어 지원")
+        # Kafka 이벤트 시스템 초기화
+        self.kafka_publisher = None
+        self.event_transformer = RealtimeEventTransformer()
+
+        logger.info(f"RealtimeClient 초기화 완료 - 실시간 데이터 + TR 명령어 지원 (Kafka: {enable_kafka})")
 
     def add_connection_callback(self, callback: Callable[[bool], None]):
         """연결 상태 변경 콜백 등록"""
@@ -99,6 +112,16 @@ class RealtimeClient:
                 if not token:
                     logger.error("액세스 토큰이 없어 연결 불가")
                     return False
+
+            # Kafka Publisher 초기화 (WebSocket 연결 전)
+            if self.enable_kafka:
+                try:
+                    self.kafka_publisher = await get_kafka_publisher()
+                    logger.info("✅ Kafka Publisher 초기화 완료")
+                except Exception as e:
+                    logger.warning(f"⚠️ Kafka Publisher 초기화 실패: {e}")
+                    # Kafka 실패해도 WebSocket은 계속 진행
+                    self.enable_kafka = False
 
             logger.info(f"WebSocket 서버 연결 중: {self.uri}")
 
@@ -341,6 +364,10 @@ class RealtimeClient:
         try:
             trnm = data.get('trnm', '')
 
+            # Kafka 이벤트 발행 (모든 메시지 대상)
+            if self.enable_kafka and self.kafka_publisher:
+                await self._publish_websocket_events(data)
+
             # TR 응답 처리
             if trnm in ['CNSRLST', 'CNSRREQ', 'CNSRCLR']:
                 await self._process_tr_response(data)
@@ -472,3 +499,53 @@ class RealtimeClient:
             logger.error(f"실행 중 오류: {e}")
         finally:
             await self.disconnect()
+
+    # ============== Kafka 이벤트 발행 기능 ==============
+    
+    async def _publish_websocket_events(self, ws_data: Dict[str, Any]):
+        """WebSocket 메시지를 Kafka 이벤트로 발행"""
+        try:
+            if not self.kafka_publisher:
+                return
+                
+            # WebSocket 메시지를 이벤트로 변환
+            events = await self.event_transformer.transform_websocket_message(ws_data)
+            
+            if not events:
+                return
+                
+            # 배치로 이벤트 발행
+            success_count = 0
+            for event_data in events:
+                try:
+                    success = await self.kafka_publisher.publish_event(event_data)
+                    if success:
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"개별 이벤트 발행 실패: {e}")
+                    
+            if success_count > 0:
+                logger.debug(f"📤 Kafka 이벤트 발행 성공: {success_count}개")
+                
+        except Exception as e:
+            logger.error(f"Kafka 이벤트 발행 중 오류: {e}")
+            
+    async def get_kafka_status(self) -> Dict[str, Any]:
+        """Kafka 연동 상태 정보 반환"""
+        status = {
+            'kafka_enabled': self.enable_kafka,
+            'kafka_connected': False,
+            'kafka_publisher': None
+        }
+        
+        if self.kafka_publisher:
+            try:
+                kafka_info = await self.kafka_publisher.get_connection_info()
+                status.update({
+                    'kafka_connected': kafka_info.get('is_connected', False),
+                    'kafka_publisher': kafka_info
+                })
+            except Exception as e:
+                logger.error(f"Kafka 상태 조회 실패: {e}")
+                
+        return status

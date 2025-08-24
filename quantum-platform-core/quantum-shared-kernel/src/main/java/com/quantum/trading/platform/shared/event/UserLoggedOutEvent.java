@@ -1,5 +1,7 @@
 package com.quantum.trading.platform.shared.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.quantum.trading.platform.shared.value.UserId;
 import lombok.Builder;
 import lombok.Value;
@@ -21,6 +23,24 @@ public class UserLoggedOutEvent {
     String ipAddress;
     Instant logoutTime;
     Instant sessionDuration;  // 총 세션 지속 시간 계산용
+
+    @JsonCreator
+    public UserLoggedOutEvent(
+            @JsonProperty("userId") UserId userId,
+            @JsonProperty("username") String username,
+            @JsonProperty("sessionId") String sessionId,
+            @JsonProperty("reason") String reason,
+            @JsonProperty("ipAddress") String ipAddress,
+            @JsonProperty("logoutTime") Instant logoutTime,
+            @JsonProperty("sessionDuration") Instant sessionDuration) {
+        this.userId = userId;
+        this.username = username;
+        this.sessionId = sessionId;
+        this.reason = reason;
+        this.ipAddress = ipAddress;
+        this.logoutTime = logoutTime;
+        this.sessionDuration = sessionDuration;
+    }
     
     public static UserLoggedOutEvent create(
             UserId userId,

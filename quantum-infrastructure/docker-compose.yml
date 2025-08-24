@@ -61,6 +61,31 @@ services:
       timeout: 10s
       retries: 5
 
+  # InfluxDB - Time Series Database
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: quantum-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=quantum
+      - DOCKER_INFLUXDB_INIT_PASSWORD=quantum123
+      - DOCKER_INFLUXDB_INIT_ORG=quantum-trading
+      - DOCKER_INFLUXDB_INIT_BUCKET=realtime-data
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=quantum-super-secret-auth-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    networks:
+      - quantum-network
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Kafka & Zookeeper - External Message Bus
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -81,10 +106,14 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://quantum-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -96,7 +125,7 @@ services:
     networks:
       - quantum-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -320,7 +349,7 @@ services:
       - "8090:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=quantum-kafka
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=quantum-kafka:9092
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=quantum-kafka:29092
       - KAFKA_CLUSTERS_0_ZOOKEEPER=quantum-zookeeper:2181
     depends_on:
       - kafka
@@ -351,6 +380,10 @@ volumes:
   postgres-data:
     driver: local
   redis-data:
+    driver: local
+  influxdb-data:
+    driver: local
+  influxdb-config:
     driver: local
   zookeeper-data:
     driver: local

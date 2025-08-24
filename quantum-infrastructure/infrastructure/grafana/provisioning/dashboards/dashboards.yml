@@ -20,3 +20,13 @@ providers:
     allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards/monitoring
+
+  - name: 'timeseries'
+    orgId: 1
+    folder: 'Time Series'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

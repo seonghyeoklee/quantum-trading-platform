@@ -106,8 +106,8 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             'api-id': 'ka10081',
         }
 
-        # 4. HTTP POST 요청
-        timeout = 30.0
+        # 4. HTTP POST 요청 (타임아웃 연장)
+        timeout = 180.0  # 3분으로 연장
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, headers=headers, json=data)
 
@@ -224,8 +224,8 @@ async def fn_ka10080(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             'api-id': 'ka10080',
         }
 
-        # 4. HTTP POST 요청
-        timeout = 30.0
+        # 4. HTTP POST 요청 (타임아웃 연장)
+        timeout = 180.0  # 3분으로 연장
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, headers=headers, json=data)
 
@@ -342,8 +342,8 @@ async def fn_ka10082(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             'api-id': 'ka10082',
         }
         
-        # 4. HTTP POST 요청
-        timeout = 30.0
+        # 4. HTTP POST 요청 (타임아웃 연장)
+        timeout = 180.0  # 3분으로 연장
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, headers=headers, json=data)
         
@@ -460,8 +460,8 @@ async def fn_ka10094(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             'api-id': 'ka10094',
         }
         
-        # 4. HTTP POST 요청
-        timeout = 30.0
+        # 4. HTTP POST 요청 (타임아웃 연장)
+        timeout = 180.0  # 3분으로 연장
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, headers=headers, json=data)
         
@@ -578,8 +578,8 @@ async def fn_ka10079(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             'api-id': 'ka10079',
         }
         
-        # 4. HTTP POST 요청
-        timeout = 30.0
+        # 4. HTTP POST 요청 (타임아웃 연장)
+        timeout = 180.0  # 3분으로 연장
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, headers=headers, json=data)
         

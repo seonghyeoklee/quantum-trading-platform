@@ -65,7 +65,6 @@ async def api_fn_ka10072(
     
     - **stk_cd**: 종목코드 (6자리)
     - **strt_dt**: 시작일자 (YYYYMMDD)
-    - **end_dt**: 종료일자 (YYYYMMDD)
     - **cont_yn**: 연속조회여부 (N: 최초, Y: 연속)
     - **next_key**: 연속조회키 (연속조회시 필요)
     
@@ -77,7 +76,7 @@ async def api_fn_ka10072(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        logger.info(f"💰 fn_ka10072 요청: {request.stk_cd} ({request.strt_dt}~{request.end_dt})")
+        logger.info(f"💰 fn_ka10072 요청: {request.stk_cd} ({request.strt_dt})")
         
         result = await fn_ka10072(
             token=access_token,

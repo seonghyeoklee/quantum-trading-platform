@@ -25,4 +25,6 @@ opentelemetry-instrumentation-fastapi = "^0.42b0"
 opentelemetry-exporter-zipkin-json = "^1.21.0"
 # Structured Logging
 structlog = "^23.2.0"
+# Kafka Client
+aiokafka = "^0.8.11"
 

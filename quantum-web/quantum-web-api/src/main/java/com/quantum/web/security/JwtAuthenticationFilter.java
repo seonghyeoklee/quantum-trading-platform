@@ -82,7 +82,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
         
         // 디버깅용 로그 추가
-        log.debug("[JWT Filter] Request URI: {}, Authorization header: {}", 
+        log.info("[JWT Filter] Request URI: {}, Authorization header: {}", 
                  request.getRequestURI(), 
                  bearerToken != null ? bearerToken.substring(0, Math.min(20, bearerToken.length())) + "..." : "NULL");
         
@@ -127,8 +127,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
         
-        // 인증이 필요없는 경로들 (로그인, 토큰 갱신 등)
-        return path.equals("/api/v1/auth/login") ||
+        boolean shouldSkip = path.equals("/api/v1/auth/login") ||
                path.equals("/api/v1/auth/refresh") ||
                path.equals("/api/v1/auth/logout") ||
                path.startsWith("/swagger-ui/") ||
@@ -136,5 +135,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.equals("/api/health") ||
                path.startsWith("/ws/") ||  // WebSocket handshake
                path.startsWith("/actuator/health"); // Health check
+        
+        // 디버깅용 로그 추가
+        log.info("[JWT Filter] shouldNotFilter - path: {}, shouldSkip: {}", path, shouldSkip);
+        
+        return shouldSkip;
     }
 }

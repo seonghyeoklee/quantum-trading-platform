@@ -28,6 +28,7 @@ import structlog
 try:
     from .api import auth, chart, stock, account
     from .config.settings import settings
+    from .events.api_middleware import KafkaEventMiddleware
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
     src_path = Path(__file__).parent.parent
@@ -36,6 +37,7 @@ except ImportError:
 
     from kiwoom_api.api import auth, chart, stock, account
     from kiwoom_api.config.settings import settings
+    from kiwoom_api.events.api_middleware import KafkaEventMiddleware
 
 # OpenTelemetry 설정
 def setup_tracing():
@@ -128,6 +130,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Kafka 이벤트 미들웨어 추가 (임시 비활성화)
+import os
+enable_kafka = False  # 임시로 비활성화
+# enable_kafka = os.getenv('ENABLE_KAFKA', 'true').lower() == 'true'
+# app.add_middleware(KafkaEventMiddleware, enable_kafka=enable_kafka)
 
 # FastAPI 자동 계측 설정
 FastAPIInstrumentor.instrument_app(app, tracer_provider=trace.get_tracer_provider())

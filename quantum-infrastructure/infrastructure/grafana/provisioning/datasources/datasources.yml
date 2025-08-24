@@ -29,3 +29,18 @@ datasources:
     uid: zipkin
     isDefault: false
     editable: true
+
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://quantum-influxdb:8086
+    uid: influxdb
+    isDefault: false
+    editable: true
+    jsonData:
+      version: Flux
+      organization: quantum-trading
+      defaultBucket: realtime-data
+      tlsSkipVerify: true
+    secureJsonData:
+      token: quantum-super-secret-auth-token

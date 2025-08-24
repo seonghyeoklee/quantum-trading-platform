@@ -5,6 +5,27 @@ spring:
   profiles:
     active: development
 
+  # PostgreSQL Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5433/quantum_trading
+    username: quantum
+    password: quantum123
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    defer-datasource-initialization: true
+    
+  sql:
+    init:
+      mode: always
+
   # Jackson Configuration
   jackson:
     default-property-inclusion: non_null
@@ -17,6 +38,27 @@ spring:
       host: localhost
       port: 6379
       timeout: 2000
+  
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: quantum-web-api
+      auto-offset-reset: latest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.quantum.web.events"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.quantum.web.events.RealtimeDataEvent
+
+# InfluxDB Configuration
+influxdb:
+  url: http://localhost:8086
+  token: quantum-super-secret-auth-token
+  org: quantum-trading
+  bucket: realtime-data
 
 # Axon Framework Configuration
 axon:
@@ -43,6 +85,7 @@ logging:
     com.quantum.trading.platform: DEBUG
     org.springframework.web: INFO
     org.axonframework: INFO
+    org.springframework.security: DEBUG
 
 # Management Endpoints
 management:
@@ -82,13 +125,12 @@ spring:
   config:
     activate:
       on-profile: development
-  h2:
-    console:
-      enabled: true
 logging:
   level:
     org.springframework.web: DEBUG
     com.quantum: TRACE
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 ---
 # Production Profile

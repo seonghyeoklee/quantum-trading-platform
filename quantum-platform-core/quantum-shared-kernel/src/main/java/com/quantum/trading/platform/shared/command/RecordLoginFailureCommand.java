@@ -1,5 +1,7 @@
 package com.quantum.trading.platform.shared.command;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.quantum.trading.platform.shared.value.UserId;
 import lombok.Builder;
 import lombok.Value;
@@ -18,15 +20,31 @@ import jakarta.validation.constraints.*;
 public class RecordLoginFailureCommand {
     @TargetAggregateIdentifier
     @NotNull(message = "User ID cannot be null")
+    @JsonProperty("userId")
     UserId userId;
     
     @NotBlank(message = "Failure reason cannot be null or empty")
     @Size(max = 200, message = "Reason cannot exceed 200 characters")
+    @JsonProperty("reason")
     String reason;
     
     @NotBlank(message = "IP address cannot be null or empty")
+    @JsonProperty("ipAddress")
     String ipAddress;
     
     @Size(max = 500, message = "User agent cannot exceed 500 characters")
+    @JsonProperty("userAgent")
     String userAgent;
+    
+    @JsonCreator
+    public RecordLoginFailureCommand(
+            @JsonProperty("userId") UserId userId,
+            @JsonProperty("reason") String reason,
+            @JsonProperty("ipAddress") String ipAddress,
+            @JsonProperty("userAgent") String userAgent) {
+        this.userId = userId;
+        this.reason = reason;
+        this.ipAddress = ipAddress;
+        this.userAgent = userAgent;
+    }
 }

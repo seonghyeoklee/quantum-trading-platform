@@ -15,8 +15,8 @@ class KiwoomSettings(BaseSettings):
     KIWOOM_SANDBOX_MODE: bool = Field(True, description="키움 샌드박스 모드 (실전투자 vs 모의투자)")
     
     # 샌드박스 모드용 키 (모의투자)
-    KIWOOM_SANDBOX_APP_KEY: str = Field(..., description="키움 샌드박스 API 앱키")
-    KIWOOM_SANDBOX_APP_SECRET: str = Field(..., description="키움 샌드박스 API 시크릿키")
+    KIWOOM_SANDBOX_APP_KEY: str = Field("", description="키움 샌드박스 API 앱키")
+    KIWOOM_SANDBOX_APP_SECRET: str = Field("", description="키움 샌드박스 API 시크릿키")
     
     # 실전 모드용 키 (실제투자)
     KIWOOM_PRODUCTION_APP_KEY: str = Field("", description="키움 실전 API 앱키")
@@ -76,6 +76,10 @@ class KiwoomSettings(BaseSettings):
     def get_app_key(self, app_key: Optional[str] = None) -> str:
         """앱키 반환 (마스킹 없이)"""
         return app_key or self.KIWOOM_APP_KEY
+    
+    def get_app_secret(self) -> str:
+        """앱시크릿 반환 (현재 모드에 맞는)"""
+        return self.KIWOOM_APP_SECRET
     
     def validate_keys(self) -> bool:
         """현재 모드에 맞는 키가 설정되어 있는지 검증"""

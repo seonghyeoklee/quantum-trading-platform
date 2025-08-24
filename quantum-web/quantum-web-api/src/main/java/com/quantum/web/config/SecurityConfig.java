@@ -54,6 +54,9 @@ public class SecurityConfig {
         http
             // CSRF 비활성화 (JWT 사용)
             .csrf(csrf -> csrf.disable())
+            
+            // Frame Options 설정 (기본값 유지)
+            // .headers(headers -> headers.frameOptions().disable()) // 테스트 시에만 필요
 
             // CORS 설정
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -71,8 +74,14 @@ public class SecurityConfig {
                 // 공개 엔드포인트
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/health").permitAll()
-                // WebSocket 제거됨
-
+                .requestMatchers("/error").permitAll() // Spring Boot 기본 오류 처리 경로
+                
+                // H2 Console 접근 허용 (테스트환경에서만)
+                // .requestMatchers("/h2-console/**").permitAll() // 테스트 시에만 필요
+                
+                // Actuator 엔드포인트 허용 (개발환경에서만)
+                .requestMatchers("/actuator/**").permitAll()
+                
                 // Swagger/OpenAPI 문서 (개발환경에서만)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
@@ -85,6 +94,12 @@ public class SecurityConfig {
 
                 // 차트 데이터는 모든 인증된 사용자
                 .requestMatchers("/api/v1/charts/**").authenticated()
+                
+                // 실시간 데이터는 모든 인증된 사용자
+                .requestMatchers("/api/v1/realtime/**").authenticated()
+                
+                // WebSocket 연결
+                .requestMatchers("/ws/**").permitAll() // WebSocket 연결은 별도 인증
 
                 // 나머지 모든 요청은 인증 필요
                 .anyRequest().authenticated()
