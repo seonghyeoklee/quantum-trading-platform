@@ -7,23 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ThemeToggle } from "@/components/theme-toggle"
+import ChartContainer from "@/components/chart/ChartContainer"
 import { 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
-  BarChart3, 
-  Activity,
-  Users,
-  Shield,
-  Settings,
+  BarChart3,
   Search,
   Bell,
-  Menu,
-  Star,
   Globe,
-  ChevronDown,
-  LogOut,
-  User
+  ChevronDown
 } from "lucide-react"
 
 function TradingDashboard() {
@@ -219,84 +211,7 @@ function TradingDashboard() {
 
         {/* Central Chart Area */}
         <div className="flex-1 flex flex-col bg-background">
-          {/* Chart Header */}
-          <div className="p-4 border-b border-border bg-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-medium text-primary">S</span>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold">삼성전자 (005930)</h2>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <span>KOSPI</span>
-                      <span>•</span>
-                      <span>한국 주식</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">71,400</div>
-                    <div className="flex items-center text-sm text-bear">
-                      <TrendingDown className="w-3 h-3 mr-1" />
-                      <span>-900 (-1.24%)</span>
-                    </div>
-                  </div>
-                  
-                  <Button variant="ghost" size="sm">
-                    <Star className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">1D</Button>
-                <Button variant="outline" size="sm">5D</Button>
-                <Button size="sm" className="bg-primary text-primary-foreground">1M</Button>
-                <Button variant="outline" size="sm">3M</Button>
-                <Button variant="outline" size="sm">1Y</Button>
-                <Button variant="outline" size="sm">ALL</Button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Chart Container */}
-          <div className="flex-1 p-6 bg-background">
-            <div className="w-full h-96 chart-container flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-lg bg-gradient-to-br from-primary/20 to-chart-1/20 flex items-center justify-center">
-                  <BarChart3 className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">프로페셔널 차트</h3>
-                <p className="text-sm text-muted-foreground">실시간 TradingView 스타일 차트가 여기에 표시됩니다</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Market Data & Analysis */}
-          <div className="p-6 border-t border-border bg-muted">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">시가</div>
-                <div className="text-sm font-medium">71,400</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">거래량</div>
-                <div className="text-sm font-medium">12,345,678</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">시가총액</div>
-                <div className="text-sm font-medium">₹426.8T</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">52주 대비</div>
-                <div className="text-sm font-medium text-bull">68,300 - 89,800</div>
-              </div>
-            </div>
-          </div>
+          <ChartContainer className="flex-1" />
         </div>
 
         {/* Right Sidebar - Market Data */}
