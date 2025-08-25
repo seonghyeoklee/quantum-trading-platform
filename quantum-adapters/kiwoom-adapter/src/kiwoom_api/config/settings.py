@@ -35,6 +35,9 @@ class KiwoomSettings(BaseSettings):
     WEBSOCKET_CLOSE_TIMEOUT: int = Field(15, description="WebSocket 종료 타임아웃 (초)")
     WEBSOCKET_MAX_CONNECTIONS: int = Field(100, description="최대 WebSocket 연결 수")
     
+    # Kafka 설정
+    ENABLE_KAFKA: bool = Field(True, description="Kafka 연결 활성화 여부")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

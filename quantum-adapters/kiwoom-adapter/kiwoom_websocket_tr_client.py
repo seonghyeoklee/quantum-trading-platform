@@ -31,7 +31,7 @@ class ScreenerTester:
     """조건검색 TR 테스트 클래스"""
     
     def __init__(self):
-        self.client = RealtimeClient(SOCKET_URL)
+        self.client = RealtimeClient(SOCKET_URL, skip_login=True)  # 개발 테스트용 로그인 스킵
         self.conditions = []  # 조회된 조건식 목록
         self.active_conditions = []  # 실시간 활성화된 조건식들
         

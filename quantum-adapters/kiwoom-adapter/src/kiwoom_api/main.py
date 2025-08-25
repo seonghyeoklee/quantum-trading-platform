@@ -26,7 +26,9 @@ import structlog
 
 # Handle both relative and absolute imports for different execution contexts
 try:
-    from .api import auth, chart, stock, account
+    from .api import auth, chart, stock, account, websocket
+    from .analysis.api import analysis_router
+    from .analysis.api.comprehensive_router import router as comprehensive_router
     from .config.settings import settings
     from .events.api_middleware import KafkaEventMiddleware
 except ImportError:
@@ -35,7 +37,9 @@ except ImportError:
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
 
-    from kiwoom_api.api import auth, chart, stock, account
+    from kiwoom_api.api import auth, chart, stock, account, websocket
+    from kiwoom_api.analysis.api import analysis_router
+    from kiwoom_api.analysis.api.comprehensive_router import router as comprehensive_router
     from kiwoom_api.config.settings import settings
     from kiwoom_api.events.api_middleware import KafkaEventMiddleware
 
@@ -145,6 +149,9 @@ app.include_router(auth.router, prefix="")
 app.include_router(chart.router, prefix="")
 app.include_router(stock.router, prefix="")
 app.include_router(account.router, prefix="")
+app.include_router(websocket.router, prefix="")
+app.include_router(analysis_router.router, prefix="")
+app.include_router(comprehensive_router, prefix="")
 
 # 정적 파일 서빙 (대시보드용)
 app.mount("/static", StaticFiles(directory="static"), name="static")

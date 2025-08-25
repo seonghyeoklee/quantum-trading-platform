@@ -30,6 +30,22 @@ class KiwoomStockChartRequest(BaseModel):
         }
 
 
+class KiwoomStockOrderbookRequest(BaseModel):
+    """키움 주식호가요청 요청 모델 (ka10004)"""
+
+    stk_cd: str = Field(
+        description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
+        example="005930"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stk_cd": "005930"
+            }
+        }
+
+
 class KiwoomStockChartApiRequest(BaseModel):
     """키움 주식일봉차트조회 요청 모델 (토큰 자동 관리)"""
 
@@ -567,6 +583,136 @@ class KiwoomSectorDailyChartApiRequest(BaseModel):
                 "data": {
                     "inds_cd": "001",
                     "base_dt": "20241122"
+                },
+                "cont_yn": "N",
+                "next_key": ""
+            }
+        }
+
+
+class KiwoomStockHistoricalRequest(BaseModel):
+    """키움 주식일주월시분요청(ka10005) 요청 모델"""
+    stk_cd: str = Field(..., description="종목코드 (거래소별)", example="005930")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stk_cd": "005930"
+            }
+        }
+
+
+class KiwoomStockMinuteRequest(BaseModel):
+    """키움 주식시분요청(ka10006) 요청 모델"""
+    stk_cd: str = Field(..., description="종목코드 (거래소별)", example="005930")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stk_cd": "005930"
+            }
+        }
+
+
+class KiwoomStockMarketInfoRequest(BaseModel):
+    """키움 시세표성정보요청(ka10007) 요청 모델"""
+    stk_cd: str = Field(..., description="종목코드 (거래소별)", example="005930")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stk_cd": "005930"
+            }
+        }
+
+
+class KiwoomNewStockRightsRequest(BaseModel):
+    """키움 신주인수권전체시세요청(ka10011) 요청 모델"""
+    newstk_recvrht_tp: str = Field(..., description="신주인수권구분 (00:전체, 05:신주인수권증권, 07:신주인수권증서)", example="00")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "newstk_recvrht_tp": "00"
+            }
+        }
+
+
+class KiwoomDailyInstitutionalTradeRequest(BaseModel):
+    """키움 일별기관매매종목요청(ka10044) 요청 모델"""
+    strt_dt: str = Field(..., description="시작일자 YYYYMMDD", example="20241106")
+    end_dt: str = Field(..., description="종료일자 YYYYMMDD", example="20241107")
+    trde_tp: str = Field(..., description="매매구분 (1:순매도, 2:순매수)", example="1")
+    mrkt_tp: str = Field(..., description="시장구분 (001:코스피, 101:코스닥)", example="001")
+    stex_tp: str = Field(..., description="거래소구분 (1:KRX, 2:NXT, 3:통합)", example="3")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "strt_dt": "20241106",
+                "end_dt": "20241107",
+                "trde_tp": "1",
+                "mrkt_tp": "001",
+                "stex_tp": "3"
+            }
+        }
+
+
+# 종목별기관매매추이요청 (ka10045) 모델
+class KiwoomStockInstitutionalTrendRequest(BaseModel):
+    """종목별기관매매추이요청 데이터 모델"""
+    
+    stk_cd: str = Field(
+        description="종목코드 (6자리)",
+        example="005930",
+        min_length=6,
+        max_length=6
+    )
+    strt_dt: str = Field(
+        description="시작일자 YYYYMMDD",
+        example="20241201",
+        pattern=r"^\d{8}$"
+    )
+    end_dt: str = Field(
+        description="종료일자 YYYYMMDD",
+        example="20241225",
+        pattern=r"^\d{8}$"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stk_cd": "005930",
+                "strt_dt": "20241201",
+                "end_dt": "20241225"
+            }
+        }
+
+
+class KiwoomStockInstitutionalTrendApiRequest(BaseModel):
+    """키움 종목별기관매매추이요청 API 요청 모델 (토큰 자동 관리)"""
+    
+    data: KiwoomStockInstitutionalTrendRequest = Field(
+        description="종목별기관매매추이요청 데이터"
+    )
+    cont_yn: str = Field(
+        default="N",
+        description="연속조회여부 ('Y' or 'N')",
+        example="N"
+    )
+    next_key: str = Field(
+        default="",
+        description="연속조회키",
+        example=""
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "data": {
+                    "stk_cd": "005930",
+                    "strt_dt": "20241201",
+                    "end_dt": "20241225"
                 },
                 "cont_yn": "N",
                 "next_key": ""
