@@ -36,17 +36,17 @@
   --input: 246 248 250;                /* Input background #f6f8fa */
   --ring: 9 105 218;                   /* Focus ring blue */
   
-  /* Financial Trading Colors - Clean Professional */
-  --bull-green: 26 175 68;      /* Clean Bull Green #1aaf44 */
-  --bear-red: 218 54 51;        /* Clean Bear Red #da3633 */
+  /* Financial Trading Colors - Korean Style */
+  --bull-red: 239 68 68;        /* Korean Bull Red #ef4444 */
+  --bear-blue: 59 130 246;      /* Korean Bear Blue #3b82f6 */
   --warning-amber: 251 189 35;  /* Clean Warning #fbbd23 */
   --info-blue: 9 105 218;       /* Clean Info Blue #0969da */
   --success-emerald: 26 175 68; /* Clean Success #1aaf44 */
   
-  /* Chart Colors - Clean Professional Palette */
+  /* Chart Colors - Korean Style Palette */
   --chart-1: 9 105 218;         /* Clean Blue #0969da */
-  --chart-2: 26 175 68;         /* Clean Bull Green #1aaf44 */
-  --chart-3: 218 54 51;         /* Clean Bear Red #da3633 */
+  --chart-2: 239 68 68;         /* Korean Bull Red #ef4444 */
+  --chart-3: 59 130 246;        /* Korean Bear Blue #3b82f6 */
   --chart-4: 251 189 35;        /* Clean Warning #fbbd23 */
   --chart-5: 130 80 223;        /* Clean Purple #8250df */
   --chart-6: 31 136 201;        /* Clean Cyan #1f88c9 */
@@ -96,17 +96,17 @@
   --input: 64 68 75;                   /* Dark input background #40444b */
   --ring: 88 101 242;                  /* Discord focus ring */
   
-  /* Financial Trading Colors - Discord Dark Style */
-  --bull-green: 87 242 135;     /* Discord green #57f287 */
-  --bear-red: 237 66 69;        /* Discord red #ed4245 */
+  /* Financial Trading Colors - Korean Dark Style */
+  --bull-red: 248 113 113;      /* Korean Bull Red Dark #f87171 */
+  --bear-blue: 96 165 250;      /* Korean Bear Blue Dark #60a5fa */
   --warning-amber: 254 231 92;  /* Discord yellow #fee75c */
   --info-blue: 88 101 242;      /* Discord blue #5865f2 */
   --success-emerald: 87 242 135; /* Discord success green */
   
-  /* Chart Colors - Discord Dark Style */
+  /* Chart Colors - Korean Dark Style */
   --chart-1: 88 101 242;         /* Discord Blue #5865f2 */
-  --chart-2: 87 242 135;         /* Discord Green #57f287 */
-  --chart-3: 237 66 69;          /* Discord Red #ed4245 */
+  --chart-2: 248 113 113;        /* Korean Bull Red Dark #f87171 */
+  --chart-3: 96 165 250;         /* Korean Bear Blue Dark #60a5fa */
   --chart-4: 254 231 92;         /* Discord Yellow #fee75c */
   --chart-5: 180 131 255;        /* Discord Purple #b483ff */
   --chart-6: 0 198 255;          /* Discord Cyan #00c6ff */
@@ -135,30 +135,30 @@
   }
 }
 
-/* Financial Trading Utilities */
+/* Financial Trading Utilities - Korean Style */
 @layer utilities {
   .text-bull {
-    color: rgb(var(--bull-green));
+    color: rgb(var(--bull-red));
   }
   
   .text-bear {
-    color: rgb(var(--bear-red));
+    color: rgb(var(--bear-blue));
   }
   
   .bg-bull {
-    background-color: rgb(var(--bull-green));
+    background-color: rgb(var(--bull-red));
   }
   
   .bg-bear {
-    background-color: rgb(var(--bear-red));
+    background-color: rgb(var(--bear-blue));
   }
   
   .border-bull {
-    border-color: rgb(var(--bull-green));
+    border-color: rgb(var(--bull-red));
   }
   
   .border-bear {
-    border-color: rgb(var(--bear-red));
+    border-color: rgb(var(--bear-blue));
   }
   
   /* Professional Financial Card Styles */
@@ -212,24 +212,24 @@
   
   .btn-buy {
     @apply btn-trading text-white hover:shadow-lg transition-all duration-200;
-    background: linear-gradient(135deg, rgb(var(--bull-green)), rgb(var(--success-emerald)));
-    box-shadow: 0 2px 4px rgb(var(--bull-green) / 0.2);
+    background: linear-gradient(135deg, rgb(var(--bull-red)), rgb(var(--bull-red) / 0.9));
+    box-shadow: 0 2px 4px rgb(var(--bull-red) / 0.2);
   }
   
   .btn-buy:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgb(var(--bull-green) / 0.3);
+    box-shadow: 0 4px 12px rgb(var(--bull-red) / 0.3);
   }
   
   .btn-sell {
     @apply btn-trading text-white hover:shadow-lg transition-all duration-200;
-    background: linear-gradient(135deg, rgb(var(--bear-red)), rgb(var(--destructive)));
-    box-shadow: 0 2px 4px rgb(var(--bear-red) / 0.2);
+    background: linear-gradient(135deg, rgb(var(--bear-blue)), rgb(var(--bear-blue) / 0.9));
+    box-shadow: 0 2px 4px rgb(var(--bear-blue) / 0.2);
   }
   
   .btn-sell:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgb(var(--bear-red) / 0.3);
+    box-shadow: 0 4px 12px rgb(var(--bear-blue) / 0.3);
   }
   
   /* Status Indicators */
@@ -239,9 +239,9 @@
   
   .status-active {
     @apply status-indicator;
-    background: linear-gradient(135deg, rgb(var(--success-emerald) / 0.1), rgb(var(--bull-green) / 0.1));
-    color: rgb(var(--success-emerald));
-    border: 1px solid rgb(var(--success-emerald) / 0.2);
+    background: linear-gradient(135deg, rgb(var(--bull-red) / 0.1), rgb(var(--bull-red) / 0.15));
+    color: rgb(var(--bull-red));
+    border: 1px solid rgb(var(--bull-red) / 0.2);
   }
   
   .status-pending {
@@ -253,8 +253,8 @@
   
   .status-inactive {
     @apply status-indicator;
-    background: linear-gradient(135deg, rgb(var(--destructive) / 0.1), rgb(var(--bear-red) / 0.1));
-    color: rgb(var(--destructive));
-    border: 1px solid rgb(var(--destructive) / 0.2);
+    background: linear-gradient(135deg, rgb(var(--bear-blue) / 0.1), rgb(var(--bear-blue) / 0.15));
+    color: rgb(var(--bear-blue));
+    border: 1px solid rgb(var(--bear-blue) / 0.2);
   }
 }

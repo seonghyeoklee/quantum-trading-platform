@@ -10,6 +10,7 @@ interface ChartControlsProps {
   currentTimeframe: ChartTimeframe;
   currentChartType: ChartType;
   currentStock: StockInfo;
+  isStockSelected?: boolean;
   onTimeframeChange: (timeframe: ChartTimeframe) => void;
   onChartTypeChange: (chartType: ChartType) => void;
   onStockChange: (symbol: string) => void;
@@ -33,16 +34,11 @@ const chartTypes: { value: ChartType; label: string; description: string }[] = [
   { value: 'yearly', label: '년', description: '년봉차트' },
 ];
 
-const stockOptions = [
-  { symbol: '005930', name: '삼성전자' },
-  { symbol: '035420', name: 'NAVER' },
-  { symbol: '035720', name: '카카오' },
-];
-
 export default function ChartControls({
   currentTimeframe,
   currentChartType,
   currentStock,
+  isStockSelected = false,
   onTimeframeChange,
   onChartTypeChange,
   onStockChange,
@@ -51,64 +47,76 @@ export default function ChartControls({
 
   return (
     <div className="flex flex-col space-y-4 p-4 border-b border-border bg-card">
-      {/* 상단: 종목 정보 */}
+      {/* 상단: 동적 정보 헤더 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          {/* 종목 선택 */}
+        <div className="flex items-center space-x-6">
+          {/* 종목/시장 정보 */}
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-medium text-primary">
-                {currentStock.name.charAt(0)}
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <span className="text-sm font-medium text-blue-700">
+                {isStockSelected ? currentStock.name.charAt(0) : '📊'}
               </span>
             </div>
             <div>
-              <Select value={currentStock.symbol} onValueChange={onStockChange}>
-                <SelectTrigger className="w-48 border-none shadow-none p-0 h-auto bg-transparent">
-                  <SelectValue>
-                    <div>
-                      <h2 className="text-lg font-bold text-left">
-                        {currentStock.name} ({currentStock.symbol})
-                      </h2>
-                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <span>{currentStock.market}</span>
-                        <span>•</span>
-                        <span>한국 주식</span>
-                      </div>
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {stockOptions.map((stock) => (
-                    <SelectItem key={stock.symbol} value={stock.symbol}>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">{stock.name}</span>
-                        <span className="text-muted-foreground">({stock.symbol})</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <h2 className="text-lg font-bold">
+                {isStockSelected ? `${currentStock.name} (${currentStock.symbol})` : '한국 주식 시장'}
+              </h2>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <span>
+                  {isStockSelected ? `${currentStock.market} • 실시간 데이터` : 'KOSPI • KOSDAQ'}
+                </span>
+              </div>
             </div>
           </div>
           
-          {/* 현재 가격 */}
-          <div className="text-right">
-            <div className="text-2xl font-bold">
-              {currentStock.price.toLocaleString('ko-KR')}
-            </div>
-            <div className={`flex items-center text-sm ${
-              isPositiveChange ? 'text-bull' : 'text-bear'
-            }`}>
-              {isPositiveChange ? (
-                <TrendingUp className="w-3 h-3 mr-1" />
-              ) : (
-                <TrendingDown className="w-3 h-3 mr-1" />
-              )}
-              <span>
-                {isPositiveChange ? '+' : ''}{currentStock.change.toLocaleString('ko-KR')} 
-                ({isPositiveChange ? '+' : ''}{currentStock.changePercent.toFixed(2)}%)
-              </span>
-            </div>
+          {/* 동적 정보 요약 */}
+          <div className="flex items-center space-x-4">
+            {isStockSelected ? (
+              /* 선택된 종목 정보 */
+              <>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">현재가</div>
+                  <div className="font-semibold">{currentStock.price.toLocaleString()}원</div>
+                  <div className={`text-xs flex items-center ${isPositiveChange ? 'text-red-600' : 'text-blue-600'}`}>
+                    {isPositiveChange ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                    {isPositiveChange ? '+' : ''}{currentStock.changePercent.toFixed(2)}%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">등락</div>
+                  <div className="font-semibold">{isPositiveChange ? '+' : ''}{currentStock.change.toLocaleString()}원</div>
+                  <div className="text-xs text-muted-foreground">{currentStock.market}</div>
+                </div>
+              </>
+            ) : (
+              /* 기본 지수 정보 */
+              <>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">KOSPI</div>
+                  <div className="font-semibold">2,647.82</div>
+                  <div className="text-xs text-red-600 flex items-center">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    +1.23%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">KOSDAQ</div>
+                  <div className="font-semibold">742.15</div>
+                  <div className="text-xs text-blue-600 flex items-center">
+                    <TrendingDown className="w-3 h-3 mr-1" />
+                    -0.84%
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">USD/KRW</div>
+                  <div className="font-semibold">1,347.50</div>
+                  <div className="text-xs text-red-600 flex items-center">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    +0.32%
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -116,16 +124,13 @@ export default function ChartControls({
         <div className="flex items-center space-x-2">
           <span className="text-sm font-medium text-muted-foreground">차트 유형:</span>
           <Select value={currentChartType} onValueChange={onChartTypeChange}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-[100px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {chartTypes.map((type) => (
                 <SelectItem key={type.value} value={type.value}>
-                  <div>
-                    <div className="font-medium">{type.label}</div>
-                    <div className="text-xs text-muted-foreground">{type.description}</div>
-                  </div>
+                  {type.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -133,30 +138,33 @@ export default function ChartControls({
         </div>
       </div>
 
-      {/* 하단: 시간대 선택 버튼 */}
+      {/* 하단: 시간대 선택 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          {timeframes.map((timeframe) => (
-            <Button
-              key={timeframe.value}
-              variant={currentTimeframe === timeframe.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => onTimeframeChange(timeframe.value)}
-              className={currentTimeframe === timeframe.value ? 
-                "bg-primary text-primary-foreground" : ""
-              }
-            >
-              {timeframe.label}
-            </Button>
-          ))}
+          <span className="text-sm font-medium text-muted-foreground">기간:</span>
+          <div className="flex space-x-1">
+            {timeframes.map((timeframe) => (
+              <Button
+                key={timeframe.value}
+                variant={currentTimeframe === timeframe.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => onTimeframeChange(timeframe.value)}
+                className="text-xs"
+              >
+                {timeframe.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
-        {/* 추가 정보 */}
-        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-          <Badge variant="outline" className="text-xs">
-            실시간
+        {/* 현재 종목 정보 요약 */}
+        <div className="flex items-center space-x-3">
+          <Badge variant={isPositiveChange ? "default" : "destructive"}>
+            {isPositiveChange ? '상승' : '하락'}
           </Badge>
-          <span>마지막 업데이트: 방금 전</span>
+          <span className="text-sm text-muted-foreground">
+            {isStockSelected ? currentStock.symbol : 'KOSPI'}
+          </span>
         </div>
       </div>
     </div>

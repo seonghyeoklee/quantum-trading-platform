@@ -248,14 +248,35 @@ class KiwoomApiService {
     console.log('convertToChartData 시작:', { 원본데이터수: data.length, 샘플데이터: data.slice(0, 2) });
 
     const converted = data
-      .map(item => ({
-        time: this.formatTimeForChart(item),
-        open: parseFloat(item.open_pric || '0'),
-        high: parseFloat(item.high_pric || '0'),
-        low: parseFloat(item.low_pric || '0'),
-        close: parseFloat(item.cur_prc || '0'),
-        volume: parseFloat(item.trde_qty || '0'),
-      }))
+      .map((item, index) => {
+        const timeFormatted = this.formatTimeForChart(item);
+        const result = {
+          time: timeFormatted,
+          open: parseFloat(item.open_pric || '0'),
+          high: parseFloat(item.high_pric || '0'),
+          low: parseFloat(item.low_pric || '0'),
+          close: parseFloat(item.cur_prc || '0'),
+          volume: parseFloat(item.trde_qty || '0'),
+        };
+        
+        // 처음 몇 개 데이터의 변환 과정 상세 로깅
+        if (index < 3) {
+          console.log(`📊 키움 API 데이터 변환 상세 [${index}]:`, {
+            원본: item,
+            시간변환: { 
+              원본필드: ('dt' in item ? item.dt : 'cntr_tm' in item ? item.cntr_tm : 'unknown'), 
+              변환후: timeFormatted, 
+              타입: typeof timeFormatted 
+            },
+            OHLCV: { 
+              open: result.open, high: result.high, 
+              low: result.low, close: result.close, volume: result.volume 
+            }
+          });
+        }
+        
+        return result;
+      })
       .filter(item => !isNaN(item.open) && !isNaN(item.high) && !isNaN(item.low) && !isNaN(item.close))
       .filter(item => item.open > 0 && item.high > 0 && item.low > 0 && item.close > 0) // 0인 데이터 제외
       .sort((a, b) => a.time.localeCompare(b.time)); // 시간순 정렬
@@ -288,32 +309,30 @@ class KiwoomApiService {
 
     switch (timeframe) {
       case '1D':
-        cutoffDate.setDate(now.getDate() - 1);
+        // 1일이지만 30일치 데이터 제공 (스크롤 가능)
+        cutoffDate.setDate(now.getDate() - 30);
         break;
       case '5D':
-        cutoffDate.setDate(now.getDate() - 5);
+        // 5일이지만 60일치 데이터 제공
+        cutoffDate.setDate(now.getDate() - 60);
         break;
       case '1M':
-        // 1개월 전 계산 (안전한 방법)
-        if (now.getMonth() === 0) {
+        // 1개월이지만 6개월치 데이터 제공
+        const targetMonth1M = now.getMonth() - 6;
+        if (targetMonth1M < 0) {
           cutoffDate.setFullYear(now.getFullYear() - 1);
-          cutoffDate.setMonth(11); // 12월
+          cutoffDate.setMonth(targetMonth1M + 12);
         } else {
-          cutoffDate.setMonth(now.getMonth() - 1);
+          cutoffDate.setMonth(targetMonth1M);
         }
         break;
       case '3M':
-        // 3개월 전 계산 (안전한 방법)
-        const targetMonth = now.getMonth() - 3;
-        if (targetMonth < 0) {
-          cutoffDate.setFullYear(now.getFullYear() - 1);
-          cutoffDate.setMonth(targetMonth + 12);
-        } else {
-          cutoffDate.setMonth(targetMonth);
-        }
+        // 3개월이지만 1년치 데이터 제공
+        cutoffDate.setFullYear(now.getFullYear() - 1);
         break;
       case '1Y':
-        cutoffDate.setFullYear(now.getFullYear() - 1);
+        // 1년이지만 2년치 데이터 제공
+        cutoffDate.setFullYear(now.getFullYear() - 2);
         break;
       case 'ALL':
         console.log('ALL 선택 - 전체 데이터 반환');
@@ -380,12 +399,24 @@ class KiwoomApiService {
       const minute = timeStr.substring(2, 4);
       const second = timeStr.substring(4, 6);
 
-      return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+      const result = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+      console.log(`⏰ 분봉/틱 시간 변환:`, { 
+        원본cntr_tm: minuteData.cntr_tm, 
+        변환결과: result, 
+        타입: typeof result 
+      });
+      return result;
     }
 
     // 일봉 데이터인 경우 (dt 필드 사용)
     const dailyData = item as KiwoomDailyChartData;
-    return this.formatDateForChart(dailyData.dt);
+    const result = this.formatDateForChart(dailyData.dt);
+    console.log(`📅 일봉 시간 변환:`, { 
+      원본dt: dailyData.dt, 
+      변환결과: result, 
+      타입: typeof result 
+    });
+    return result;
   }
 
   /**
