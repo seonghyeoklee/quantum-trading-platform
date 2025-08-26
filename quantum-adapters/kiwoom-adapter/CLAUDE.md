@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Kiwoom Adapter** - FastAPI-based Python REST API service for integrating Kiwoom Securities trading functionality within the larger Quantum Trading Platform ecosystem. This adapter serves as a bridge between the Java-based CQRS/Event Sourcing platform and Kiwoom's REST/WebSocket APIs.
 
-**Core Architecture**: Microservice adapter pattern with dual-mode support (sandbox/production), real-time WebSocket data streaming, and comprehensive OAuth token management.
+**Core Architecture**: Microservice adapter pattern with dual-mode support (sandbox/production), real-time WebSocket data streaming, comprehensive OAuth token management, financial data analysis system with DART API integration, and advanced news sentiment analysis.
 
-**Technology Stack**: Python 3.11, FastAPI, Pydantic, WebSockets, OpenTelemetry tracing, structured logging (structlog)
+**Technology Stack**: Python 3.11, FastAPI, Pydantic, WebSockets, OpenTelemetry tracing, structured logging (structlog), DART financial data integration, BeautifulSoup web scraping, RSS feed processing
 
 ## 📁 Project Structure & Import Strategy
 
@@ -52,10 +52,25 @@ src/kiwoom_api/
 │   ├── client.py             # Kiwoom WebSocket client
 │   ├── client_handler.py     # Connection management
 │   └── realtime.py           # Real-time data processing
-└── functions/                  # Business logic layer
-    ├── auth.py               # Authentication business logic
-    ├── stock.py              # Stock operations
-    └── chart.py              # Chart data processing
+├── functions/                  # Business logic layer
+│   ├── auth.py               # Authentication business logic
+│   ├── stock.py              # Stock operations
+│   └── chart.py              # Chart data processing
+├── external/                   # External API integrations
+│   ├── dart_client.py        # DART financial data client
+│   └── news_crawler.py       # Multi-source news aggregation & sentiment analysis
+└── analysis/                   # Financial analysis system
+    ├── core/                   # Analysis engine components
+    │   ├── models.py           # Analysis request/response models
+    │   ├── scorer.py           # Multi-dimensional scoring system
+    │   └── vlookup_calculator.py # Google Sheets VLOOKUP-based analysis
+    ├── indicators/             # Financial indicators calculation
+    │   ├── financial_indicators.py # Basic financial ratios
+    │   ├── dart_integrated_indicators.py # DART-powered indicators
+    │   └── technical.py        # Technical analysis indicators (RSI, etc.)
+    └── api/                    # Analysis API endpoints
+        ├── analysis_router.py  # Individual analysis endpoints
+        └── comprehensive_router.py # Comprehensive analysis
 ```
 
 ## 💻 Development Commands
@@ -111,6 +126,42 @@ flake8 src/ tests/
 
 # Type checking (if mypy is added)
 mypy src/
+
+# Install additional dependencies for analysis features
+pip install beautifulsoup4 lxml feedparser
+```
+
+### Analysis System Testing
+```bash
+# Test DART API integration
+PYTHONPATH=./src python -c "
+import asyncio
+from src.kiwoom_api.external.dart_client import DARTClient
+
+async def test_dart():
+    dart = DARTClient()
+    result = await dart.get_financial_statement('005930', 2023, '11014')
+    print(f'삼성전자 재무데이터: {list(result.keys())}')
+
+asyncio.run(test_dart())
+"
+
+# Test news sentiment analysis
+PYTHONPATH=./src python -c "
+import asyncio
+from src.kiwoom_api.external.news_crawler import NewsCrawler
+
+async def test_news():
+    crawler = NewsCrawler()
+    result = await crawler.get_comprehensive_news('005930', '삼성전자')
+    print(f'뉴스 분석 결과: {len(result.get(\"articles\", []))}건')
+
+asyncio.run(test_news())
+"
+
+# Test analysis endpoints
+curl http://localhost:8100/api/analysis/comprehensive/005930
+curl http://localhost:8100/api/analysis/rsi/005930
 ```
 
 ## 🏗️ Architecture Principles
@@ -149,6 +200,13 @@ def KIWOOM_APP_KEY(self) -> str:
 - **Structured Logging**: JSON-formatted logs with structured data
 - **Performance Monitoring**: Request/response tracking across services
 
+### Financial Analysis Architecture
+- **Multi-dimensional Scoring**: Technical, fundamental, news sentiment, and institutional analysis
+- **DART Integration**: Real-time Korean financial statement data from regulatory system
+- **News Sentiment Engine**: Multi-source news aggregation with keyword-based sentiment classification
+- **VLOOKUP-based Analysis**: Google Sheets compatible scoring methodology
+- **Comprehensive API**: RESTful endpoints for individual indicators and comprehensive analysis
+
 ## 🔧 Key Configuration
 
 ### Required Environment Variables
@@ -172,6 +230,12 @@ LOG_LEVEL=INFO
 WEBSOCKET_PING_INTERVAL=60
 WEBSOCKET_PING_TIMEOUT=10
 WEBSOCKET_MAX_CONNECTIONS=100
+
+# DART API Integration (Korean Financial Supervisory Service)
+DART_API_KEY=your_dart_api_key_here
+
+# Kafka Integration
+ENABLE_KAFKA=false
 ```
 
 ### FastAPI Application Features
@@ -179,6 +243,8 @@ WEBSOCKET_MAX_CONNECTIONS=100
 - **Health Checks**: `/health` endpoint for container orchestration
 - **CORS Support**: Development-friendly CORS configuration
 - **Lifespan Management**: Proper startup/shutdown hooks
+- **Analysis Endpoints**: Comprehensive financial analysis at `/api/analysis/*`
+- **Multi-format API**: Support for both individual indicators and comprehensive analysis
 
 ## 🚫 Critical Constraints
 
@@ -226,6 +292,15 @@ async def endpoint(request: RequestModel):
 - **Token Rotation**: Implement automatic token refresh before expiration
 - **Input Validation**: All API inputs must be validated using Pydantic models
 - **Logging Safety**: Never log sensitive information (tokens, secrets)
+- **DART API Keys**: Always use settings.DART_API_KEY from environment configuration
+- **Multi-source Data**: Validate external data sources (news, DART) before processing
+
+### Analysis System Requirements
+- **DART Integration**: All financial indicator modules must use DARTClient with proper error handling
+- **News Processing**: Implement sentiment analysis with NewsSentiment enum values (-2 to +2)
+- **Scoring Consistency**: Use standardized scoring ranges across all analysis modules
+- **Cache Strategy**: Implement appropriate caching for expensive DART API calls
+- **Error Resilience**: Graceful degradation when external APIs (DART, news) are unavailable
 
 ## 🔄 Development Workflow
 
@@ -242,11 +317,20 @@ async def endpoint(request: RequestModel):
 3. **Handler Updates**: Update connection handler in `websocket/client_handler.py`
 4. **API Endpoints**: Add management endpoints in `api/websocket.py`
 
+### Adding New Analysis Indicators
+1. **Create Model**: Define request/response models in `analysis/core/models.py`
+2. **Implement Logic**: Add calculation logic in appropriate `analysis/indicators/` module
+3. **External Integration**: Use DARTClient or NewsCrawler for data sources
+4. **API Endpoint**: Add endpoint in `analysis/api/analysis_router.py`
+5. **Comprehensive Integration**: Update `comprehensive_router.py` for multi-indicator analysis
+
 ### Integration Testing Strategy
 - **Mock External APIs**: Use `httpx.AsyncClient` with proper mocking
 - **WebSocket Testing**: Use FastAPI's `TestClient` with WebSocket support
 - **Environment Isolation**: Test both sandbox and production configurations
 - **Error Scenarios**: Test all error conditions and edge cases
+- **DART API Testing**: Test with valid/invalid API keys and various stock codes
+- **News Analysis Testing**: Validate sentiment scoring across different news sources
 
 ## 🔗 Platform Integration Context
 
@@ -261,6 +345,9 @@ This adapter integrates with the larger Quantum Trading Platform:
 - **Kiwoom APIs**: REST API for trading operations, WebSocket for real-time data
 - **Platform Services**: Main Java platform for command/query operations
 - **Infrastructure**: Redis for caching, monitoring stack for observability
+- **DART API**: Korean Financial Supervisory Service for regulatory financial data
+- **News Sources**: Multi-source news aggregation (Naver, RSS feeds, news APIs)
+- **Analysis Libraries**: BeautifulSoup, feedparser, httpx for data collection and processing
 
 ### Data Flow Patterns
 ```
@@ -269,8 +356,14 @@ Web Client ←→ FastAPI ←→ Kiwoom REST API
 WebSocket ←→ Kiwoom WebSocket
      ↓
 Platform Event Bus (via REST callbacks)
+
+Analysis Flow:
+Client Request → Analysis API → DART Client → Korean Financial Data
+                             → News Crawler → Multi-source News
+                             → Technical Indicators → Market Data
+                             → Comprehensive Scorer → Final Analysis
 ```
 
 ---
 
-**Development Note**: This adapter serves as a critical bridge between the main platform and Kiwoom Securities. All development must maintain strict compatibility with both the Kiwoom API specifications and the platform's integration requirements.
+**Development Note**: This adapter serves as a critical bridge between the main platform and Kiwoom Securities, enhanced with comprehensive financial analysis capabilities. All development must maintain strict compatibility with Kiwoom API specifications, Korean regulatory data standards (DART), and the platform's integration requirements. The system supports both real-time trading operations and sophisticated multi-dimensional stock analysis powered by official financial data and news sentiment analysis.

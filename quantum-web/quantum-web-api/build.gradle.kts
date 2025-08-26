@@ -43,6 +43,12 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.3")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.3")
 
+    // QR Code & TOTP for 2FA
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.zxing:javase:3.5.3")
+    implementation("com.eatthepath:java-otp:0.4.0")
+    implementation("commons-codec:commons-codec:1.16.0")
+
     // JSON Processing
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")

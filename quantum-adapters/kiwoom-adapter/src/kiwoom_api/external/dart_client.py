@@ -13,6 +13,16 @@ from enum import Enum
 import os
 from pathlib import Path
 
+# Handle both relative and absolute imports for different execution contexts
+try:
+    from ..config.settings import settings
+except ImportError:
+    import sys
+    src_path = Path(__file__).parent.parent.parent
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+    from kiwoom_api.config.settings import settings
+
 class DARTReportType(Enum):
     """DART 보고서 타입"""
     # 정기보고서
@@ -58,7 +68,7 @@ class DARTClient:
         Args:
             api_key: DART API 인증키 (환경변수 DART_API_KEY로도 설정 가능)
         """
-        self.api_key = api_key or os.getenv("DART_API_KEY")
+        self.api_key = api_key or settings.DART_API_KEY or os.getenv("DART_API_KEY")
         if not self.api_key:
             raise ValueError("DART API key is required. Set DART_API_KEY environment variable or pass api_key parameter.")
         

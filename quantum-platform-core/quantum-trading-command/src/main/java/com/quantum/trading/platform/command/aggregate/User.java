@@ -41,6 +41,12 @@ public class User {
     private Instant passwordChangedAt;
     private String activeSessionId;
     private Instant sessionStartTime;
+    
+    // 2FA 관련 필드들
+    private boolean twoFactorEnabled;
+    private String totpSecretKey;
+    private Set<String> backupCodeHashes;
+    private Instant twoFactorSetupAt;
 
     // 암호화 로직은 Application Layer(AuthService)에서 처리
 
@@ -235,6 +241,93 @@ public class User {
         log.info("User {} account locked - reason: {}", this.username, command.getReason());
     }
 
+    /**
+     * 2FA 활성화 처리
+     */
+    @CommandHandler
+    public void handle(EnableTwoFactorCommand command) {
+        log.info("Enabling 2FA for user: {}", this.username);
+        
+        command.validate();
+        
+        // 이미 2FA가 활성화된 경우
+        if (this.twoFactorEnabled) {
+            log.info("2FA is already enabled for user: {}", this.username);
+            return;
+        }
+        
+        // 계정 상태 확인
+        if (this.status != UserStatus.ACTIVE) {
+            throw new IllegalStateException("Cannot enable 2FA for inactive account");
+        }
+        
+        // 2FA 활성화 이벤트 발행
+        AggregateLifecycle.apply(TwoFactorEnabledEvent.of(
+            this.userId,
+            command.totpSecretKey(),
+            command.backupCodeHashes()
+        ));
+        
+        log.info("2FA enabled successfully for user: {}", this.username);
+    }
+    
+    /**
+     * 2FA 비활성화 처리
+     */
+    @CommandHandler
+    public void handle(DisableTwoFactorCommand command) {
+        log.info("Disabling 2FA for user: {}", this.username);
+        
+        command.validate();
+        
+        // 2FA가 비활성화된 경우
+        if (!this.twoFactorEnabled) {
+            log.info("2FA is already disabled for user: {}", this.username);
+            return;
+        }
+        
+        // 2FA 비활성화 이벤트 발행
+        AggregateLifecycle.apply(TwoFactorDisabledEvent.of(
+            this.userId,
+            command.reason()
+        ));
+        
+        log.info("2FA disabled successfully for user: {}", this.username);
+    }
+    
+    /**
+     * 백업 코드 사용 처리
+     */
+    @CommandHandler
+    public void handle(UseBackupCodeCommand command) {
+        log.info("Using backup code for user: {}", this.username);
+        
+        command.validate();
+        
+        // 2FA가 활성화되지 않은 경우
+        if (!this.twoFactorEnabled) {
+            throw new IllegalStateException("2FA is not enabled for this account");
+        }
+        
+        // 백업 코드가 존재하는지 확인
+        if (!this.backupCodeHashes.contains(command.backupCodeHash())) {
+            throw new IllegalArgumentException("Invalid backup code");
+        }
+        
+        // 백업 코드 사용 이벤트 발행
+        int remainingCodes = this.backupCodeHashes.size() - 1;
+        AggregateLifecycle.apply(BackupCodeUsedEvent.of(
+            this.userId,
+            command.backupCodeHash(),
+            command.ipAddress(),
+            command.userAgent(),
+            remainingCodes
+        ));
+        
+        log.info("Backup code used successfully for user: {}, remaining codes: {}", 
+                this.username, remainingCodes);
+    }
+
     // Event Sourcing Handlers - 상태 복원 로직
 
     @EventSourcingHandler
@@ -252,6 +345,12 @@ public class User {
         this.passwordChangedAt = event.getRegisteredAt();
         this.activeSessionId = null;
         this.sessionStartTime = null;
+        
+        // 2FA 초기값 설정
+        this.twoFactorEnabled = false;
+        this.totpSecretKey = null;
+        this.backupCodeHashes = new HashSet<>();
+        this.twoFactorSetupAt = null;
     }
 
     @EventSourcingHandler
@@ -284,6 +383,29 @@ public class User {
     @EventSourcingHandler
     public void on(UserAccountLockedEvent event) {
         this.status = UserStatus.LOCKED;
+    }
+    
+    // 2FA Event Sourcing Handlers
+    
+    @EventSourcingHandler
+    public void on(TwoFactorEnabledEvent event) {
+        this.twoFactorEnabled = true;
+        this.totpSecretKey = event.totpSecretKey();
+        this.backupCodeHashes = new HashSet<>(event.backupCodeHashes());
+        this.twoFactorSetupAt = event.enabledAt();
+    }
+    
+    @EventSourcingHandler
+    public void on(TwoFactorDisabledEvent event) {
+        this.twoFactorEnabled = false;
+        this.totpSecretKey = null;
+        this.backupCodeHashes.clear();
+        this.twoFactorSetupAt = null;
+    }
+    
+    @EventSourcingHandler
+    public void on(BackupCodeUsedEvent event) {
+        this.backupCodeHashes.remove(event.backupCodeHash());
     }
 
     // 비즈니스 로직 메서드들

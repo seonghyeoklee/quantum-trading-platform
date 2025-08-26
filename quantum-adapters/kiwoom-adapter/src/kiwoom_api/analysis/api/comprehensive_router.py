@@ -47,6 +47,26 @@ class StockAnalysisRequest(BaseModel):
         }
 
 
+class CriteriaEvaluation(BaseModel):
+    """평가 기준 적용 결과"""
+    criterion: str = Field(..., description="평가 기준명")
+    actual_value: str = Field(..., description="실제값")
+    benchmark: str = Field(..., description="기준값")
+    met: bool = Field(..., description="기준 충족 여부")
+    points: int = Field(..., description="획득 점수")
+    explanation: str = Field(..., description="설명")
+
+# BaseDataInfo를 Dict[str, Any]로 단순화
+BaseDataInfo = Dict[str, Any]
+
+class CalculationProcess(BaseModel):
+    """계산 과정 상세"""
+    base_score: int = Field(..., description="기준 점수")
+    earned_points: int = Field(..., description="획득 점수")
+    formula: str = Field(..., description="계산 공식")
+    step_by_step: List[str] = Field(..., description="단계별 계산 과정")
+    final_score: int = Field(..., description="최종 점수")
+
 class AreaScoreDetail(BaseModel):
     """영역별 상세 점수"""
     area: str = Field(..., description="영역명")
@@ -58,6 +78,11 @@ class AreaScoreDetail(BaseModel):
     percentage: float = Field(..., description="백분율")
     interpretation: str = Field(..., description="해석")
     formula: str = Field(..., description="계산 공식")
+    
+    # 확장된 필드들
+    base_data: Dict[str, BaseDataInfo] = Field(..., description="기반 데이터")
+    criteria_evaluation: List[CriteriaEvaluation] = Field(..., description="평가 기준 적용 결과")
+    calculation: CalculationProcess = Field(..., description="계산 과정 상세")
 
 
 class StockAnalysisResponse(BaseResponse):

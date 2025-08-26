@@ -3,13 +3,20 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import LogoutDialog from '@/components/auth/LogoutDialog';
 import { 
   ArrowLeft,
   Home,
   Settings,
   Shield,
   User,
-  LogOut
+  LogOut,
+  BarChart3,
+  Bell,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Globe
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UserInfo from './UserInfo';
@@ -32,11 +39,9 @@ export default function UserLayout({
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const handleLogout = () => {
-    if (confirm('정말 로그아웃 하시겠습니까?')) {
-      logout();
-      router.push('/login');
-    }
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
   };
 
   const getQuickActions = () => {
@@ -94,59 +99,136 @@ export default function UserLayout({
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => router.back()}
-              className="flex items-center space-x-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>뒤로</span>
-            </Button>
-            <div>
-              <h1 className="text-xl font-bold">{title}</h1>
-              {subtitle && (
-                <p className="text-sm text-muted-foreground">{subtitle}</p>
-              )}
+        {/* Top Navigation - 메인 헤더와 동일한 구조 유지 */}
+        <div className="px-4 py-2 border-b border-border/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <span className="font-bold text-lg">Quantum Trading</span>
+              </div>
+              
+              {/* 간단한 네비게이션 힌트 */}
+              <nav className="hidden md:flex items-center space-x-4 text-sm text-muted-foreground">
+                <span>사용자 관리</span>
+              </nav>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              {/* 알림 */}
+              <Button variant="ghost" size="sm" className="relative">
+                <Bell className="w-4 h-4" />
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full"></div>
+              </Button>
+              
+              <ThemeToggle />
+              
+              {/* 사용자 정보 */}
+              <div className="pl-3 border-l border-border">
+                <div className="hidden md:flex items-center space-x-2 mr-2">
+                  <UserInfo />
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+        
+        {/* Market Summary Bar - 일관성을 위해 유지하되 사용자 컨텍스트로 조정 */}
+        <div className="px-4 py-2 bg-muted border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6 text-sm">
+              <div className="flex items-center space-x-2">
+                <span className="text-muted-foreground">KOSPI</span>
+                <span className="font-medium">2,647.82</span>
+                <span className="text-red-600 flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-1" />
+                  +1.23%
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-muted-foreground">KOSDAQ</span>
+                <span className="font-medium">742.15</span>
+                <span className="text-blue-600 flex items-center">
+                  <TrendingDown className="w-3 h-3 mr-1" />
+                  -0.84%
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-muted-foreground">USD/KRW</span>
+                <span className="font-medium">1,347.50</span>
+                <span className="text-red-600 flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-1" />
+                  +0.32%
+                </span>
+              </div>
+            </div>
+            
+            {/* 페이지 컨텍스트 표시 */}
+            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+              <Globe className="w-4 h-4" />
+              <span>실시간 데이터</span>
+              <span>•</span>
+              <span className="text-primary font-medium">{title}</span>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex items-center space-x-2">
-            {/* 사용자 정보 표시 (작은 화면에서는 숨김) */}
-            <div className="hidden md:flex items-center space-x-2 mr-2">
-              <UserInfo />
+        {/* Page Navigation Bar - 개선된 네비게이션 */}
+        <div className="px-4 py-3 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              {/* 브레드크럼 스타일 네비게이션 */}
+              <div className="flex items-center space-x-2 text-sm">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => router.push('/')}
+                  className="h-auto p-1 hover:bg-transparent hover:text-primary"
+                >
+                  <Home className="w-4 h-4" />
+                </Button>
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => router.back()}
+                  className="h-auto p-1 hover:bg-transparent hover:text-primary text-muted-foreground hover:text-primary"
+                >
+                  <ArrowLeft className="w-3 h-3 mr-1" />
+                  뒤로
+                </Button>
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                <span className="font-medium text-foreground">{title}</span>
+              </div>
+              
+              {subtitle && (
+                <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                  {subtitle}
+                </div>
+              )}
             </div>
 
-            {/* 커스텀 액션 버튼들 */}
-            {actions}
-            
-            {/* 기본 액션 버튼들 */}
-            {getQuickActions()}
-            
-            {/* 홈 버튼 */}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => router.push('/')}
-            >
-              <Home className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">홈</span>
-            </Button>
-
-            {/* 로그아웃 버튼 */}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleLogout}
-              className="text-destructive border-destructive/50 hover:bg-destructive/10"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">로그아웃</span>
-            </Button>
-
-            <ThemeToggle />
+            <div className="flex items-center space-x-2">
+              {/* 커스텀 액션 버튼들 */}
+              {actions}
+              
+              {/* 기본 액션 버튼들 */}
+              {getQuickActions()}
+              
+              {/* 로그아웃 버튼 */}
+              <LogoutDialog onLogout={handleLogout}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">로그아웃</span>
+                </Button>
+              </LogoutDialog>
+            </div>
           </div>
         </div>
       </header>
