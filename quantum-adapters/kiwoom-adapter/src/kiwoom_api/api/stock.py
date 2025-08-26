@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from fastapi.responses import JSONResponse
 
 try:
@@ -51,7 +51,8 @@ try:
     from ..functions.stock_institutional_trend import (
         fn_ka10045, convert_stock_institutional_trend_data, get_change_sign_name
     )
-    # Authentication
+    # Authentication - Flexible Auth System
+    from ..auth.flexible_auth import get_read_only_auth, get_trading_auth
     from ..auth.token_validator import extract_bearer_token
 except ImportError:
     # Stock models
@@ -109,7 +110,7 @@ async def api_fn_ka10001(
     request: StockInfoRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 주식기본정보요청 (ka10001)
@@ -121,16 +122,14 @@ async def api_fn_ka10001(
     - **cont_yn**: 연속조회여부 (N: 최초, Y: 연속)
     - **next_key**: 연속조회키 (연속조회시 필요)
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka10001 요청: {request.stk_cd}")
+        logger.info(f"📊 fn_ka10001 요청: {request.stk_cd} (고정키 사용)")
 
-        # fn_ka10001 직접 호출
+        # fn_ka10001 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka10001(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -151,7 +150,7 @@ async def api_fn_ka10099(
     request: StockListRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 종목정보 리스트 (ka10099)
@@ -170,16 +169,14 @@ async def api_fn_ka10099(
     - **cont_yn**: 연속조회여부 (N: 최초, Y: 연속)
     - **next_key**: 연속조회키 (연속조회시 필요)
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka10099 요청: {request.mrkt_tp}")
+        logger.info(f"📊 fn_ka10099 요청: {request.mrkt_tp} (고정키 사용)")
 
-        # fn_ka10099 직접 호출
+        # fn_ka10099 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka10099(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -200,7 +197,7 @@ async def api_fn_ka10100(
     request: StockInfoRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 종목정보 조회 (ka10100)
@@ -225,16 +222,14 @@ async def api_fn_ka10100(
     - orderWarning: 투자유의종목여부
     - nxtEnable: NXT가능여부
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka10100 요청: {request.stk_cd}")
+        logger.info(f"📊 fn_ka10100 요청: {request.stk_cd} (고정키 사용)")
 
-        # fn_ka10100 직접 호출
+        # fn_ka10100 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka10100(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -255,7 +250,7 @@ async def api_fn_ka10101(
     request: IndustryCodeRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 업종코드 리스트 (ka10101)
@@ -276,16 +271,14 @@ async def api_fn_ka10101(
       - name: 업종명
       - group: 그룹
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka10101 요청: {request.mrkt_tp}")
+        logger.info(f"📊 fn_ka10101 요청: {request.mrkt_tp} (고정키 사용)")
 
-        # fn_ka10101 직접 호출
+        # fn_ka10101 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka10101(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -306,7 +299,7 @@ async def api_fn_ka10095(
     request: WatchlistRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 관심종목정보요청 (ka10095)
@@ -340,16 +333,14 @@ async def api_fn_ka10095(
       - 매수호가/매도호가 정보
       - 기술적 지표 등
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka10095 요청: {request.stk_cd}")
+        logger.info(f"📊 fn_ka10095 요청: {request.stk_cd} (고정키 사용)")
 
-        # fn_ka10095 직접 호출
+        # fn_ka10095 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka10095(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -370,7 +361,7 @@ async def api_fn_ka90003(
     request: ProgramTradeRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
     키움증권 프로그램순매수상위50요청 (ka90003)
@@ -405,16 +396,14 @@ async def api_fn_ka90003(
       - prm_buy_amt: 프로그램매수금액
       - prm_netprps_amt: 프로그램순매수금액
 
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        # Java Backend에서 전달받은 토큰 추출
-        access_token = extract_bearer_token(authorization)
-        logger.info(f"📊 fn_ka90003 요청: {request.trde_upper_tp}/{request.amt_qty_tp}/{request.mrkt_tp}/{request.stex_tp}")
+        logger.info(f"📊 fn_ka90003 요청: {request.trde_upper_tp}/{request.amt_qty_tp}/{request.mrkt_tp}/{request.stex_tp} (고정키 사용)")
 
-        # fn_ka90003 직접 호출
+        # fn_ka90003 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
         result = await fn_ka90003(
-            token=access_token,
             data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
@@ -437,7 +426,7 @@ async def api_fn_ka10004(
     request: KiwoomStockOrderbookRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> OrderbookApiResponse:
     """
     키움증권 주식호가요청 (ka10004) - 실시간 호가 스냅샷 조회
@@ -470,13 +459,14 @@ async def api_fn_ka10004(
     **실시간 vs REST API:**
     - REST API: 호출 시점의 호가 스냅샷 데이터 (일반적으로 1초 이내)
     - WebSocket: 실시간 스트리밍 데이터 (밀리초 단위 업데이트)
+    
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10004 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
-        logger.info(f"📊 fn_ka10004 요청: {request.stk_cd} (호가 스냅샷)")
+        logger.info(f"📊 fn_ka10004 요청: {request.stk_cd} (호가 스냅샷, 고정키 사용)")
 
-        # fn_ka10004 호출
+        # fn_ka10004 호출 (고정키 사용)
         result = await fn_ka10004(
             data=request.model_dump(),
             cont_yn=cont_yn,
@@ -527,7 +517,7 @@ async def api_fn_ka10005(
     request: KiwoomStockHistoricalRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> ChartApiResponse:
     """
     키움증권 주식일주월시분요청 (ka10005) - 차트 데이터 조회
@@ -556,13 +546,14 @@ async def api_fn_ka10005(
     - 일/주/월/시/분 단위 차트 분석
     - 외국인/기관/개인 투자자별 매매 동향 분석
     - 기술적 분석 지표 계산 기초 데이터
+    
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10005 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
-        logger.info(f"📈 fn_ka10005 요청: {request.stk_cd} (차트 데이터)")
+        logger.info(f"📈 fn_ka10005 요청: {request.stk_cd} (차트 데이터, 고정키 사용)")
 
-        # fn_ka10005 호출
+        # fn_ka10005 호출 (고정키 사용)
         result = await fn_ka10005(
             data=request.model_dump(),
             cont_yn=cont_yn,
@@ -615,7 +606,7 @@ async def api_fn_ka10006(
     request: KiwoomStockMinuteRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> MinuteChartApiResponse:
     """
     키움증권 주식시분요청 (ka10006) - 실시간 시분 데이터 조회
@@ -645,13 +636,14 @@ async def api_fn_ka10006(
     - 단기 매매 신호 분석
     - 체결강도를 통한 매매 심리 파악
     - 분봉 차트 데이터 기초
+    
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10006 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
-        logger.info(f"⏰ fn_ka10006 요청: {request.stk_cd} (시분 데이터)")
+        logger.info(f"⏰ fn_ka10006 요청: {request.stk_cd} (시분 데이터, 고정키 사용)")
 
-        # fn_ka10006 호출
+        # fn_ka10006 호출 (고정키 사용)
         result = await fn_ka10006(
             data=request.model_dump(),
             cont_yn=cont_yn,
@@ -703,7 +695,7 @@ async def api_fn_ka10006(
 @router.post("/fn_ka10007", summary="키움 시세표성정보요청 (ka10007)", tags=["시세 API"])
 async def api_fn_ka10007(
     request: KiwoomStockMarketInfoRequest,
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> MarketInfoApiResponse:
     """
     키움증권 시세표성정보요청 (ka10007) - 포괄적인 시세표 정보
@@ -730,13 +722,13 @@ async def api_fn_ka10007(
       - **market_data**: 시총, 외국인비율, 공매도비율, 체결강도
 
     **실시간 시세표성정보를 제공하는 핵심 API입니다**
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10007 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
-        logger.info(f"📊 fn_ka10007 요청: {request.stk_cd}")
+        logger.info(f"📊 fn_ka10007 요청: {request.stk_cd} (고정키 사용)")
 
-        # fn_ka10007 호출
+        # fn_ka10007 호출 (고정키 사용)
         result = await fn_ka10007(data=request.model_dump())
 
         if result.get('Code') == 200:
@@ -786,7 +778,7 @@ async def api_fn_ka10007(
 @router.post("/fn_ka10011", summary="키움 신주인수권전체시세요청 (ka10011)", tags=["시세 API"])
 async def api_fn_ka10011(
     request: KiwoomNewStockRightsRequest,
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> NewStockRightsApiResponse:
     """
     키움증권 신주인수권전체시세요청 (ka10011) - 신주인수권 전체 시세 정보
@@ -813,13 +805,13 @@ async def api_fn_ka10011(
       - **volume_info**: 거래량정보
 
     **신주인수권 시장 전체 현황을 제공하는 종합 API입니다**
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10011 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
-        logger.info(f"📋 fn_ka10011 요청: {request.newstk_recvrht_tp}")
+        logger.info(f"📋 fn_ka10011 요청: {request.newstk_recvrht_tp} (고정키 사용)")
 
-        # fn_ka10011 호출
+        # fn_ka10011 호출 (고정키 사용)
         result = await fn_ka10011(data=request.model_dump())
 
         if result.get('Code') == 200:
@@ -873,7 +865,7 @@ async def api_fn_ka10011(
 @router.post("/fn_ka10044", summary="키움 일별기관매매종목요청 (ka10044)", tags=["시세 API"])
 async def api_fn_ka10044(
     request: KiwoomDailyInstitutionalTradeRequest,
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> DailyInstitutionalTradeApiResponse:
     """
     키움증권 일별기관매매종목요청 (ka10044) - 기관 투자자 일별 매매 종목 현황
@@ -905,13 +897,13 @@ async def api_fn_ka10044(
       - **trade_info**: 매매정보 (순매수수량, 순매수금액)
 
     **기관 투자자의 매매 동향 분석에 필수적인 API입니다**
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10044 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
-        logger.info(f"📊 fn_ka10044 요청: {request.strt_dt}-{request.end_dt}, {get_trade_type_name(request.trde_tp)}")
+        logger.info(f"📊 fn_ka10044 요청: {request.strt_dt}-{request.end_dt}, {get_trade_type_name(request.trde_tp)} (고정키 사용)")
 
-        # fn_ka10044 호출
+        # fn_ka10044 호출 (고정키 사용)
         result = await fn_ka10044(data=request.model_dump())
 
         if result.get('Code') == 200:
@@ -1222,7 +1214,7 @@ async def api_fn_kt10003(
 @router.post("/fn_ka10045", summary="키움 종목별기관매매추이요청 (ka10045)", tags=["시세 API"])
 async def api_fn_ka10045(
     request: KiwoomStockInstitutionalTrendRequest,
-    authorization: str = Header(..., description="Bearer {access_token}")
+    auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> StockInstitutionalTrendApiResponse:
     """
     키움증권 종목별기관매매추이요청 (ka10045) - 특정 종목의 기관/외국인 매매 추이 정보
@@ -1249,12 +1241,12 @@ async def api_fn_ka10045(
     - **data_count**: 조회된 데이터 건수
 
     키움 원본 데이터와 가공된 구조화 데이터를 함께 제공합니다.
+    **조회성 API - 환경변수 고정키 사용 (토큰 불필요)**
     """
     try:
-        # Note: fn_ka10045 uses internal token management, no explicit token required
-        logger.info(f"📊 fn_ka10045 요청: {request.data.stk_cd} ({request.data.strt_dt}-{request.data.end_dt})")
+        logger.info(f"📊 fn_ka10045 요청: {request.data.stk_cd} ({request.data.strt_dt}-{request.data.end_dt}) (고정키 사용)")
 
-        # fn_ka10045 호출
+        # fn_ka10045 호출 (고정키 사용)
         result = await fn_ka10045(
             data=request.data.model_dump(),
             cont_yn=request.cont_yn,

@@ -27,6 +27,36 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+async def _get_valid_token() -> str:
+    """유효한 토큰 획득 (캐시 또는 fn_au10001 호출)"""
+    try:
+        from ..auth.token_cache import token_cache
+        from ..functions.auth import fn_au10001
+    except ImportError:
+        from kiwoom_api.auth.token_cache import token_cache
+        from kiwoom_api.functions.auth import fn_au10001
+    
+    # 1. 캐시에서 유효한 토큰 확인
+    cached_token = await token_cache.get_default_token()
+    if cached_token and not cached_token.is_expired():
+        logger.info("✅ 캐시된 토큰 사용")
+        return cached_token.token
+    
+    # 2. 새 토큰 발급
+    logger.info("🔄 새 토큰 발급 중...")
+    auth_result = await fn_au10001()
+    
+    if auth_result['Code'] == 200 and auth_result['Body'].get('token'):
+        token = auth_result['Body']['token']
+        logger.info("✅ 새 토큰 발급 성공")
+        return token
+    else:
+        logger.error(f"❌ 토큰 발급 실패: {auth_result}")
+        # 실패 시 환경변수 고정키 사용 (fallback)
+        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
+        return settings.KIWOOM_APP_KEY
+
+
 async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '', token: Optional[str] = None) -> Dict[str, Any]:
     """
     키움증권 주식일봉차트조회 (ka10081)
@@ -41,7 +71,7 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
               - upd_stkpc_tp: 수정주가구분 ('0' or '1')
         cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
         next_key: 연속조회키 (기본값: '')
-        token: 접근토큰 (선택적, 없으면 자동 관리)
+        token: 접근토큰 (선택적, 없으면 fn_au10001으로 자동 획득)
 
     Returns:
         Dict containing:
@@ -61,15 +91,14 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
     logger.info("📈 키움 주식일봉차트조회 시작 (ka10081)")
 
     try:
-        # 0. 토큰 자동 관리
-        try:
-            from ..auth.token_manager import token_manager
-        except ImportError:
-            from kiwoom_api.auth.token_manager import token_manager
-
-        # 유효한 토큰 자동 획득
-        valid_token = await token_manager.ensure_token_valid(token)
-        logger.info(f"🔑 사용할 토큰: {valid_token[:20]}...")
+        # 0. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
+        if not token:
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
+        else:
+            logger.info("🔑 제공된 토큰 사용")
+        
+        logger.info(f"🔑 사용할 토큰: {token[:20]}...")
         # 1. 요청할 API URL 구성
         host = settings.kiwoom_base_url
         endpoint = '/api/dostk/chart'
@@ -100,7 +129,7 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         # 3. header 데이터 (키움 API 스펙)
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {valid_token}',
+            'authorization': f'Bearer {token}',
             'cont-yn': cont_yn,
             'next-key': next_key,
             'api-id': 'ka10081',
@@ -158,7 +187,7 @@ async def fn_ka10080(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
               - upd_stkpc_tp: 수정주가구분 ('0' or '1')
         cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
         next_key: 연속조회키 (기본값: '')
-        token: 접근토큰 (선택적, 없으면 자동 관리)
+        token: 접근토큰 (선택적, 없으면 fn_au10001으로 자동 획득)
 
     Returns:
         Dict containing:
@@ -178,15 +207,14 @@ async def fn_ka10080(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
     logger.info("📊 키움 주식분봉차트조회 시작 (ka10080)")
 
     try:
-        # 0. 토큰 자동 관리
-        try:
-            from ..auth.token_manager import token_manager
-        except ImportError:
-            from kiwoom_api.auth.token_manager import token_manager
-
-        # 유효한 토큰 자동 획득
-        valid_token = await token_manager.ensure_token_valid(token)
-        logger.info(f"🔑 사용할 토큰: {valid_token[:20]}...")
+        # 0. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
+        if not token:
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
+        else:
+            logger.info("🔑 제공된 토큰 사용")
+        
+        logger.info(f"🔑 사용할 토큰: {token[:20]}...")
 
         # 1. 요청할 API URL 구성
         host = settings.kiwoom_base_url
@@ -218,7 +246,7 @@ async def fn_ka10080(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         # 3. header 데이터 (키움 API 스펙)
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {valid_token}',
+            'authorization': f'Bearer {token}',
             'cont-yn': cont_yn,
             'next-key': next_key,
             'api-id': 'ka10080',
@@ -276,7 +304,7 @@ async def fn_ka10082(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
               - upd_stkpc_tp: 수정주가구분 ('0' or '1')
         cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
         next_key: 연속조회키 (기본값: '')
-        token: 접근토큰 (선택적, 없으면 자동 관리)
+        token: 접근토큰 (선택적, 없으면 fn_au10001으로 자동 획득)
     
     Returns:
         Dict containing:
@@ -336,7 +364,7 @@ async def fn_ka10082(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         # 3. header 데이터 (키움 API 스펙)
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {valid_token}',
+            'authorization': f'Bearer {token}',
             'cont-yn': cont_yn,
             'next-key': next_key,
             'api-id': 'ka10082',
@@ -394,7 +422,7 @@ async def fn_ka10094(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
               - upd_stkpc_tp: 수정주가구분 ('0' or '1')
         cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
         next_key: 연속조회키 (기본값: '')
-        token: 접근토큰 (선택적, 없으면 자동 관리)
+        token: 접근토큰 (선택적, 없으면 fn_au10001으로 자동 획득)
     
     Returns:
         Dict containing:
@@ -454,7 +482,7 @@ async def fn_ka10094(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         # 3. header 데이터 (키움 API 스펙)
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {valid_token}',
+            'authorization': f'Bearer {token}',
             'cont-yn': cont_yn,
             'next-key': next_key,
             'api-id': 'ka10094',
@@ -512,7 +540,7 @@ async def fn_ka10079(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
               - upd_stkpc_tp: 수정주가구분 ('0' or '1')
         cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
         next_key: 연속조회키 (기본값: '')
-        token: 접근토큰 (선택적, 없으면 자동 관리)
+        token: 접근토큰 (선택적, 없으면 fn_au10001으로 자동 획득)
     
     Returns:
         Dict containing:
@@ -572,7 +600,7 @@ async def fn_ka10079(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         # 3. header 데이터 (키움 API 스펙)
         headers = {
             'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {valid_token}',
+            'authorization': f'Bearer {token}',
             'cont-yn': cont_yn,
             'next-key': next_key,
             'api-id': 'ka10079',

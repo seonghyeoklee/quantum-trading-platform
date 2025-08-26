@@ -52,24 +52,24 @@ def setup_tracing():
         import requests
         zipkin_endpoint = "http://quantum-zipkin:9411/api/v2/spans"
         requests.get("http://quantum-zipkin:9411/health", timeout=1)
-        
+
         # Tracer Provider 설정
         trace.set_tracer_provider(TracerProvider())
         tracer = trace.get_tracer(__name__)
-        
+
         # Zipkin Exporter 설정
         zipkin_exporter = ZipkinExporter(
             endpoint=zipkin_endpoint,
             local_node_ipv4="127.0.0.1",
             local_node_port=8100,
         )
-        
+
         # Span Processor 추가
         span_processor = BatchSpanProcessor(zipkin_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
-        
+
         return tracer
-    except (requests.exceptions.RequestException, requests.exceptions.ConnectTimeout, 
+    except (requests.exceptions.RequestException, requests.exceptions.ConnectTimeout,
             requests.exceptions.ConnectionError) as e:
         # Zipkin 서버 연결 실패 시 기본 tracer 반환 (트레이싱 비활성화)
         print(f"⚠️ Zipkin 서버 연결 실패 - 트레이싱 비활성화: {str(e)}")
@@ -264,20 +264,20 @@ async def health_check():
             "mode": settings.kiwoom_mode_description,
             "timestamp": datetime.now().isoformat()
         }
-        
+
         # 설정 검증
         config_status = "healthy"
         config_issues = []
-        
+
         # API 키 검증
         if not settings.validate_keys():
             config_status = "warning"
             config_issues.append("API 키 설정 누락 또는 불완전")
-        
+
         # 환경 변수 검증
         if not settings.DART_API_KEY:
             config_issues.append("DART API 키 설정 누락")
-        
+
         health_data.update({
             "config": {
                 "status": config_status,
@@ -294,13 +294,13 @@ async def health_check():
                 "port": settings.FASTAPI_PORT
             }
         })
-        
+
         # 전체 상태 결정
         if config_issues:
             health_data["status"] = "warning"
-        
+
         return health_data
-        
+
     except Exception as e:
         logger.error("헬스 체크 중 오류 발생", error=str(e), exc_info=True)
         return JSONResponse(

@@ -31,6 +31,36 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+async def _get_valid_token() -> str:
+    """유효한 토큰 획득 (캐시 또는 fn_au10001 호출)"""
+    try:
+        from ..auth.token_cache import token_cache
+        from ..functions.auth import fn_au10001
+    except ImportError:
+        from kiwoom_api.auth.token_cache import token_cache
+        from kiwoom_api.functions.auth import fn_au10001
+    
+    # 1. 캐시에서 유효한 토큰 확인
+    cached_token = await token_cache.get_default_token()
+    if cached_token and not cached_token.is_expired():
+        logger.info("✅ 캐시된 토큰 사용")
+        return cached_token.token
+    
+    # 2. 새 토큰 발급
+    logger.info("🔄 새 토큰 발급 중...")
+    auth_result = await fn_au10001()
+    
+    if auth_result['Code'] == 200 and auth_result['Body'].get('token'):
+        token = auth_result['Body']['token']
+        logger.info("✅ 새 토큰 발급 성공")
+        return token
+    else:
+        logger.error(f"❌ 토큰 발급 실패: {auth_result}")
+        # 실패 시 환경변수 고정키 사용 (fallback)
+        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
+        return settings.KIWOOM_APP_KEY
+
+
 async def fn_ka10001(
     token: Optional[str] = None,
     data: Optional[Dict[str, Any]] = None,
@@ -44,7 +74,7 @@ async def fn_ka10001(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (필수)
+        token: 접근토큰 (선택, 없으면 fn_au10001으로 자동 획득)
         data: 요청 데이터
               - stk_cd: 종목코드 (거래소별 종목코드)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -64,9 +94,10 @@ async def fn_ka10001(
     logger.info("🏢 키움 종목기본정보 요청 시작 (ka10001)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -173,9 +204,10 @@ async def fn_ka10099(
     logger.info("🏢 키움 종목정보 리스트 요청 시작 (ka10099)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('mrkt_tp'):
@@ -282,9 +314,10 @@ async def fn_ka10100(
     logger.info("🏢 키움 종목정보 조회 시작 (ka10100)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -391,9 +424,10 @@ async def fn_ka10101(
     logger.info("🏢 키움 업종코드 리스트 요청 시작 (ka10101)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('mrkt_tp'):
@@ -500,9 +534,10 @@ async def fn_ka10095(
     logger.info("🏢 키움 관심종목정보 요청 시작 (ka10095)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -613,9 +648,10 @@ async def fn_ka90003(
     logger.info("🏢 키움 프로그램순매수상위50 요청 시작 (ka90003)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -748,9 +784,10 @@ async def fn_kt10000(
     logger.info("📈 키움 주식 매수주문 시작 (kt10000)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -893,9 +930,10 @@ async def fn_kt10001(
     logger.info("📉 키움 주식 매도주문 시작 (kt10001)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -1040,9 +1078,10 @@ async def fn_kt10002(
     logger.info("🔄 키움 주식 정정주문 시작 (kt10002)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -1184,9 +1223,10 @@ async def fn_kt10003(
     logger.info("❌ 키움 주식 취소주문 시작 (kt10003)")
 
     try:
-        # 1. 토큰 검증
+        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
-            raise ValueError("Access token is required")
+            token = await _get_valid_token()
+            logger.info("🔑 자동 획득한 토큰 사용")
         
         # 2. 요청 데이터 검증
         if data is None:
