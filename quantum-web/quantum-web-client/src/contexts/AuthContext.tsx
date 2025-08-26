@@ -53,6 +53,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
+      // 캐시된 사용자 정보가 있으면 먼저 설정
+      const cachedUser = localStorage.getItem('user');
+      if (cachedUser) {
+        try {
+          const userData = JSON.parse(cachedUser);
+          console.log('Loading cached user data:', userData);
+          setUser(userData);
+        } catch (parseError) {
+          console.warn('Failed to parse cached user data:', parseError);
+        }
+      }
+
+      // 최신 사용자 정보로 업데이트
       await refreshUser();
     } catch (error) {
       console.error('Failed to check existing auth:', error);
@@ -82,24 +95,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (data.accessToken) {
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
-        console.log('Setting initial user from login response:', data.user);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        console.log('Setting user from login response:', data.user);
+        // 사용자 정보 설정 및 로딩 상태 해제
         setUser(data.user);
+        setIsLoading(false);
 
-        // 사용자 정보 추가 업데이트 (최신 정보 확보)
-        try {
-          await refreshUser();
-        } catch (error) {
-          console.warn('Failed to refresh user data after login:', error);
-          // 기본 사용자 정보로 계속 진행
-        } finally {
-          // 페이지 이동 (사용자 정보 업데이트 성공/실패와 무관하게)
-          const returnUrl = localStorage.getItem('returnUrl') || '/';
-          localStorage.removeItem('returnUrl');
-          router.push(returnUrl);
-        }
+        // 페이지 이동
+        const returnUrl = localStorage.getItem('returnUrl') || '/';
+        localStorage.removeItem('returnUrl');
+        router.push(returnUrl);
       }
     } catch (error) {
       console.error('Login failed:', error);
+      setIsLoading(false);
       throw error;
     }
   };

@@ -43,9 +43,9 @@ public class Portfolio {
         command.validate();
         
         AggregateLifecycle.apply(PortfolioCreatedEvent.builder()
-                .portfolioId(command.getPortfolioId())
-                .userId(command.getUserId())
-                .initialCash(command.getInitialCash())
+                .portfolioId(command.portfolioId())
+                .userId(command.userId())
+                .initialCash(command.initialCash())
                 .timestamp(Instant.now())
                 .build());
     }

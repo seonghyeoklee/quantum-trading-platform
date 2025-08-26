@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import UserLayout from '@/components/layout/UserLayout';
+import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -69,19 +69,24 @@ function ProfilePage() {
     }
   };
 
-  const profileActions = (
-    <Button variant="outline" size="sm">
-      <Edit className="w-4 h-4 mr-2" />
-      정보 수정
-    </Button>
-  );
-
   return (
-    <UserLayout 
-      title="내 정보"
-      subtitle="개인 정보 및 계정 설정"
-      actions={profileActions}
-    >
+    <div className="min-h-screen bg-background">
+      <Header />
+      
+      <main className="container max-w-6xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">내 정보</h1>
+              <p className="text-muted-foreground">개인 정보 및 계정 설정</p>
+            </div>
+            <Button variant="outline" size="sm">
+              <Edit className="w-4 h-4 mr-2" />
+              정보 수정
+            </Button>
+          </div>
+        </div>
+
         <div className="grid gap-8">
           {/* Profile Overview Card */}
           <Card className="trading-card">
@@ -253,7 +258,8 @@ function ProfilePage() {
             </Card>
           )}
         </div>
-    </UserLayout>
+      </main>
+    </div>
   );
 }
 

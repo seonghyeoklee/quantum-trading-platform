@@ -71,12 +71,12 @@ public class AuthService {
             String clientIp = extractClientIp(request);
             String userAgent = extractUserAgent(request);
             
-            RecordLoginFailureCommand failureCommand = RecordLoginFailureCommand.builder()
-                    .userId(UserId.of(loginInfo.userId()))
-                    .reason("Invalid password")
-                    .ipAddress(clientIp)
-                    .userAgent(userAgent)
-                    .build();
+            RecordLoginFailureCommand failureCommand = new RecordLoginFailureCommand(
+                    UserId.of(loginInfo.userId()),
+                    "Invalid password",
+                    clientIp,
+                    userAgent
+            );
             
             commandGateway.sendAndWait(failureCommand);
             throw new IllegalArgumentException("비밀번호가 올바르지 않습니다");
@@ -162,26 +162,26 @@ public class AuthService {
             // 저장된 사용자의 실제 비밀번호 해시를 사용하여 검증
             if (!passwordEncoder.matches(password, loginInfo.passwordHash())) {
                 // 비밀번호 불일치 시 실패 Command 전송
-                RecordLoginFailureCommand failureCommand = RecordLoginFailureCommand.builder()
-                        .userId(UserId.of(loginInfo.userId()))
-                        .reason("Invalid password")
-                        .ipAddress(clientIp)
-                        .userAgent(userAgent)
-                        .build();
+                RecordLoginFailureCommand failureCommand = new RecordLoginFailureCommand(
+                        UserId.of(loginInfo.userId()),
+                        "Invalid password",
+                        clientIp,
+                        userAgent
+                );
                 
                 commandGateway.sendAndWait(failureCommand);
                 throw new IllegalArgumentException("비밀번호가 올바르지 않습니다");
             }
             
             // 비밀번호 검증 성공 시 로그인 성공 Command 전송 (비밀번호 필드는 빈 값)
-            AuthenticateUserCommand authCommand = AuthenticateUserCommand.builder()
-                    .userId(UserId.of(loginInfo.userId()))
-                    .username(username)
-                    .password("") // 검증 완료된 상태이므로 빈 값
-                    .sessionId(sessionId)
-                    .ipAddress(clientIp)
-                    .userAgent(userAgent)
-                    .build();
+            AuthenticateUserCommand authCommand = new AuthenticateUserCommand(
+                    UserId.of(loginInfo.userId()),
+                    username,
+                    "", // 검증 완료된 상태이므로 빈 값
+                    sessionId,
+                    clientIp,
+                    userAgent
+            );
             
             // 인증 성공 명령 전송 (동기 방식)
             commandGateway.sendAndWait(authCommand);
@@ -313,12 +313,12 @@ public class AuthService {
             
             // Command를 통한 로그아웃 처리
             try {
-                LogoutUserCommand logoutCommand = LogoutUserCommand.builder()
-                        .userId(UserId.of(userId))
-                        .sessionId(sessionId)
-                        .reason("USER_LOGOUT")
-                        .ipAddress(extractClientIp(request))
-                        .build();
+                LogoutUserCommand logoutCommand = new LogoutUserCommand(
+                        UserId.of(userId),
+                        sessionId,
+                        "USER_LOGOUT",
+                        extractClientIp(request)
+                );
                 
                 commandGateway.sendAndWait(logoutCommand);
                 log.info("Logout command sent successfully for user: {}", username);
@@ -385,16 +385,16 @@ public class AuthService {
             String userId = "USER-" + UUID.randomUUID().toString();
             String hashedPassword = passwordEncoder.encode(password); // 비밀번호 해시화
             
-            RegisterUserCommand command = RegisterUserCommand.builder()
-                    .userId(UserId.of(userId))
-                    .username(username)
-                    .password(hashedPassword) // 해시된 비밀번호
-                    .name(name)
-                    .email(email)
-                    .phone(phone)
-                    .initialRoles(roles)
-                    .registeredBy(UserId.of("SYSTEM"))
-                    .build();
+            RegisterUserCommand command = new RegisterUserCommand(
+                    UserId.of(userId),
+                    username,
+                    hashedPassword, // 해시된 비밀번호
+                    name,
+                    email,
+                    phone,
+                    roles,
+                    UserId.of("SYSTEM")
+            );
             
             commandGateway.sendAndWait(command);
             
@@ -412,12 +412,12 @@ public class AuthService {
      */
     public void grantUserRole(String userId, String roleName, String grantedBy, String reason) {
         try {
-            GrantUserRoleCommand command = GrantUserRoleCommand.builder()
-                    .userId(UserId.of(userId))
-                    .roleName(roleName)
-                    .grantedBy(UserId.of(grantedBy))
-                    .reason(reason)
-                    .build();
+            GrantUserRoleCommand command = new GrantUserRoleCommand(
+                    UserId.of(userId),
+                    roleName,
+                    UserId.of(grantedBy),
+                    reason
+            );
             
             commandGateway.sendAndWait(command);
             
@@ -434,12 +434,12 @@ public class AuthService {
      */
     public void lockUserAccount(String userId, String reason, String details, String lockedBy) {
         try {
-            LockUserAccountCommand command = LockUserAccountCommand.builder()
-                    .userId(UserId.of(userId))
-                    .reason(reason)
-                    .details(details)
-                    .lockedBy(lockedBy != null ? UserId.of(lockedBy) : null)
-                    .build();
+            LockUserAccountCommand command = new LockUserAccountCommand(
+                    UserId.of(userId),
+                    reason,
+                    details,
+                    lockedBy != null ? UserId.of(lockedBy) : null
+            );
             
             commandGateway.sendAndWait(command);
             
@@ -541,14 +541,14 @@ public class AuthService {
         
         try {
             // 로그인 성공 Command 전송
-            AuthenticateUserCommand authCommand = AuthenticateUserCommand.builder()
-                    .userId(UserId.of(user.getUserId()))
-                    .username(user.getUsername())
-                    .password("") // 이미 검증 완료
-                    .sessionId(sessionId)
-                    .ipAddress(clientIp)
-                    .userAgent(userAgent)
-                    .build();
+            AuthenticateUserCommand authCommand = new AuthenticateUserCommand(
+                    UserId.of(user.getUserId()),
+                    user.getUsername(),
+                    "", // 이미 검증 완료
+                    sessionId,
+                    clientIp,
+                    userAgent
+            );
             
             commandGateway.sendAndWait(authCommand);
             

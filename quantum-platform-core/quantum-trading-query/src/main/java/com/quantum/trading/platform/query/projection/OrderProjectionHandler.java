@@ -25,17 +25,17 @@ public class OrderProjectionHandler {
      */
     @EventHandler
     public void on(OrderCreatedEvent event) {
-        log.info("Processing OrderCreatedEvent: {}", event.getOrderId());
+        log.info("Processing OrderCreatedEvent: {}", event.orderId());
         
         OrderView orderView = OrderView.fromOrderCreated(
-                event.getOrderId(),
-                event.getUserId(),
-                event.getSymbol(),
-                event.getOrderType(),
-                event.getSide(),
-                event.getPrice(),
-                event.getQuantity(),
-                event.getTimestamp()
+                event.orderId(),
+                event.userId(),
+                event.symbol(),
+                event.orderType(),
+                event.side(),
+                event.price(),
+                event.quantity(),
+                event.timestamp()
         );
         
         orderViewRepository.save(orderView);
@@ -49,21 +49,21 @@ public class OrderProjectionHandler {
     @EventHandler
     public void on(OrderStatusChangedEvent event) {
         log.info("Processing OrderStatusChangedEvent: {} -> {}", 
-                event.getOrderId(), event.getNewStatus());
+                event.orderId(), event.newStatus());
         
-        orderViewRepository.findById(event.getOrderId().getValue())
+        orderViewRepository.findById(event.orderId().value())
                 .ifPresentOrElse(
                         orderView -> {
                             orderView.updateStatus(
-                                    event.getNewStatus(),
-                                    event.getReason(),
-                                    event.getTimestamp()
+                                    event.newStatus(),
+                                    event.reason(),
+                                    event.timestamp()
                             );
                             orderViewRepository.save(orderView);
                             log.debug("OrderView status updated: {} -> {}", 
-                                    event.getOrderId(), event.getNewStatus());
+                                    event.orderId(), event.newStatus());
                         },
-                        () -> log.warn("OrderView not found for status update: {}", event.getOrderId())
+                        () -> log.warn("OrderView not found for status update: {}", event.orderId())
                 );
     }
     
@@ -73,20 +73,20 @@ public class OrderProjectionHandler {
     @EventHandler
     public void on(OrderSubmittedToBrokerEvent event) {
         log.info("Processing OrderSubmittedToBrokerEvent: {} to {}", 
-                event.getOrderId(), event.getBrokerType());
+                event.orderId(), event.brokerType());
         
-        orderViewRepository.findById(event.getOrderId().getValue())
+        orderViewRepository.findById(event.orderId().value())
                 .ifPresentOrElse(
                         orderView -> {
                             orderView.updateBrokerInfo(
-                                    event.getBrokerType(),
+                                    event.brokerType(),
                                     null, // accountNumber is not in this event
-                                    event.getSubmittedAt()
+                                    event.submittedAt()
                             );
                             orderViewRepository.save(orderView);
-                            log.debug("OrderView broker info updated: {}", event.getOrderId());
+                            log.debug("OrderView broker info updated: {}", event.orderId());
                         },
-                        () -> log.warn("OrderView not found for broker submission: {}", event.getOrderId())
+                        () -> log.warn("OrderView not found for broker submission: {}", event.orderId())
                 );
     }
     
@@ -98,16 +98,16 @@ public class OrderProjectionHandler {
         log.info("Processing OrderExecutedEvent: {} - {} shares @ {}", 
                 event.getOrderId(), event.getExecutedQuantity(), event.getExecutedPrice());
         
-        orderViewRepository.findById(event.getOrderId().getValue())
+        orderViewRepository.findById(event.getOrderId().value())
                 .ifPresentOrElse(
                         orderView -> {
                             // Calculate total amount (price * quantity)
-                            BigDecimal totalAmount = event.getExecutedPrice().getAmount()
-                                    .multiply(BigDecimal.valueOf(event.getExecutedQuantity().getValue()));
+                            BigDecimal totalAmount = event.getExecutedPrice().amount()
+                                    .multiply(BigDecimal.valueOf(event.getExecutedQuantity().value()));
                             
                             orderView.updateExecution(
-                                    event.getExecutedQuantity().getValue(),
-                                    event.getExecutedPrice().getAmount(),
+                                    event.getExecutedQuantity().value(),
+                                    event.getExecutedPrice().amount(),
                                     totalAmount,
                                     BigDecimal.ZERO, // fee calculation would be done separately
                                     event.getExecutedAt()
@@ -127,7 +127,7 @@ public class OrderProjectionHandler {
         log.info("Processing OrderCancelledEvent: {} - {}", 
                 event.getOrderId(), event.getReason());
         
-        orderViewRepository.findById(event.getOrderId().getValue())
+        orderViewRepository.findById(event.getOrderId().value())
                 .ifPresentOrElse(
                         orderView -> {
                             orderView.updateStatus(
@@ -150,7 +150,7 @@ public class OrderProjectionHandler {
         log.info("Processing OrderRejectedEvent: {} - {}", 
                 event.getOrderId(), event.getReason());
         
-        orderViewRepository.findById(event.getOrderId().getValue())
+        orderViewRepository.findById(event.getOrderId().value())
                 .ifPresentOrElse(
                         orderView -> {
                             orderView.updateStatus(

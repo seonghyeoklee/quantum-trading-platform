@@ -122,16 +122,16 @@ public class DataInitializer implements CommandLineRunner {
             String hashedPassword = passwordEncoder.encode(password);
 
             // RegisterUserCommand 생성 및 전송 (Command Side)
-            RegisterUserCommand command = RegisterUserCommand.builder()
-                    .userId(userId)
-                    .username(username)
-                    .password(hashedPassword) // 이미 해시된 비밀번호
-                    .name(name)
-                    .email(email)
-                    .phone(phone)
-                    .initialRoles(roles)
-                    .registeredBy(null) // SYSTEM 사용자는 null
-                    .build();
+            RegisterUserCommand command = new RegisterUserCommand(
+                    userId,
+                    username,
+                    hashedPassword, // 이미 해시된 비밀번호
+                    name,
+                    email,
+                    phone,
+                    roles,
+                    null // SYSTEM 사용자는 null
+            );
 
             // Command Gateway를 통해 Event Sourcing 시스템으로 전송
             commandGateway.sendAndWait(command);

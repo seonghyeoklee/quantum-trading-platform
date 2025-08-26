@@ -47,7 +47,7 @@ public class UserQueryService {
      * 도메인 UserId로 조회
      */
     public Optional<UserView> findById(UserId userId) {
-        return userViewRepository.findById(userId.getValue());
+        return userViewRepository.findById(userId.value());
     }
     
     /**

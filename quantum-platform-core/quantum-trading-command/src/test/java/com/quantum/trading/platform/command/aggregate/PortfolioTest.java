@@ -38,8 +38,8 @@ class PortfolioTest {
                 .when(command)
                 .expectSuccessfulHandlerExecution()
                 .expectState(state -> {
-                    assert state.getPortfolioId().equals(portfolioId);
-                    assert state.getUserId().equals(userId);
+                    assert state.portfolioId().equals(portfolioId);
+                    assert state.userId().equals(userId);
                     assert state.getCashBalance().equals(initialCash);
                     assert state.getPositions().isEmpty();
                 });
@@ -101,7 +101,7 @@ class PortfolioTest {
                 .expectState(state -> {
                     assert state.getCashBalance().equals(Money.ofKrw(BigDecimal.valueOf(250000)));
                     assert state.getPosition(symbol) != null;
-                    assert state.getPosition(symbol).getQuantity().equals(buyQuantity);
+                    assert state.getPosition(symbol).quantity().equals(buyQuantity);
                     assert state.getPosition(symbol).getAveragePrice().equals(buyPrice);
                 });
     }
@@ -153,7 +153,7 @@ class PortfolioTest {
                 .expectState(state -> {
                     assert state.getCashBalance().equals(Money.ofKrw(BigDecimal.valueOf(650000)));
                     assert state.getPosition(symbol) != null;
-                    assert state.getPosition(symbol).getQuantity().equals(Quantity.of(5));
+                    assert state.getPosition(symbol).quantity().equals(Quantity.of(5));
                 });
     }
     

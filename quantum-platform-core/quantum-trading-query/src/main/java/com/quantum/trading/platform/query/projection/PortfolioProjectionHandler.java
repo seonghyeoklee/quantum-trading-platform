@@ -45,20 +45,20 @@ public class PortfolioProjectionHandler {
     @EventHandler
     public void on(CashDepositedEvent event) {
         log.info("Processing CashDepositedEvent: {} - {}", 
-                event.getPortfolioId(), event.getAmount());
+                event.portfolioId(), event.amount());
         
-        portfolioViewRepository.findById(event.getPortfolioId().getId())
+        portfolioViewRepository.findById(event.portfolioId().id())
                 .ifPresentOrElse(
                         portfolioView -> {
                             portfolioView.updateCashBalance(
-                                    event.getNewCashBalance().getAmount(),
-                                    event.getTimestamp()
+                                    event.newCashBalance().amount(),
+                                    event.timestamp()
                             );
                             portfolioViewRepository.save(portfolioView);
                             log.debug("PortfolioView cash updated: {} -> {}", 
-                                    event.getPortfolioId(), event.getNewCashBalance());
+                                    event.portfolioId(), event.newCashBalance());
                         },
-                        () -> log.warn("PortfolioView not found for cash deposit: {}", event.getPortfolioId())
+                        () -> log.warn("PortfolioView not found for cash deposit: {}", event.portfolioId())
                 );
     }
     
@@ -68,30 +68,30 @@ public class PortfolioProjectionHandler {
     @EventHandler
     public void on(PositionUpdatedEvent event) {
         log.info("Processing PositionUpdatedEvent: {} - {} {} @ {}", 
-                event.getPortfolioId(), event.getSide(), event.getSymbol(), event.getPrice());
+                event.portfolioId(), event.side(), event.symbol(), event.price());
         
-        portfolioViewRepository.findById(event.getPortfolioId().getId())
+        portfolioViewRepository.findById(event.portfolioId().id())
                 .ifPresentOrElse(
                         portfolioView -> {
                             // Position 도메인 객체에서 PositionView로 변환
-                            Position position = event.getNewPosition();
-                            PositionView positionView = PositionView.fromPosition(position, event.getTimestamp());
+                            Position position = event.newPosition();
+                            PositionView positionView = PositionView.fromPosition(position, event.timestamp());
                             
                             // 현금 잔액 업데이트
                             portfolioView.updateCashBalance(
-                                    event.getNewCashBalance().getAmount(),
-                                    event.getTimestamp()
+                                    event.newCashBalance().amount(),
+                                    event.timestamp()
                             );
                             
                             // 포지션 업데이트
-                            portfolioView.updatePosition(positionView, event.getTimestamp());
+                            portfolioView.updatePosition(positionView, event.timestamp());
                             
                             portfolioViewRepository.save(portfolioView);
                             
                             log.debug("PortfolioView position updated: {} {} - {} shares", 
-                                    event.getPortfolioId(), event.getSymbol(), position.getQuantity().getValue());
+                                    event.portfolioId(), event.symbol(), position.getQuantity().value());
                         },
-                        () -> log.warn("PortfolioView not found for position update: {}", event.getPortfolioId())
+                        () -> log.warn("PortfolioView not found for position update: {}", event.portfolioId())
                 );
     }
     

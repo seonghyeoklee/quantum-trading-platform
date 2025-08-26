@@ -191,10 +191,10 @@ public class TradingOrder {
     
     @EventSourcingHandler
     public void on(OrderExecutedEvent event) {
-        this.updatedAt = event.executedAt();
+        this.updatedAt = event.getExecutedAt();
         
         log.debug("Order {} executed: {} at {}", 
-            this.orderId, event.executedQuantity(), event.executedPrice());
+            this.orderId, event.getExecutedQuantity(), event.getExecutedPrice());
     }
     
     /**

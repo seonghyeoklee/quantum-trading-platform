@@ -18,7 +18,7 @@ import java.util.Base64;
 
 /**
  * AES-256-GCM 암호화 서비스
- * 
+ *
  * 키움증권 API credentials 등 민감한 정보를 안전하게 암호화/복호화
  * - AES-256-GCM 알고리즘 사용 (인증 암호화)
  * - 솔트 기반 키 유도
@@ -45,13 +45,13 @@ public class EncryptionService {
      */
     public EncryptedValue encryptApiCredentials(ApiCredentials credentials) {
         try {
-            log.debug("Encrypting API credentials for client ID: {}", 
+            log.debug("Encrypting API credentials for client ID: {}",
                     maskString(credentials.getClientId(), 4));
 
             // 클라이언트 ID와 시크릿을 JSON 형태로 결합
             String credentialsJson = String.format(
-                    "{\"clientId\":\"%s\",\"clientSecret\":\"%s\"}", 
-                    credentials.getClientId(), 
+                    "{\"clientId\":\"%s\",\"clientSecret\":\"%s\"}",
+                    credentials.getClientId(),
                     credentials.getClientSecret()
             );
 
@@ -76,7 +76,7 @@ public class EncryptionService {
             String clientId = extractJsonValue(credentialsJson, "clientId");
             String clientSecret = extractJsonValue(credentialsJson, "clientSecret");
 
-            log.debug("Successfully decrypted API credentials for client ID: {}", 
+            log.debug("Successfully decrypted API credentials for client ID: {}",
                     maskString(clientId, 4));
 
             return ApiCredentials.of(clientId, clientSecret);
@@ -133,8 +133,8 @@ public class EncryptionService {
     public String decrypt(EncryptedValue encryptedValue) {
         try {
             // 1. Base64 디코딩
-            byte[] encryptedData = Base64.getDecoder().decode(encryptedValue.getEncryptedData());
-            byte[] salt = Base64.getDecoder().decode(encryptedValue.getSalt());
+            byte[] encryptedData = Base64.getDecoder().decode(encryptedValue.encryptedData());
+            byte[] salt = Base64.getDecoder().decode(encryptedValue.salt());
 
             // 2. IV와 암호문 분리
             byte[] iv = new byte[GCM_IV_LENGTH];
@@ -171,10 +171,10 @@ public class EncryptionService {
             KeyGenerator keyGenerator = KeyGenerator.getInstance(ALGORITHM);
             keyGenerator.init(KEY_LENGTH);
             SecretKey key = keyGenerator.generateKey();
-            
+
             String encodedKey = Base64.getEncoder().encodeToString(key.getEncoded());
             log.info("Generated new master key (length: {} chars)", encodedKey.length());
-            
+
             return encodedKey;
         } catch (NoSuchAlgorithmException e) {
             log.error("Failed to generate master key", e);
@@ -205,7 +205,7 @@ public class EncryptionService {
             // Salt와 마스터키 결합하여 키 생성
             for (int i = 0; i < keyMaterial.length; i++) {
                 keyMaterial[i] = (byte) (
-                    salt[i % salt.length] ^ 
+                    salt[i % salt.length] ^
                     masterKeyBytes[i % masterKeyBytes.length]
                 );
             }

@@ -4,25 +4,20 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.quantum.trading.platform.shared.value.UserId;
 import lombok.Builder;
-import lombok.Value;
 
 import java.time.Instant;
 
 /**
  * 사용자 로그아웃 이벤트
- * 
+ * <p>
  * 사용자가 로그아웃하거나 세션이 만료되었을 때 발행되는 이벤트
+ *
+ * @param reason          "USER_LOGOUT", "SESSION_EXPIRED", "ADMIN_FORCED", etc.
+ * @param sessionDuration 총 세션 지속 시간 계산용
  */
-@Value
 @Builder
-public class UserLoggedOutEvent {
-    UserId userId;
-    String username;
-    String sessionId;
-    String reason;  // "USER_LOGOUT", "SESSION_EXPIRED", "ADMIN_FORCED", etc.
-    String ipAddress;
-    Instant logoutTime;
-    Instant sessionDuration;  // 총 세션 지속 시간 계산용
+public record UserLoggedOutEvent(UserId userId, String username, String sessionId, String reason, String ipAddress,
+                                 Instant logoutTime, Instant sessionDuration) {
 
     @JsonCreator
     public UserLoggedOutEvent(
@@ -41,7 +36,7 @@ public class UserLoggedOutEvent {
         this.logoutTime = logoutTime;
         this.sessionDuration = sessionDuration;
     }
-    
+
     public static UserLoggedOutEvent create(
             UserId userId,
             String username,
@@ -57,8 +52,8 @@ public class UserLoggedOutEvent {
                 .reason(reason)
                 .ipAddress(ipAddress)
                 .logoutTime(logoutTime)
-                .sessionDuration(sessionStartTime != null ? 
-                    logoutTime.minusSeconds(sessionStartTime.getEpochSecond()) : null)
+                .sessionDuration(sessionStartTime != null ?
+                        logoutTime.minusSeconds(sessionStartTime.getEpochSecond()) : null)
                 .build();
     }
 }

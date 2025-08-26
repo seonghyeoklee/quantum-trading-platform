@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import UserLayout from '@/components/layout/UserLayout';
+import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -113,19 +113,24 @@ function SettingsPage() {
 
   if (!user) return null;
 
-  const settingsActions = (
-    <Button variant="default" size="sm">
-      <Save className="w-4 h-4 mr-2" />
-      설정 저장
-    </Button>
-  );
-
   return (
-    <UserLayout 
-      title="설정"
-      subtitle="계정 및 애플리케이션 설정"
-      actions={settingsActions}
-    >
+    <div className="min-h-screen bg-background">
+      <Header />
+      
+      <main className="container max-w-6xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">설정</h1>
+              <p className="text-muted-foreground">계정 및 애플리케이션 설정</p>
+            </div>
+            <Button variant="default" size="sm">
+              <Save className="w-4 h-4 mr-2" />
+              설정 저장
+            </Button>
+          </div>
+        </div>
+
         <div className="grid gap-8">
           {/* 2FA 설정이 활성화된 경우 모달 */}
           {showTwoFactorSetup && (
@@ -384,7 +389,8 @@ function SettingsPage() {
           </Card>
 
         </div>
-    </UserLayout>
+      </main>
+    </div>
   );
 }
 

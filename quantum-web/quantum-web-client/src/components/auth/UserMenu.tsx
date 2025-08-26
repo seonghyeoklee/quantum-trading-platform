@@ -13,13 +13,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import LogoutDialog from './LogoutDialog';
-import { User, Settings, Shield, ChevronDown } from 'lucide-react';
+import { User, Settings, Shield, ChevronDown, Key } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function UserMenu() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const router = useRouter();
 
+  // 로딩 중이면 스켈레톤 UI 표시 (사용자 정보가 없는 경우에만)
+  if (isLoading && !user) {
+    return (
+      <div className="flex items-center space-x-3 px-3 py-2 animate-pulse">
+        <div className="w-8 h-8 bg-muted rounded-full"></div>
+        <div className="flex flex-col space-y-1">
+          <div className="w-16 h-3 bg-muted rounded"></div>
+          <div className="w-24 h-2 bg-muted rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // 사용자 정보가 없으면 숨김
   if (!user) return null;
 
   const getUserInitials = (username: string) => {
@@ -81,6 +95,11 @@ export default function UserMenu() {
         <DropdownMenuItem onClick={handleSettingsClick} className="cursor-pointer">
           <Settings className="mr-2 h-4 w-4" />
           <span>설정</span>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem onClick={() => router.push('/kiwoom-account')} className="cursor-pointer">
+          <Key className="mr-2 h-4 w-4" />
+          <span>키움증권 계좌</span>
         </DropdownMenuItem>
         
         {user.roles?.includes('ADMIN') && (

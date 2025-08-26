@@ -65,9 +65,9 @@ public class PositionView {
      */
     public static PositionView fromPosition(Position position, Instant timestamp) {
         PositionView view = new PositionView();
-        view.symbol = position.getSymbol().getValue();
-        view.quantity = position.getQuantity().getValue();
-        view.averagePrice = position.getAveragePrice().getAmount();
+        view.symbol = position.getSymbol().value();
+        view.quantity = position.getQuantity().value();
+        view.averagePrice = position.getAveragePrice().amount();
         view.investedAmount = view.averagePrice.multiply(BigDecimal.valueOf(view.quantity));
         view.lastUpdated = timestamp;
         

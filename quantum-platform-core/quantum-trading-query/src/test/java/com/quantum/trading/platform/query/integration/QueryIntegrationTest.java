@@ -62,10 +62,10 @@ class QueryIntegrationTest {
         Optional<OrderView> retrieved = orderQueryService.getOrder("ORDER-TEST-001");
         
         // Then
-        assertThat(saved.getOrderId()).isEqualTo("ORDER-TEST-001");
+        assertThat(saved.orderId()).isEqualTo("ORDER-TEST-001");
         assertThat(retrieved).isPresent();
-        assertThat(retrieved.get().getUserId()).isEqualTo("user-001");
-        assertThat(retrieved.get().getSymbol()).isEqualTo("005930");
+        assertThat(retrieved.get().userId()).isEqualTo("user-001");
+        assertThat(retrieved.get().symbol()).isEqualTo("005930");
         assertThat(retrieved.get().getStatus()).isEqualTo(OrderStatus.PENDING);
     }
     
@@ -84,7 +84,7 @@ class QueryIntegrationTest {
         Optional<PortfolioView> retrieved = portfolioQueryService.getUserPortfolio("user-001");
         
         // Then
-        assertThat(saved.getPortfolioId()).isEqualTo("PORTFOLIO-TEST-001");
+        assertThat(saved.portfolioId()).isEqualTo("PORTFOLIO-TEST-001");
         assertThat(retrieved).isPresent();
         assertThat(retrieved.get().getCashBalance()).isEqualTo(BigDecimal.valueOf(1000000.00));
         assertThat(retrieved.get().getPositionCount()).isEqualTo(0);
@@ -125,7 +125,7 @@ class QueryIntegrationTest {
         
         // Then
         assertThat(activeOrders).hasSize(1);
-        assertThat(activeOrders.get(0).getOrderId()).isEqualTo("ORDER-PENDING-001");
+        assertThat(activeOrders.get(0).orderId()).isEqualTo("ORDER-PENDING-001");
         assertThat(activeOrders.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
     }
     

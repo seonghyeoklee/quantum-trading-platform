@@ -35,20 +35,20 @@ public class WatchlistGroup {
     @CommandHandler
     public WatchlistGroup(CreateWatchlistGroupCommand command) {
         log.info("Creating watchlist group with command: {}", command);
-        
+
         // 1. 명령 검증
         command.validate();
-        
+
         // 2. 비즈니스 로직 검증
         validateCreateGroup(command);
-        
+
         // 3. 이벤트 발행
         AggregateLifecycle.apply(WatchlistGroupCreatedEvent.of(
-            command.getGroupId(),
-            command.getWatchlistId(),
-            command.getUserId(),
-            command.getName(),
-            command.getColor()
+            command.groupId(),
+            command.watchlistId(),
+            command.userId(),
+            command.name(),
+            command.color()
         ));
     }
 
@@ -57,11 +57,11 @@ public class WatchlistGroup {
     @EventSourcingHandler
     public void on(WatchlistGroupCreatedEvent event) {
         log.debug("Applying WatchlistGroupCreatedEvent: {}", event);
-        this.groupId = event.getGroupId();
-        this.watchlistId = event.getWatchlistId();
-        this.userId = event.getUserId();
-        this.name = event.getName();
-        this.color = event.getColor() != null ? event.getColor() : "blue";
+        this.groupId = event.groupId();
+        this.watchlistId = event.watchlistId();
+        this.userId = event.userId();
+        this.name = event.name();
+        this.color = event.color() != null ? event.color() : "blue";
         this.isDeleted = false;
     }
 
@@ -69,56 +69,56 @@ public class WatchlistGroup {
 
     private void validateCreateGroup(CreateWatchlistGroupCommand command) {
         // 비즈니스 규칙 검증
-        if (command.getName().trim().isEmpty()) {
+        if (command.name().trim().isEmpty()) {
             throw new IllegalArgumentException("Group name cannot be empty");
         }
-        
+
         // 색상 유효성 검증 (선택적)
-        if (command.getColor() != null && !isValidColor(command.getColor())) {
-            throw new IllegalArgumentException("Invalid color format: " + command.getColor());
+        if (command.color() != null && !isValidColor(command.color())) {
+            throw new IllegalArgumentException("Invalid color format: " + command.color());
         }
     }
 
     private boolean isValidColor(String color) {
         // 기본적인 색상 값들 또는 hex 색상 코드 검증
         String[] validColors = {"red", "blue", "green", "yellow", "purple", "orange", "pink", "gray", "black"};
-        
+
         for (String validColor : validColors) {
             if (validColor.equals(color.toLowerCase())) {
                 return true;
             }
         }
-        
+
         // hex 색상 코드 검증 (#RRGGBB 또는 #RGB)
         if (color.matches("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")) {
             return true;
         }
-        
+
         return false;
     }
 
     // ===== Getter 메서드 (테스트용) =====
-    
+
     public WatchlistGroupId getGroupId() {
         return groupId;
     }
-    
+
     public WatchlistId getWatchlistId() {
         return watchlistId;
     }
-    
+
     public UserId getUserId() {
         return userId;
     }
-    
+
     public String getName() {
         return name;
     }
-    
+
     public String getColor() {
         return color;
     }
-    
+
     public boolean isDeleted() {
         return isDeleted;
     }

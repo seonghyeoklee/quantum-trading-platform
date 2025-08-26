@@ -15,7 +15,6 @@ import org.axonframework.eventhandling.EventHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -39,15 +38,15 @@ public class WatchlistProjectionHandler {
         log.info("Processing WatchlistCreatedEvent: {}", event);
 
         WatchlistView watchlistView = WatchlistView.builder()
-                .id(event.getWatchlistId().getValue())
-                .userId(event.getUserId().getValue())
-                .name(event.getName())
-                .description(event.getDescription())
+                .id(event.watchlistId().value())
+                .userId(event.userId().value())
+                .name(event.name())
+                .description(event.description())
                 .isDefault(event.isDefault())
                 .sortOrder(0)
                 .itemCount(0)
-                .createdAt(event.getCreatedAt())
-                .updatedAt(event.getCreatedAt())
+                .createdAt(event.createdAt())
+                .updatedAt(event.createdAt())
                 .version(0L)
                 .build();
 
@@ -61,14 +60,14 @@ public class WatchlistProjectionHandler {
 
         try {
             // 1. 관심종목 목록 삭제 (CASCADE로 자동으로 아이템들도 삭제됨)
-            watchlistViewRepository.findById(event.getWatchlistId().getValue()).ifPresentOrElse(
+            watchlistViewRepository.findById(event.watchlistId().value()).ifPresentOrElse(
                     watchlist -> {
                         watchlistViewRepository.delete(watchlist);
                         log.debug("WatchlistView deleted: {}", watchlist.getId());
                     },
                     () -> {
                         log.warn("WatchlistView not found for deletion: watchlistId={}",
-                                event.getWatchlistId().getValue());
+                                event.watchlistId().value());
                     }
             );
 
@@ -85,14 +84,14 @@ public class WatchlistProjectionHandler {
         log.info("Processing WatchlistGroupCreatedEvent: {}", event);
 
         WatchlistGroupView groupView = WatchlistGroupView.builder()
-                .id(event.getGroupId().getValue())
-                .watchlistId(event.getWatchlistId().getValue())
-                .name(event.getName())
-                .color(event.getColor() != null ? event.getColor() : "blue")
+                .id(event.groupId().value())
+                .watchlistId(event.watchlistId().value())
+                .name(event.name())
+                .color(event.color() != null ? event.color() : "blue")
                 .sortOrder(0)
                 .itemCount(0)
-                .createdAt(event.getCreatedAt())
-                .updatedAt(event.getCreatedAt())
+                .createdAt(event.createdAt())
+                .updatedAt(event.createdAt())
                 .version(0L)
                 .build();
 
@@ -110,14 +109,14 @@ public class WatchlistProjectionHandler {
             // 1. 새 아이템 생성
             WatchlistItemView itemView = WatchlistItemView.builder()
                     .id(UUID.randomUUID().toString())
-                    .watchlistId(event.getWatchlistId().getValue())
-                    .groupId(event.getGroupId() != null ? event.getGroupId().getValue() : null)
-                    .symbol(event.getSymbol().getValue())
-                    .stockName(event.getStockName())
-                    .sortOrder(getNextSortOrder(event.getWatchlistId().getValue()))
-                    .note(event.getNote())
-                    .addedAt(event.getAddedAt())
-                    .updatedAt(event.getAddedAt())
+                    .watchlistId(event.watchlistId().value())
+                    .groupId(event.groupId() != null ? event.groupId().value() : null)
+                    .symbol(event.symbol().value())
+                    .stockName(event.stockName())
+                    .sortOrder(getNextSortOrder(event.watchlistId().value()))
+                    .note(event.note())
+                    .addedAt(event.addedAt())
+                    .updatedAt(event.addedAt())
                     .version(0L)
                     .build();
 
@@ -125,11 +124,11 @@ public class WatchlistProjectionHandler {
             log.debug("WatchlistItemView saved: {}", itemView);
 
             // 2. 관심종목 목록의 아이템 카운트 증가 (트리거가 처리하지만 명시적으로 업데이트)
-            updateWatchlistItemCount(event.getWatchlistId().getValue());
+            updateWatchlistItemCount(event.watchlistId().value());
 
             // 3. 그룹의 아이템 카운트 증가 (그룹이 있는 경우)
-            if (event.getGroupId() != null) {
-                updateGroupItemCount(event.getGroupId().getValue());
+            if (event.groupId() != null) {
+                updateGroupItemCount(event.groupId().value());
             }
 
         } catch (Exception e) {
@@ -145,18 +144,18 @@ public class WatchlistProjectionHandler {
         try {
             // 1. 기존 아이템 조회 및 삭제
             watchlistItemViewRepository.findByWatchlistIdAndSymbol(
-                    event.getWatchlistId().getValue(),
-                    event.getSymbol().getValue()
+                    event.watchlistId().value(),
+                    event.symbol().value()
             ).ifPresentOrElse(
                     itemView -> {
                         String groupId = itemView.getGroupId();
-                        
+
                         // 아이템 삭제
                         watchlistItemViewRepository.delete(itemView);
                         log.debug("WatchlistItemView deleted: {}", itemView);
 
                         // 관심종목 목록의 아이템 카운트 감소
-                        updateWatchlistItemCount(event.getWatchlistId().getValue());
+                        updateWatchlistItemCount(event.watchlistId().value());
 
                         // 그룹의 아이템 카운트 감소 (그룹이 있었던 경우)
                         if (groupId != null) {
@@ -165,7 +164,7 @@ public class WatchlistProjectionHandler {
                     },
                     () -> {
                         log.warn("WatchlistItemView not found for removal: watchlistId={}, symbol={}",
-                                event.getWatchlistId().getValue(), event.getSymbol().getValue());
+                                event.watchlistId().value(), event.symbol().value());
                     }
             );
 

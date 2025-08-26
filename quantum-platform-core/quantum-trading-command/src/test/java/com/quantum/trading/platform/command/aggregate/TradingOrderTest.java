@@ -50,7 +50,7 @@ class TradingOrderTest {
                 .when(command)
                 .expectSuccessfulHandlerExecution()
                 .expectState(state -> {
-                    assert state.getOrderId().equals(orderId);
+                    assert state.orderId().equals(orderId);
                     assert state.getStatus() == OrderStatus.PENDING;
                 });
     }

@@ -43,13 +43,13 @@ public class User {
     private Instant passwordChangedAt;
     private String activeSessionId;
     private Instant sessionStartTime;
-    
+
     // 2FA 관련 필드들
     private boolean twoFactorEnabled;
     private String totpSecretKey;
     private Set<String> backupCodeHashes;
     private Instant twoFactorSetupAt;
-    
+
     // Kiwoom Account Management
     private KiwoomAccountId kiwoomAccountId;
     private EncryptedValue encryptedKiwoomCredentials;
@@ -62,7 +62,7 @@ public class User {
      */
     @CommandHandler
     public User(RegisterUserCommand command) {
-        log.info("Creating new user with ID: {}", command.getUserId());
+        log.info("Creating new user with ID: {}", command.userId());
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         // 비즈니스 검증만 수행
@@ -70,17 +70,17 @@ public class User {
 
         // 사용자 등록 이벤트 발행 (Application Layer에서 해시된 비밀번호 포함)
         AggregateLifecycle.apply(UserRegisteredEvent.create(
-                command.getUserId(),
-                command.getUsername(),
-                command.getPassword(), // 이미 해시된 비밀번호
-                command.getName(),
-                command.getEmail(),
-                command.getPhone(),
-                command.getInitialRoles(),
-                command.getRegisteredBy() != null ? command.getRegisteredBy().value() : "SYSTEM"
+                command.userId(),
+                command.username(),
+                command.password(), // 이미 해시된 비밀번호
+                command.name(),
+                command.email(),
+                command.phone(),
+                command.initialRoles(),
+                command.registeredBy() != null ? command.registeredBy().value() : "SYSTEM"
         ));
 
-        log.info("User registration event applied for: {}", command.getUsername());
+        log.info("User registration event applied for: {}", command.username());
     }
 
     /**
@@ -89,7 +89,7 @@ public class User {
      */
     @CommandHandler
     public void handle(AuthenticateUserCommand command) {
-        log.info("Processing authentication for user: {}", command.getUsername());
+        log.info("Processing authentication for user: {}", command.username());
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         // 계정 상태 확인
@@ -98,26 +98,26 @@ public class User {
 
             AggregateLifecycle.apply(UserLoginFailedEvent.create(
                     this.userId,
-                    command.getUsername(),
+                    command.username(),
                     reason,
-                    command.getIpAddress(),
-                    command.getUserAgent(),
+                    command.ipAddress(),
+                    command.userAgent(),
                     this.failedLoginAttempts + 1,
                     this.status == UserStatus.LOCKED
             ));
 
-            log.warn("Login failed for user {} - {}", command.getUsername(), reason);
+            log.warn("Login failed for user {} - {}", command.username(), reason);
             return;
         }
 
         // 임시: 테스트를 위한 비밀번호 검증 (실제로는 Application Layer에서 수행)
-        if (!isPasswordValid(command.getPassword())) {
+        if (!isPasswordValid(command.password())) {
             AggregateLifecycle.apply(UserLoginFailedEvent.create(
                     this.userId,
-                    command.getUsername(),
+                    command.username(),
                     "Invalid password",
-                    command.getIpAddress(),
-                    command.getUserAgent(),
+                    command.ipAddress(),
+                    command.userAgent(),
                     this.failedLoginAttempts + 1,
                     this.failedLoginAttempts + 1 >= 5
             ));
@@ -137,13 +137,13 @@ public class User {
         AggregateLifecycle.apply(UserLoginSucceededEvent.create(
                 this.userId,
                 this.username,
-                command.getSessionId(),
-                command.getIpAddress(),
-                command.getUserAgent(),
+                command.sessionId(),
+                command.ipAddress(),
+                command.userAgent(),
                 this.lastLoginAt
         ));
 
-        log.info("User {} logged in successfully", command.getUsername());
+        log.info("User {} logged in successfully", command.username());
     }
 
     /**
@@ -160,8 +160,8 @@ public class User {
                 this.userId,
                 this.username,
                 command.reason(),
-                command.getIpAddress(),
-                command.getUserAgent(),
+                command.ipAddress(),
+                command.userAgent(),
                 this.failedLoginAttempts + 1,
                 willBeLocked
         ));
@@ -188,8 +188,8 @@ public class User {
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         // 활성 세션 확인
-        if (this.activeSessionId == null || !this.activeSessionId.equals(command.getSessionId())) {
-            log.warn("Invalid session for logout: expected {}, got {}", this.activeSessionId, command.getSessionId());
+        if (this.activeSessionId == null || !this.activeSessionId.equals(command.sessionId())) {
+            log.warn("Invalid session for logout: expected {}, got {}", this.activeSessionId, command.sessionId());
             return;
         }
 
@@ -197,9 +197,9 @@ public class User {
         AggregateLifecycle.apply(UserLoggedOutEvent.create(
                 this.userId,
                 this.username,
-                command.getSessionId(),
+                command.sessionId(),
                 command.reason(),
-                command.getIpAddress(),
+                command.ipAddress(),
                 this.sessionStartTime
         ));
 
@@ -211,12 +211,12 @@ public class User {
      */
     @CommandHandler
     public void handle(GrantUserRoleCommand command) {
-        log.info("Granting role {} to user: {}", command.getRoleName(), this.username);
+        log.info("Granting role {} to user: {}", command.roleName(), this.username);
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         // 이미 보유한 권한인지 확인
-        if (this.roles.contains(command.getRoleName())) {
-            log.info("User {} already has role: {}", this.username, command.getRoleName());
+        if (this.roles.contains(command.roleName())) {
+            log.info("User {} already has role: {}", this.username, command.roleName());
             return;
         }
 
@@ -224,13 +224,13 @@ public class User {
         AggregateLifecycle.apply(UserRoleGrantedEvent.create(
                 this.userId,
                 this.username,
-                command.getRoleName(),
-                command.getGrantedBy(),
+                command.roleName(),
+                command.grantedBy(),
                 null, // grantedByUsername은 projection에서 조회
                 command.reason()
         ));
 
-        log.info("Role {} granted to user {}", command.getRoleName(), this.username);
+        log.info("Role {} granted to user {}", command.roleName(), this.username);
     }
 
     /**
@@ -248,14 +248,14 @@ public class User {
         }
 
         // 계정 잠금 이벤트 발행
-        if (command.getLockedBy() != null) {
+        if (command.lockedBy() != null) {
             // 관리자에 의한 수동 잠금
             AggregateLifecycle.apply(UserAccountLockedEvent.createManualLock(
                     this.userId,
                     this.username,
                     command.reason(),
-                    command.getDetails(),
-                    command.getLockedBy(),
+                    command.details(),
+                    command.lockedBy(),
                     null // lockedByUsername은 projection에서 조회
             ));
         } else {
@@ -264,7 +264,7 @@ public class User {
                     this.userId,
                     this.username,
                     command.reason(),
-                    command.getDetails()
+                    command.details()
             ));
         }
 
@@ -280,7 +280,7 @@ public class User {
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         command.validate();
-        
+
         // 이미 할당된 계좌가 있는지 확인
         if (this.kiwoomAccountId != null) {
             log.warn("User {} already has Kiwoom account: {}", this.username, this.kiwoomAccountId.value());
@@ -308,7 +308,7 @@ public class User {
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         command.validate();
-        
+
         // 키움증권 계좌가 할당되어 있는지 확인
         if (this.kiwoomAccountId == null) {
             log.warn("User {} has no Kiwoom account to update credentials", this.username);
@@ -335,7 +335,7 @@ public class User {
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         command.validate();
-        
+
         // 키움증권 계좌가 할당되어 있는지 확인
         if (this.kiwoomAccountId == null) {
             log.warn("User {} has no Kiwoom account to revoke", this.username);
@@ -349,7 +349,7 @@ public class User {
                 command.reason()
         ));
 
-        log.info("Kiwoom account {} revoked for user {} - reason: {}", 
+        log.info("Kiwoom account {} revoked for user {} - reason: {}",
                 this.kiwoomAccountId.value(), this.username, command.reason());
     }
 
@@ -362,10 +362,10 @@ public class User {
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
         command.validate();
-        
+
         // 키움증권 계좌가 할당되어 있는지 확인
         if (this.kiwoomAccountId == null || !this.kiwoomAccountId.equals(command.kiwoomAccountId())) {
-            log.warn("User {} API usage logging with invalid account: expected {}, got {}", 
+            log.warn("User {} API usage logging with invalid account: expected {}, got {}",
                     this.username, this.kiwoomAccountId, command.kiwoomAccountId());
             throw new IllegalStateException("Invalid Kiwoom account for API usage logging");
         }
@@ -379,7 +379,7 @@ public class User {
                 command.success()
         ));
 
-        log.debug("API usage logged for user {} - endpoint: {}, success: {}", 
+        log.debug("API usage logged for user {} - endpoint: {}, success: {}",
                 this.username, command.apiEndpoint(), command.success());
     }
 
@@ -389,73 +389,73 @@ public class User {
     @CommandHandler
     public void handle(EnableTwoFactorCommand command) {
         log.info("Enabling 2FA for user: {}", this.username);
-        
+
         command.validate();
-        
+
         // 이미 2FA가 활성화된 경우
         if (this.twoFactorEnabled) {
             log.info("2FA is already enabled for user: {}", this.username);
             return;
         }
-        
+
         // 계정 상태 확인
         if (this.status != UserStatus.ACTIVE) {
             throw new IllegalStateException("Cannot enable 2FA for inactive account");
         }
-        
+
         // 2FA 활성화 이벤트 발행
         AggregateLifecycle.apply(TwoFactorEnabledEvent.of(
             this.userId,
             command.totpSecretKey(),
             command.backupCodeHashes()
         ));
-        
+
         log.info("2FA enabled successfully for user: {}", this.username);
     }
-    
+
     /**
      * 2FA 비활성화 처리
      */
     @CommandHandler
     public void handle(DisableTwoFactorCommand command) {
         log.info("Disabling 2FA for user: {}", this.username);
-        
+
         command.validate();
-        
+
         // 2FA가 비활성화된 경우
         if (!this.twoFactorEnabled) {
             log.info("2FA is already disabled for user: {}", this.username);
             return;
         }
-        
+
         // 2FA 비활성화 이벤트 발행
         AggregateLifecycle.apply(TwoFactorDisabledEvent.of(
             this.userId,
             command.reason()
         ));
-        
+
         log.info("2FA disabled successfully for user: {}", this.username);
     }
-    
+
     /**
      * 백업 코드 사용 처리
      */
     @CommandHandler
     public void handle(UseBackupCodeCommand command) {
         log.info("Using backup code for user: {}", this.username);
-        
+
         command.validate();
-        
+
         // 2FA가 활성화되지 않은 경우
         if (!this.twoFactorEnabled) {
             throw new IllegalStateException("2FA is not enabled for this account");
         }
-        
+
         // 백업 코드가 존재하는지 확인
         if (!this.backupCodeHashes.contains(command.backupCodeHash())) {
             throw new IllegalArgumentException("Invalid backup code");
         }
-        
+
         // 백업 코드 사용 이벤트 발행
         int remainingCodes = this.backupCodeHashes.size() - 1;
         AggregateLifecycle.apply(BackupCodeUsedEvent.of(
@@ -465,8 +465,8 @@ public class User {
             command.userAgent(),
             remainingCodes
         ));
-        
-        log.info("Backup code used successfully for user: {}, remaining codes: {}", 
+
+        log.info("Backup code used successfully for user: {}, remaining codes: {}",
                 this.username, remainingCodes);
     }
 
@@ -474,26 +474,26 @@ public class User {
 
     @EventSourcingHandler
     public void on(UserRegisteredEvent event) {
-        this.userId = event.getUserId();
-        this.username = event.getUsername();
-        this.passwordHash = event.getPasswordHash(); // 임시: 테스트 통과를 위해 추가
-        this.name = event.getName();
-        this.email = event.getEmail();
-        this.phone = event.getPhone();
+        this.userId = event.userId();
+        this.username = event.username();
+        this.passwordHash = event.passwordHash(); // 임시: 테스트 통과를 위해 추가
+        this.name = event.name();
+        this.email = event.email();
+        this.phone = event.phone();
         this.status = UserStatus.ACTIVE;
-        this.roles = new HashSet<>(event.getInitialRoles());
+        this.roles = new HashSet<>(event.initialRoles());
         this.failedLoginAttempts = 0;
         this.lastLoginAt = null;
-        this.passwordChangedAt = event.getRegisteredAt();
+        this.passwordChangedAt = event.registeredAt();
         this.activeSessionId = null;
         this.sessionStartTime = null;
-        
+
         // 2FA 초기값 설정
         this.twoFactorEnabled = false;
         this.totpSecretKey = null;
         this.backupCodeHashes = new HashSet<>();
         this.twoFactorSetupAt = null;
-        
+
         // Kiwoom Account fields 초기화
         this.kiwoomAccountId = null;
         this.encryptedKiwoomCredentials = null;
@@ -503,15 +503,15 @@ public class User {
     @EventSourcingHandler
     public void on(UserLoginSucceededEvent event) {
         this.failedLoginAttempts = 0;
-        this.lastLoginAt = event.getLoginTime();
-        this.activeSessionId = event.getSessionId();
-        this.sessionStartTime = event.getLoginTime();
+        this.lastLoginAt = event.loginTime();
+        this.activeSessionId = event.sessionId();
+        this.sessionStartTime = event.loginTime();
     }
 
     @EventSourcingHandler
     public void on(UserLoginFailedEvent event) {
-        this.failedLoginAttempts = event.getFailedAttempts();
-        if (event.isAccountLocked()) {
+        this.failedLoginAttempts = event.failedAttempts();
+        if (event.accountLocked()) {
             this.status = UserStatus.LOCKED;
         }
     }
@@ -524,16 +524,16 @@ public class User {
 
     @EventSourcingHandler
     public void on(UserRoleGrantedEvent event) {
-        this.roles.add(event.getRoleName());
+        this.roles.add(event.roleName());
     }
 
     @EventSourcingHandler
     public void on(UserAccountLockedEvent event) {
         this.status = UserStatus.LOCKED;
     }
-    
+
     // 2FA Event Sourcing Handlers
-    
+
     @EventSourcingHandler
     public void on(TwoFactorEnabledEvent event) {
         this.twoFactorEnabled = true;
@@ -541,7 +541,7 @@ public class User {
         this.backupCodeHashes = new HashSet<>(event.backupCodeHashes());
         this.twoFactorSetupAt = event.enabledAt();
     }
-    
+
     @EventSourcingHandler
     public void on(TwoFactorDisabledEvent event) {
         this.twoFactorEnabled = false;
@@ -549,7 +549,7 @@ public class User {
         this.backupCodeHashes.clear();
         this.twoFactorSetupAt = null;
     }
-    
+
     @EventSourcingHandler
     public void on(BackupCodeUsedEvent event) {
         this.backupCodeHashes.remove(event.backupCodeHash());
@@ -584,11 +584,11 @@ public class User {
 
     private void validateUserRegistration(RegisterUserCommand command) {
         // 추가적인 비즈니스 검증 로직
-        if (command.getUsername().length() < 3) {
+        if (command.username().length() < 3) {
             throw new IllegalArgumentException("Username must be at least 3 characters long");
         }
 
-        if (!command.getEmail().matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+        if (!command.email().matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
             throw new IllegalArgumentException("Invalid email format");
         }
     }

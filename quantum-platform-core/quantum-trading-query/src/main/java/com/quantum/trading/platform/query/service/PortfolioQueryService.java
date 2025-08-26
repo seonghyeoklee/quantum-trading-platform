@@ -178,7 +178,18 @@ public class PortfolioQueryService {
                         .positionCount(portfolio.getPositionCount())
                         .hasPositions(!portfolio.isEmpty())
                         .build())
-                .orElse(null);
+                .orElse(PortfolioSummary.builder()
+                        .portfolioId("")
+                        .userId(userId)
+                        .cashBalance(BigDecimal.ZERO)
+                        .totalInvested(BigDecimal.ZERO)
+                        .totalMarketValue(BigDecimal.ZERO)
+                        .totalPortfolioValue(BigDecimal.ZERO)
+                        .totalProfitLoss(BigDecimal.ZERO)
+                        .profitLossPercentage(BigDecimal.ZERO)
+                        .positionCount(0)
+                        .hasPositions(false)
+                        .build());
     }
     
     /**

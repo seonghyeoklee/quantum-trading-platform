@@ -70,9 +70,9 @@ public class PortfolioView {
             Instant timestamp) {
         
         PortfolioView view = new PortfolioView();
-        view.portfolioId = portfolioId.getId();
-        view.userId = userId.getValue();
-        view.cashBalance = initialCash.getAmount();
+        view.portfolioId = portfolioId.id();
+        view.userId = userId.value();
+        view.cashBalance = initialCash.amount();
         view.createdAt = timestamp;
         view.updatedAt = timestamp;
         

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [tempSessionToken, setTempSessionToken] = useState('');
   const [currentUsername, setCurrentUsername] = useState('');
+  const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,6 +31,7 @@ export default function LoginPage() {
     setError('');
 
     try {
+      // 먼저 2FA 확인을 위해 직접 API 호출
       const response = await fetch('http://localhost:8080/api/v1/auth/login', {
         method: 'POST',
         headers: {
@@ -55,13 +58,15 @@ export default function LoginPage() {
         setCurrentUsername(data.user.username);
         setError('');
       } else {
-        // 2FA가 필요하지 않은 경우 (기존 로직)
+        // 2FA가 필요하지 않은 경우 - AuthContext의 상태만 직접 업데이트
         if (data.accessToken) {
           localStorage.setItem('accessToken', data.accessToken);
           localStorage.setItem('refreshToken', data.refreshToken);
           localStorage.setItem('user', JSON.stringify(data.user));
+          
+          // AuthContext 상태 업데이트를 위해 페이지 새로고침 대신 네비게이션 사용
+          router.push('/');
         }
-        router.push('/');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
@@ -105,12 +110,12 @@ export default function LoginPage() {
       const data = await response.json();
       
       if (data.success && data.data.accessToken) {
-        // 인증 성공 시 토큰 저장
+        // 인증 성공 시 토큰 저장 
         localStorage.setItem('accessToken', data.data.accessToken);
         localStorage.setItem('refreshToken', data.data.refreshToken || '');
         localStorage.setItem('user', JSON.stringify(data.data.user));
         
-        // 메인 페이지로 리디렉트
+        // 메인 페이지로 리디렉트 (AuthContext가 자동으로 상태 업데이트)
         router.push('/');
       } else {
         throw new Error('인증에 실패했습니다.');
