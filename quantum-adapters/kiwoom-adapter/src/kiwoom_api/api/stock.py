@@ -3,6 +3,7 @@
 함수명 기준으로 API 경로 매핑: /api/fn_ka10001, /api/fn_kt10000
 """
 import logging
+from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
@@ -1156,18 +1157,18 @@ async def api_fn_ka10045(request: KiwoomStockInstitutionalTrendRequest) -> Stock
     키움 원본 데이터와 가공된 구조화 데이터를 함께 제공합니다.
     """
     try:
-        logger.info(f"📊 fn_ka10045 요청: {request.data.stk_cd} ({request.data.strt_dt}-{request.data.end_dt})")
+        logger.info(f"📊 fn_ka10045 요청: {request.stk_cd} ({request.strt_dt}-{request.end_dt})")
 
         # fn_ka10045 호출
         result = await fn_ka10045(
-            data=request.data.dict(),
-            cont_yn=request.cont_yn,
-            next_key=request.next_key
+            data=request.dict(),
+            cont_yn='N',
+            next_key=''
         )
 
         if result.get('Code') == 200:
             # 성공 응답 처리
-            logger.info(f"✅ fn_ka10045 성공: {request.data.stk_cd}")
+            logger.info(f"✅ fn_ka10045 성공: {request.stk_cd}")
 
             # 원본 응답 데이터
             raw_response = StockInstitutionalTrendResponse(**result['Body'])
@@ -1177,9 +1178,9 @@ async def api_fn_ka10045(request: KiwoomStockInstitutionalTrendRequest) -> Stock
 
             # API 응답 구성
             response = StockInstitutionalTrendApiResponse(
-                stock_code=request.data.stk_cd,
-                start_date=request.data.strt_dt,
-                end_date=request.data.end_dt,
+                stock_code=request.stk_cd,
+                start_date=request.strt_dt,
+                end_date=request.end_dt,
                 raw_data=raw_response,
                 trend_data=trend_data,
                 data_count=len(trend_data),
@@ -1187,7 +1188,7 @@ async def api_fn_ka10045(request: KiwoomStockInstitutionalTrendRequest) -> Stock
                 response_time=datetime.now().strftime("%Y%m%d%H%M%S")
             )
 
-            logger.info(f"✅ fn_ka10045 완료: {request.data.stk_cd} - {len(trend_data)}건")
+            logger.info(f"✅ fn_ka10045 완료: {request.stk_cd} - {len(trend_data)}건")
             return response
 
         else:

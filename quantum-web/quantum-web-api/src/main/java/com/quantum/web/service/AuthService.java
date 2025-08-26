@@ -44,7 +44,71 @@ public class AuthService {
 
 
     /**
-     * 사용자 인증 및 토큰 발급 (Event-Driven 방식)
+     * 2FA가 필요한지 확인하는 초기 인증 (1단계)
+     */
+    public PreAuthResult preAuthenticate(String username, String password, HttpServletRequest request) {
+        log.info("Pre-authentication for user: {}", username);
+        
+        // 기본 사용자 인증 로직 (기존과 동일)
+        Optional<UserQueryService.UserLoginInfo> loginInfoOpt = userQueryService.findLoginInfo(username);
+        if (loginInfoOpt.isEmpty()) {
+            log.warn("Pre-authentication failed - user not found: {}", username);
+            throw new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username);
+        }
+        
+        UserQueryService.UserLoginInfo loginInfo = loginInfoOpt.get();
+        
+        // 계정 상태 확인
+        if (!loginInfo.canLogin()) {
+            log.warn("Pre-authentication failed - user cannot login: {} (status: {}, attempts: {})", 
+                    username, loginInfo.status(), loginInfo.failedLoginAttempts());
+            throw new IllegalArgumentException("로그인할 수 없는 계정 상태입니다: " + loginInfo.status());
+        }
+        
+        // 비밀번호 검증
+        if (!passwordEncoder.matches(password, loginInfo.passwordHash())) {
+            // 비밀번호 불일치 시 실패 Command 전송
+            String clientIp = extractClientIp(request);
+            String userAgent = extractUserAgent(request);
+            
+            RecordLoginFailureCommand failureCommand = RecordLoginFailureCommand.builder()
+                    .userId(UserId.of(loginInfo.userId()))
+                    .reason("Invalid password")
+                    .ipAddress(clientIp)
+                    .userAgent(userAgent)
+                    .build();
+            
+            commandGateway.sendAndWait(failureCommand);
+            throw new IllegalArgumentException("비밀번호가 올바르지 않습니다");
+        }
+        
+        // 2FA 활성화 여부 확인
+        UserView user = userQueryService.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("User not found after pre-authentication"));
+        
+        if (user.isTwoFactorEnabled()) {
+            // 2FA가 필요한 경우, 임시 토큰 생성
+            String tempToken = generateTempSessionToken(user.getUserId(), username);
+            
+            return PreAuthResult.builder()
+                    .userId(user.getUserId())
+                    .username(username)
+                    .requiresTwoFactor(true)
+                    .tempSessionToken(tempToken)
+                    .build();
+        } else {
+            // 2FA가 필요하지 않은 경우, 바로 완전한 인증 수행
+            return PreAuthResult.builder()
+                    .userId(user.getUserId())
+                    .username(username)
+                    .requiresTwoFactor(false)
+                    .authResult(completeAuthentication(user, request))
+                    .build();
+        }
+    }
+
+    /**
+     * 사용자 인증 및 토큰 발급 (Event-Driven 방식) - 기존 메서드 (2FA 비활성화된 사용자용)
      */
     public AuthResult authenticateUser(String username, String password, HttpServletRequest request) {
         log.info("Attempting authentication for user: {}", username);
@@ -406,5 +470,134 @@ public class AuthService {
     public static class TokenPair {
         private String accessToken;
         private String refreshToken;
+    }
+    
+    /**
+     * 2FA 인증용 사용자 정보로 JWT 토큰 생성
+     */
+    public String generateTokenForUser(UserView user) {
+        List<String> roles = new ArrayList<>(user.getRoles());
+        return jwtTokenProvider.generateAccessToken(
+                user.getUserId(), user.getUsername(), roles);
+    }
+    
+    /**
+     * 임시 세션 토큰 생성 (2FA 대기 중)
+     */
+    private String generateTempSessionToken(String userId, String username) {
+        String tempToken = "TEMP-" + UUID.randomUUID().toString();
+        
+        // Redis에 임시 토큰 저장 (5분 TTL)
+        String tempTokenKey = "temp_session:" + tempToken;
+        Map<String, String> sessionData = new HashMap<>();
+        sessionData.put("userId", userId);
+        sessionData.put("username", username);
+        sessionData.put("timestamp", String.valueOf(System.currentTimeMillis()));
+        
+        redisTemplate.opsForHash().putAll(tempTokenKey, sessionData);
+        redisTemplate.expire(tempTokenKey, 5, TimeUnit.MINUTES);
+        
+        log.info("Temporary session token generated for user: {}", username);
+        return tempToken;
+    }
+    
+    /**
+     * 임시 세션 토큰 검증 및 사용자 정보 반환
+     */
+    public TempSessionInfo validateTempSessionToken(String tempToken) {
+        String tempTokenKey = "temp_session:" + tempToken;
+        Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(tempTokenKey);
+        
+        if (sessionData.isEmpty()) {
+            throw new IllegalArgumentException("임시 세션이 만료되었거나 존재하지 않습니다");
+        }
+        
+        String userId = (String) sessionData.get("userId");
+        String username = (String) sessionData.get("username");
+        
+        return TempSessionInfo.builder()
+                .userId(userId)
+                .username(username)
+                .tempToken(tempToken)
+                .build();
+    }
+    
+    /**
+     * 임시 세션 토큰 제거
+     */
+    public void removeTempSessionToken(String tempToken) {
+        String tempTokenKey = "temp_session:" + tempToken;
+        redisTemplate.delete(tempTokenKey);
+    }
+    
+    /**
+     * 2FA 인증 완료 후 최종 인증 수행
+     */
+    private AuthResult completeAuthentication(UserView user, HttpServletRequest request) {
+        // 세션 ID 생성
+        String sessionId = "SESSION-" + UUID.randomUUID().toString();
+        String clientIp = extractClientIp(request);
+        String userAgent = extractUserAgent(request);
+        
+        try {
+            // 로그인 성공 Command 전송
+            AuthenticateUserCommand authCommand = AuthenticateUserCommand.builder()
+                    .userId(UserId.of(user.getUserId()))
+                    .username(user.getUsername())
+                    .password("") // 이미 검증 완료
+                    .sessionId(sessionId)
+                    .ipAddress(clientIp)
+                    .userAgent(userAgent)
+                    .build();
+            
+            commandGateway.sendAndWait(authCommand);
+            
+            // JWT 토큰 생성
+            List<String> roles = new ArrayList<>(user.getRoles());
+            String accessToken = jwtTokenProvider.generateAccessToken(
+                    user.getUserId(), user.getUsername(), roles);
+            String refreshToken = jwtTokenProvider.generateRefreshToken(
+                    user.getUserId(), user.getUsername());
+            
+            // Refresh Token을 Redis에 저장 (7일 TTL)
+            String refreshTokenKey = "refresh_token:" + user.getUserId();
+            redisTemplate.opsForValue().set(refreshTokenKey, refreshToken, 7, TimeUnit.DAYS);
+            
+            log.info("Authentication completed successfully for user: {}", user.getUsername());
+            
+            return AuthResult.builder()
+                    .userId(user.getUserId())
+                    .username(user.getUsername())
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .roles(roles)
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("Failed to complete authentication for user: {}", user.getUsername(), e);
+            throw new IllegalArgumentException("인증 완료에 실패하였습니다: " + e.getMessage());
+        }
+    }
+    
+    // Additional DTOs for 2FA
+    
+    @lombok.Builder
+    @lombok.Data
+    public static class PreAuthResult {
+        private String userId;
+        private String username;
+        private boolean requiresTwoFactor;
+        private String tempSessionToken;
+        private AuthResult authResult;
+    }
+    
+    @lombok.Builder
+    @lombok.Data
+    public static class TempSessionInfo {
+        private String userId;
+        private String username;
+        private String tempToken;
     }
 }

@@ -195,4 +195,81 @@ public class UserProjectionHandler {
             throw e;
         }
     }
+    
+    /**
+     * 2FA 활성화 이벤트 처리
+     */
+    @EventHandler
+    public void on(TwoFactorEnabledEvent event) {
+        log.info("Processing TwoFactorEnabledEvent for user: {}", event.userId().getValue());
+        
+        try {
+            UserView userView = userViewRepository.findById(event.userId().getValue())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "UserView not found for 2FA enable: " + event.userId().getValue()));
+            
+            userView.enableTwoFactor(event.totpSecretKey(), event.backupCodeHashes());
+            userViewRepository.save(userView);
+            
+            log.info("UserView updated - 2FA enabled for user: {} with {} backup codes", 
+                    event.userId().getValue(), event.backupCodeHashes().size());
+            
+        } catch (Exception e) {
+            log.error("Failed to process TwoFactorEnabledEvent for user: {}", event.userId().getValue(), e);
+            throw e;
+        }
+    }
+    
+    /**
+     * 2FA 비활성화 이벤트 처리
+     */
+    @EventHandler
+    public void on(TwoFactorDisabledEvent event) {
+        log.info("Processing TwoFactorDisabledEvent for user: {} - reason: {}", 
+                event.userId().getValue(), event.reason());
+        
+        try {
+            UserView userView = userViewRepository.findById(event.userId().getValue())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "UserView not found for 2FA disable: " + event.userId().getValue()));
+            
+            userView.disableTwoFactor();
+            userViewRepository.save(userView);
+            
+            log.info("UserView updated - 2FA disabled for user: {} - reason: {}", 
+                    event.userId().getValue(), event.reason());
+            
+        } catch (Exception e) {
+            log.error("Failed to process TwoFactorDisabledEvent for user: {}", event.userId().getValue(), e);
+            throw e;
+        }
+    }
+    
+    /**
+     * 백업 코드 사용 이벤트 처리
+     */
+    @EventHandler
+    public void on(BackupCodeUsedEvent event) {
+        log.info("Processing BackupCodeUsedEvent for user: {} - remaining codes: {}", 
+                event.userId().getValue(), event.remainingBackupCodes());
+        
+        try {
+            UserView userView = userViewRepository.findById(event.userId().getValue())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "UserView not found for backup code usage: " + event.userId().getValue()));
+            
+            boolean codeUsed = userView.useBackupCode(event.backupCodeHash());
+            if (codeUsed) {
+                userViewRepository.save(userView);
+                log.info("UserView updated - backup code used for user: {}, remaining codes: {}", 
+                        event.userId().getValue(), userView.getRemainingBackupCodesCount());
+            } else {
+                log.warn("Backup code was not found in UserView for user: {}", event.userId().getValue());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to process BackupCodeUsedEvent for user: {}", event.userId().getValue(), e);
+            throw e;
+        }
+    }
 }

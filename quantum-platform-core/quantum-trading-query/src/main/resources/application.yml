@@ -4,7 +4,7 @@ spring:
     username: quantum_user
     password: quantum_password
     driver-class-name: org.postgresql.Driver
-    
+
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -16,11 +16,11 @@ spring:
         hbm2ddl:
           auto: create-drop
     defer-datasource-initialization: false
-    
+
   sql:
     init:
       mode: never
-      
+
 axon:
   serializer:
     events: jackson
