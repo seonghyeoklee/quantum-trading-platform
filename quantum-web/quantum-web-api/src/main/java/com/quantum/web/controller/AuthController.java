@@ -51,35 +51,55 @@ public class AuthController {
     private final UserQueryService userQueryService;
 
     /**
-     * 관리자 로그인
+     * 관리자 로그인 (2FA 지원)
      */
     @PostMapping("/login")
-    @Operation(summary = "관리자 로그인", description = "사용자명과 비밀번호로 로그인하여 JWT 토큰을 발급받습니다")
+    @Operation(summary = "관리자 로그인", description = "사용자명과 비밀번호로 로그인하여 JWT 토큰을 발급받습니다. 2FA가 활성화된 경우 임시 세션 토큰을 반환합니다.")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
 
         try {
             log.info("Login attempt - username: {}, IP: {}",
                     request.username(), getClientIp(httpRequest));
 
-            // 사용자 인증
-            AuthService.AuthResult authResult = authService.authenticateUser(request.username(), request.password(), httpRequest);
+            // 2FA 지원 사전 인증
+            AuthService.PreAuthResult preAuthResult = authService.preAuthenticate(
+                    request.username(), request.password(), httpRequest);
 
-            log.info("Login successful - username: {}, roles: {}",
-                    request.username(), authResult.getRoles());
+            if (preAuthResult.isRequiresTwoFactor()) {
+                // 2FA가 필요한 경우
+                log.info("2FA required for user: {}", request.username());
+                
+                return ResponseEntity.ok(LoginResponse.builder()
+                        .requiresTwoFactor(true)
+                        .tempSessionToken(preAuthResult.getTempSessionToken())
+                        .message("2단계 인증이 필요합니다.")
+                        .user(UserInfo.builder()
+                                .id(preAuthResult.getUserId())
+                                .username(preAuthResult.getUsername())
+                                .build())
+                        .build());
+            } else {
+                // 2FA가 필요하지 않은 경우 (기존 로직)
+                AuthService.AuthResult authResult = preAuthResult.getAuthResult();
+                
+                log.info("Login successful - username: {}, roles: {}",
+                        request.username(), authResult.getRoles());
 
-            return ResponseEntity.ok(LoginResponse.builder()
-                    .accessToken(authResult.getAccessToken())
-                    .refreshToken(authResult.getRefreshToken())
-                    .tokenType("Bearer")
-                    .expiresIn(86400L) // 24시간
-                    .user(UserInfo.builder()
-                            .id(authResult.getUserId())
-                            .username(authResult.getUsername())
-                            .name(authResult.getName())
-                            .email(authResult.getEmail())
-                            .roles(authResult.getRoles())
-                            .build())
-                    .build());
+                return ResponseEntity.ok(LoginResponse.builder()
+                        .accessToken(authResult.getAccessToken())
+                        .refreshToken(authResult.getRefreshToken())
+                        .tokenType("Bearer")
+                        .expiresIn(86400L) // 24시간
+                        .requiresTwoFactor(false)
+                        .user(UserInfo.builder()
+                                .id(authResult.getUserId())
+                                .username(authResult.getUsername())
+                                .name(authResult.getName())
+                                .email(authResult.getEmail())
+                                .roles(authResult.getRoles())
+                                .build())
+                        .build());
+            }
 
         } catch (UsernameNotFoundException | IllegalArgumentException e) {
             log.warn("Login failed - username: {}, reason: {}", request.username(), e.getMessage());
@@ -414,7 +434,10 @@ public class AuthController {
             String refreshToken,
             String tokenType,
             Long expiresIn,
-            UserInfo user
+            UserInfo user,
+            Boolean requiresTwoFactor,
+            String tempSessionToken,
+            String message
     ) {}
 
     @lombok.Builder

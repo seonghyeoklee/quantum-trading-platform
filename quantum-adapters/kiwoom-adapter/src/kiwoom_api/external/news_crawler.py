@@ -106,25 +106,37 @@ class NewsCrawler:
         news_list = []
         
         try:
-            # 네이버 금융 뉴스 URL
-            url = f"https://finance.naver.com/item/news_news.nhn?code={stock_code}&page=1"
+            # 네이버 증권 뉴스 URL (시황전망 + 기업분석)
+            urls = [
+                "https://finance.naver.com/news/news_list.naver?mode=LSS3D&section_id=101&section_id2=258&section_id3=401",  # 시황전망
+                "https://finance.naver.com/news/news_list.naver?mode=LSS3D&section_id=101&section_id2=258&section_id3=402"   # 기업분석
+            ]
             
-            async with httpx.AsyncClient(timeout=self.session_timeout) as client:
-                response = await client.get(url, headers=self.headers)
-                
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
+            for url in urls:
+                async with httpx.AsyncClient(timeout=self.session_timeout) as client:
+                    response = await client.get(url, headers=self.headers)
                     
-                    # 뉴스 목록 추출
-                    news_items = soup.select('.type01 tr')
-                    
-                    for item in news_items:
-                        if not item.select('td.title'):
-                            continue
+                    if response.status_code == 200:
+                        # 네이버는 euc-kr 인코딩 사용
+                        response.encoding = 'euc-kr'
+                        soup = BeautifulSoup(response.text, 'html.parser')
                         
-                        title_elem = item.select_one('td.title a')
-                        date_elem = item.select_one('td.date')
-                        source_elem = item.select_one('td.info')
+                        # 뉴스 링크 추출
+                        news_links = soup.find_all('a', href=True)
+                        
+                        for link in news_links:
+                            href = link.get('href', '')
+                            if 'newsView' in href or 'news_read' in href:
+                                title = link.text.strip()
+                                if title and len(title) > 5:
+                                    # 종목명이 포함된 뉴스만 필터링
+                                    if stock_code in title or stock_name in title:
+                                        
+                                        # URL 정규화
+                                        if href.startswith('/'):
+                                            full_url = f"https://finance.naver.com{href}"
+                                        else:
+                                            full_url = href
                         
                         if title_elem and date_elem:
                             title = title_elem.text.strip()

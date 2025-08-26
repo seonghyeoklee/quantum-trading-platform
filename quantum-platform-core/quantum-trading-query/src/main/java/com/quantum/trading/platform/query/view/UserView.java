@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -83,6 +84,27 @@ public class UserView {
     
     @Column(name = "session_start_time")
     private Instant sessionStartTime;
+    
+    // 2FA (Two-Factor Authentication) 관련 필드
+    @Column(name = "two_factor_enabled", nullable = false)
+    @Builder.Default
+    private Boolean twoFactorEnabled = false;
+    
+    @Column(name = "totp_secret_key", length = 32)
+    private String totpSecretKey;
+    
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+        name = "user_backup_codes", 
+        joinColumns = @JoinColumn(name = "user_id"),
+        indexes = @Index(name = "idx_user_backup_codes_user_id", columnList = "user_id")
+    )
+    @Column(name = "backup_code_hash", length = 100)
+    @Builder.Default
+    private Set<String> backupCodeHashes = new HashSet<>();
+    
+    @Column(name = "two_factor_setup_at")
+    private Instant twoFactorSetupAt;
     
     @Version
     private Long version;
@@ -193,5 +215,60 @@ public class UserView {
         this.activeSessionId = null;
         this.sessionStartTime = null;
         this.updatedAt = Instant.now();
+    }
+    
+    // 2FA 관련 메서드들
+    
+    /**
+     * 2FA 활성화 여부 확인
+     */
+    public boolean isTwoFactorEnabled() {
+        return Boolean.TRUE.equals(twoFactorEnabled) && totpSecretKey != null;
+    }
+    
+    /**
+     * 2FA 설정 활성화
+     */
+    public void enableTwoFactor(String secretKey, Set<String> backupCodeHashes) {
+        this.twoFactorEnabled = true;
+        this.totpSecretKey = secretKey;
+        this.backupCodeHashes = backupCodeHashes;
+        this.twoFactorSetupAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+    
+    /**
+     * 2FA 비활성화
+     */
+    public void disableTwoFactor() {
+        this.twoFactorEnabled = false;
+        this.totpSecretKey = null;
+        this.backupCodeHashes = null;
+        this.twoFactorSetupAt = null;
+        this.updatedAt = Instant.now();
+    }
+    
+    /**
+     * 백업 코드 사용 (사용한 코드 제거)
+     */
+    public boolean useBackupCode(String backupCodeHash) {
+        if (backupCodeHashes != null && backupCodeHashes.contains(backupCodeHash)) {
+            backupCodeHashes.remove(backupCodeHash);
+            this.updatedAt = Instant.now();
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * 남은 백업 코드 수
+     */
+    public int getRemainingBackupCodesCount() {
+        try {
+            return backupCodeHashes != null ? backupCodeHashes.size() : 0;
+        } catch (Exception e) {
+            // LazyInitializationException이나 다른 Hibernate 관련 예외 처리
+            return 0;
+        }
     }
 }

@@ -14,10 +14,14 @@ import {
   Bell, 
   Palette,
   Globe,
-  Save
+  Save,
+  Shield,
+  Smartphone,
+  Key
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import TwoFactorSetup from '@/components/auth/TwoFactorSetup';
 
 function SettingsPage() {
   const { user } = useAuth();
@@ -37,6 +41,76 @@ function SettingsPage() {
     currency: 'KRW'
   });
 
+  // 2FA 관련 상태
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorStatus, setTwoFactorStatus] = useState(null);
+  const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // 2FA 상태 조회
+  useEffect(() => {
+    const fetchTwoFactorStatus = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:8080/api/v1/auth/2fa/status', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setTwoFactorEnabled(data.data.enabled);
+            setTwoFactorStatus(data.data);
+          }
+        }
+      } catch (error) {
+        console.error('2FA 상태 조회 실패:', error);
+      }
+    };
+
+    fetchTwoFactorStatus();
+  }, []);
+
+  // 2FA 비활성화
+  const handleDisableTwoFactor = async () => {
+    if (!confirm('2단계 인증을 비활성화하시겠습니까? 계정 보안이 약해질 수 있습니다.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://localhost:8080/api/v1/auth/2fa/disable', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setTwoFactorEnabled(false);
+        setTwoFactorStatus(null);
+        alert('2단계 인증이 비활성화되었습니다.');
+      } else {
+        alert(`오류: ${data.error || '2FA 비활성화에 실패했습니다.'}`);
+      }
+    } catch (error) {
+      alert('2FA 비활성화 중 오류가 발생했습니다.');
+      console.error('2FA 비활성화 오류:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!user) return null;
 
   const settingsActions = (
@@ -53,6 +127,105 @@ function SettingsPage() {
       actions={settingsActions}
     >
         <div className="grid gap-8">
+          {/* 2FA 설정이 활성화된 경우 모달 */}
+          {showTwoFactorSetup && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="w-full max-w-md mx-4">
+                <TwoFactorSetup
+                  onComplete={() => {
+                    setShowTwoFactorSetup(false);
+                    setTwoFactorEnabled(true);
+                    // 상태 새로고침
+                    window.location.reload();
+                  }}
+                  onCancel={() => setShowTwoFactorSetup(false)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 보안 설정 (2FA) */}
+          <Card className="trading-card">
+            <CardHeader className="trading-card-header">
+              <CardTitle className="flex items-center">
+                <Shield className="w-5 h-5 mr-2" />
+                보안 설정
+              </CardTitle>
+              <CardDescription>
+                계정 보안을 강화하고 2단계 인증을 관리합니다
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="trading-card-content space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium flex items-center">
+                    <Smartphone className="w-4 h-4 mr-2" />
+                    2단계 인증 (2FA)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Google Authenticator 등의 앱을 사용하여 추가 보안 계층을 제공합니다
+                  </p>
+                  {twoFactorEnabled && twoFactorStatus && (
+                    <div className="flex items-center space-x-2 mt-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-xs text-green-600">
+                        활성화됨 • 백업 코드 {twoFactorStatus.remainingBackupCodes || 0}개 남음
+                      </span>
+                      {twoFactorStatus.setupAt && (
+                        <span className="text-xs text-muted-foreground">
+                          • {new Date(twoFactorStatus.setupAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex space-x-2">
+                  {!twoFactorEnabled ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setShowTwoFactorSetup(true)}
+                      disabled={loading}
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      <Key className="w-4 h-4 mr-2" />
+                      활성화
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleDisableTwoFactor}
+                      disabled={loading}
+                    >
+                      비활성화
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {twoFactorEnabled && (
+                <>
+                  <Separator />
+                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="flex">
+                      <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-3" />
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                          2단계 인증이 활성화되었습니다
+                        </h4>
+                        <p className="text-xs text-blue-700 dark:text-blue-200">
+                          로그인 시 비밀번호와 함께 인증 앱에서 생성된 6자리 코드가 필요합니다.
+                          백업 코드는 안전한 곳에 보관하세요.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* 알림 설정 */}
           <Card className="trading-card">
             <CardHeader className="trading-card-header">
@@ -210,15 +383,6 @@ function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* 저장 버튼 */}
-          <div className="flex justify-end space-x-4">
-            <Button variant="outline" onClick={() => router.back()}>
-              취소
-            </Button>
-            <Button className="bg-primary hover:bg-primary/90">
-              설정 저장
-            </Button>
-          </div>
         </div>
     </UserLayout>
   );

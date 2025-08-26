@@ -38,6 +38,9 @@ class KiwoomSettings(BaseSettings):
     # Kafka 설정
     ENABLE_KAFKA: bool = Field(True, description="Kafka 연결 활성화 여부")
     
+    # DART API 설정
+    DART_API_KEY: str = Field("", description="DART API 키")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

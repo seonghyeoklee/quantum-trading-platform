@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import TwoFactorLogin from '@/components/auth/TwoFactorLogin';
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -17,6 +18,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [tempSessionToken, setTempSessionToken] = useState('');
+  const [currentUsername, setCurrentUsername] = useState('');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,15 +48,21 @@ export default function LoginPage() {
 
       const data = await response.json();
       
-      // JWT 토큰 저장 (localStorage에 임시 저장, 추후 secure cookie로 변경 예정)
-      if (data.accessToken) {
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        localStorage.setItem('user', JSON.stringify(data.user));
+      if (data.requiresTwoFactor) {
+        // 2FA가 필요한 경우
+        setTwoFactorRequired(true);
+        setTempSessionToken(data.tempSessionToken);
+        setCurrentUsername(data.user.username);
+        setError('');
+      } else {
+        // 2FA가 필요하지 않은 경우 (기존 로직)
+        if (data.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('refreshToken', data.refreshToken);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+        router.push('/');
       }
-
-      // 메인 페이지로 리디렉트
-      router.push('/');
     } catch (error) {
       setError(error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
     } finally {
@@ -68,6 +78,58 @@ export default function LoginPage() {
     }));
   };
 
+  const handleTwoFactorVerify = async (code: string, isBackupCode?: boolean) => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:8080/api/v1/auth/2fa/verify-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: currentUsername,
+          code: code,
+          sessionToken: tempSessionToken,
+          isBackupCode: isBackupCode || false
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '2FA 인증에 실패했습니다.');
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data.accessToken) {
+        // 인증 성공 시 토큰 저장
+        localStorage.setItem('accessToken', data.data.accessToken);
+        localStorage.setItem('refreshToken', data.data.refreshToken || '');
+        localStorage.setItem('user', JSON.stringify(data.data.user));
+        
+        // 메인 페이지로 리디렉트
+        router.push('/');
+      } else {
+        throw new Error('인증에 실패했습니다.');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '2FA 인증 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setTwoFactorRequired(false);
+    setTempSessionToken('');
+    setCurrentUsername('');
+    setError('');
+    setFormData({ username: '', password: '' });
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
@@ -77,108 +139,123 @@ export default function LoginPage() {
             <LogIn className="w-6 h-6 text-primary" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Quantum Trading</h1>
-          <p className="text-muted-foreground">플랫폼에 로그인하세요</p>
+          <p className="text-muted-foreground">
+            {twoFactorRequired ? '2단계 인증을 완료하세요' : '플랫폼에 로그인하세요'}
+          </p>
         </div>
 
-        {/* 로그인 카드 */}
-        <Card className="trading-card border-border/50 shadow-lg">
-          <CardHeader className="trading-card-header">
-            <CardTitle className="text-xl font-semibold">로그인</CardTitle>
-            <CardDescription>
-              계정 정보를 입력하여 플랫폼에 접속하세요
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="trading-card-content space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 에러 메시지 */}
-              {error && (
-                <Alert className="border-destructive/50 text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+        {twoFactorRequired ? (
+          // 2FA 인증 화면
+          <TwoFactorLogin
+            username={currentUsername}
+            onVerify={handleTwoFactorVerify}
+            onBack={handleBackToLogin}
+            loading={isLoading}
+            error={error}
+          />
+        ) : (
+          <>
+            {/* 로그인 카드 */}
+            <Card className="trading-card border-border/50 shadow-lg">
+              <CardHeader className="trading-card-header">
+                <CardTitle className="text-xl font-semibold">로그인</CardTitle>
+                <CardDescription>
+                  계정 정보를 입력하여 플랫폼에 접속하세요
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent className="trading-card-content space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* 에러 메시지 */}
+                  {error && (
+                    <Alert className="border-destructive/50 text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
 
-              {/* 사용자명 필드 */}
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-sm font-medium">
-                  사용자명
-                </Label>
-                <Input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="사용자명을 입력하세요"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-
-              {/* 비밀번호 필드 */}
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  비밀번호
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="비밀번호를 입력하세요"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary pr-11"
-                    required
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center justify-center w-11 text-muted-foreground hover:text-foreground transition-colors"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* 로그인 버튼 */}
-              <Button
-                type="submit"
-                className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors"
-                disabled={isLoading || !formData.username || !formData.password}
-              >
-                {isLoading ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>로그인 중...</span>
+                  {/* 사용자명 필드 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-sm font-medium">
+                      사용자명
+                    </Label>
+                    <Input
+                      id="username"
+                      name="username"
+                      type="text"
+                      placeholder="사용자명을 입력하세요"
+                      value={formData.username}
+                      onChange={handleInputChange}
+                      className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary"
+                      required
+                      disabled={isLoading}
+                    />
                   </div>
-                ) : (
-                  '로그인'
-                )}
-              </Button>
-            </form>
 
-            {/* 추가 링크 */}
-            <div className="text-center text-sm text-muted-foreground pt-4 border-t border-border">
-              <p>계정이 없으신가요? 관리자에게 문의하세요.</p>
-            </div>
-          </CardContent>
-        </Card>
+                  {/* 비밀번호 필드 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      비밀번호
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="비밀번호를 입력하세요"
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary pr-11"
+                        required
+                        disabled={isLoading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 flex items-center justify-center w-11 text-muted-foreground hover:text-foreground transition-colors"
+                        disabled={isLoading}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-        {/* 데모 계정 안내 */}
-        <Card className="border-info-blue/20 bg-info-blue/5">
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">
-              <h4 className="font-medium text-foreground mb-2">데모 계정</h4>
-              <p className="mb-1">사용자명: <code className="bg-muted px-1 rounded">trader1</code></p>
-              <p>비밀번호: <code className="bg-muted px-1 rounded">password123</code></p>
-            </div>
-          </CardContent>
-        </Card>
+                  {/* 로그인 버튼 */}
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors"
+                    disabled={isLoading || !formData.username || !formData.password}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <span>로그인 중...</span>
+                      </div>
+                    ) : (
+                      '로그인'
+                    )}
+                  </Button>
+                </form>
+
+                {/* 추가 링크 */}
+                <div className="text-center text-sm text-muted-foreground pt-4 border-t border-border">
+                  <p>계정이 없으신가요? 관리자에게 문의하세요.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 데모 계정 안내 */}
+            <Card className="border-info-blue/20 bg-info-blue/5">
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">
+                  <h4 className="font-medium text-foreground mb-2">데모 계정</h4>
+                  <p className="mb-1">사용자명: <code className="bg-muted px-1 rounded">trader1</code></p>
+                  <p>비밀번호: <code className="bg-muted px-1 rounded">password123</code></p>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );
