@@ -18,10 +18,10 @@ public class Position {
         if (symbol == null) {
             throw new IllegalArgumentException("Symbol cannot be null");
         }
-        if (quantity == null || quantity.getValue() <= 0) {
+        if (quantity == null || quantity.value() <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
-        if (price == null || price.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+        if (price == null || price.amount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Price must be positive");
         }
         
@@ -32,24 +32,24 @@ public class Position {
      * 기존 포지션에 새로운 수량을 추가하고 평균 단가 재계산
      */
     public Position addQuantity(Quantity additionalQuantity, Money newPrice) {
-        if (additionalQuantity.getValue() <= 0) {
+        if (additionalQuantity.value() <= 0) {
             throw new IllegalArgumentException("Additional quantity must be positive");
         }
         
         // 기존 총 가치
-        BigDecimal existingValue = averagePrice.getAmount()
-                .multiply(BigDecimal.valueOf(quantity.getValue()));
+        BigDecimal existingValue = averagePrice.amount()
+                .multiply(BigDecimal.valueOf(quantity.value()));
         
         // 추가 구매 가치
-        BigDecimal additionalValue = newPrice.getAmount()
-                .multiply(BigDecimal.valueOf(additionalQuantity.getValue()));
+        BigDecimal additionalValue = newPrice.amount()
+                .multiply(BigDecimal.valueOf(additionalQuantity.value()));
         
         // 새로운 총 수량
-        Quantity newQuantity = Quantity.of(quantity.getValue() + additionalQuantity.getValue());
+        Quantity newQuantity = Quantity.of(quantity.value() + additionalQuantity.value());
         
         // 새로운 평균 단가
         BigDecimal newAveragePrice = existingValue.add(additionalValue)
-                .divide(BigDecimal.valueOf(newQuantity.getValue()), 2, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(newQuantity.value()), 2, RoundingMode.HALF_UP);
         
         return new Position(symbol, newQuantity, Money.ofKrw(newAveragePrice));
     }
@@ -58,14 +58,14 @@ public class Position {
      * 포지션에서 일부 수량 제거
      */
     public Position reduceQuantity(Quantity reduceQuantity) {
-        if (reduceQuantity.getValue() <= 0) {
+        if (reduceQuantity.value() <= 0) {
             throw new IllegalArgumentException("Reduce quantity must be positive");
         }
-        if (reduceQuantity.getValue() > quantity.getValue()) {
+        if (reduceQuantity.value() > quantity.value()) {
             throw new IllegalArgumentException("Cannot reduce more than current quantity");
         }
         
-        Quantity newQuantity = Quantity.of(quantity.getValue() - reduceQuantity.getValue());
+        Quantity newQuantity = Quantity.of(quantity.value() - reduceQuantity.value());
         
         // 평균 단가는 유지
         return new Position(symbol, newQuantity, averagePrice);
@@ -75,8 +75,8 @@ public class Position {
      * 현재 시장 가격 기준 평가 금액 계산
      */
     public Money calculateMarketValue(Money currentPrice) {
-        BigDecimal marketValue = currentPrice.getAmount()
-                .multiply(BigDecimal.valueOf(quantity.getValue()));
+        BigDecimal marketValue = currentPrice.amount()
+                .multiply(BigDecimal.valueOf(quantity.value()));
         return Money.ofKrw(marketValue);
     }
     
@@ -84,9 +84,9 @@ public class Position {
      * 손익 계산 (현재 가격 - 평균 단가) * 수량
      */
     public Money calculateProfitLoss(Money currentPrice) {
-        BigDecimal profitLoss = currentPrice.getAmount()
-                .subtract(averagePrice.getAmount())
-                .multiply(BigDecimal.valueOf(quantity.getValue()));
+        BigDecimal profitLoss = currentPrice.amount()
+                .subtract(averagePrice.amount())
+                .multiply(BigDecimal.valueOf(quantity.value()));
         return Money.ofKrw(profitLoss);
     }
     
@@ -94,6 +94,6 @@ public class Position {
      * 포지션이 비어있는지 확인
      */
     public boolean isEmpty() {
-        return quantity.getValue() == 0;
+        return quantity.value() == 0;
     }
 }

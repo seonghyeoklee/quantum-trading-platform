@@ -1,27 +1,21 @@
 package com.quantum.trading.platform.shared.value;
 
-import lombok.Value;
-
 /**
- * 종목 코드 Value Object
+ * 종목 코드 Value Object (Record 타입)
  * 
  * 한국 주식의 6자리 종목 코드 (예: 005930 - 삼성전자)
  */
-@Value
-public class Symbol {
-    String value;
+public record Symbol(String value) {
     
-    private Symbol(String value) {
+    public Symbol {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("Symbol cannot be null or empty");
         }
         
-        String trimmed = value.trim();
-        if (!isValidKoreanStockCode(trimmed)) {
-            throw new IllegalArgumentException("Invalid Korean stock symbol: " + trimmed);
+        value = value.trim();
+        if (!isValidKoreanStockCode(value)) {
+            throw new IllegalArgumentException("Invalid Korean stock symbol: " + value);
         }
-        
-        this.value = trimmed;
     }
     
     public static Symbol of(String value) {
@@ -33,7 +27,7 @@ public class Symbol {
      * - 6자리 숫자
      * - A로 시작하는 경우는 특별주 (예: A005930)
      */
-    private boolean isValidKoreanStockCode(String code) {
+    private static boolean isValidKoreanStockCode(String code) {
         if (code.length() == 6 && code.matches("\\d{6}")) {
             return true;
         }

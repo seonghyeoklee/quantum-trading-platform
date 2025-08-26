@@ -1,22 +1,17 @@
 package com.quantum.trading.platform.shared.value;
 
-import lombok.Value;
-
 /**
- * 수량 Value Object
+ * 수량 Value Object (Record 타입)
  * 
  * 주식 거래 수량을 나타내는 값 객체
  * 한국 주식은 1주 단위로 거래
  */
-@Value
-public class Quantity {
-    int value;
+public record Quantity(int value) {
     
-    private Quantity(int value) {
+    public Quantity {
         if (value <= 0) {
             throw new IllegalArgumentException("Quantity must be positive: " + value);
         }
-        this.value = value;
     }
     
     public static Quantity of(int value) {

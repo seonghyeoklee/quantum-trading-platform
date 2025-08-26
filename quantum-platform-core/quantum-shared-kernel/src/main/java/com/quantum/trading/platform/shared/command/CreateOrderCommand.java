@@ -1,8 +1,6 @@
 package com.quantum.trading.platform.shared.command;
 
 import com.quantum.trading.platform.shared.value.*;
-import lombok.Builder;
-import lombok.Value;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /**
@@ -11,17 +9,16 @@ import org.axonframework.modelling.command.TargetAggregateIdentifier;
  * 새로운 주문을 생성하기 위한 명령
  * Axon Framework의 Command 패턴 구현
  */
-@Value
-@Builder
-public class CreateOrderCommand {
+public record CreateOrderCommand(
     @TargetAggregateIdentifier
-    OrderId orderId;
-    UserId userId;
-    Symbol symbol;
-    OrderType orderType;
-    OrderSide side;
-    Money price;
-    Quantity quantity;
+    OrderId orderId,
+    UserId userId,
+    Symbol symbol,
+    OrderType orderType,
+    OrderSide side,
+    Money price,
+    Quantity quantity
+) {
     
     /**
      * 명령 검증

@@ -40,7 +40,7 @@ public class OrderExecutedEvent {
                 .brokerOrderId(brokerOrderId)
                 .executionId(executionId)
                 .executedAt(Instant.now())
-                .isFullyExecuted(remainingQuantity.getValue() == 0)
+                .isFullyExecuted(remainingQuantity.value() == 0)
                 .build();
     }
 }

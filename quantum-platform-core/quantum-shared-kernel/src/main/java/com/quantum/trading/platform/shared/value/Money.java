@@ -1,23 +1,18 @@
 package com.quantum.trading.platform.shared.value;
 
-import lombok.Value;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Currency;
 
 /**
- * 금액 Value Object
+ * 금액 Value Object (Record 타입)
  * 
  * 금융 계산에서 정확성을 위해 BigDecimal 사용
  * 한국 원화(KRW) 기본, 다른 통화 확장 가능
  */
-@Value
-public class Money {
-    BigDecimal amount;
-    Currency currency;
+public record Money(BigDecimal amount, Currency currency) {
     
-    private Money(BigDecimal amount, Currency currency) {
+    public Money {
         if (amount == null) {
             throw new IllegalArgumentException("Amount cannot be null");
         }
@@ -28,8 +23,7 @@ public class Money {
             throw new IllegalArgumentException("Amount cannot be negative: " + amount);
         }
         
-        this.amount = amount.setScale(currency.getDefaultFractionDigits(), RoundingMode.HALF_UP);
-        this.currency = currency;
+        amount = amount.setScale(currency.getDefaultFractionDigits(), RoundingMode.HALF_UP);
     }
     
     /**

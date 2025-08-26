@@ -2,36 +2,60 @@ package com.quantum.trading.platform.shared.command;
 
 import com.quantum.trading.platform.shared.value.UserId;
 import com.quantum.trading.platform.shared.value.WatchlistId;
-import lombok.Builder;
-import lombok.Value;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 /**
  * 관심종목 목록 삭제 Command
  */
-@Value
-@Builder
-public class DeleteWatchlistCommand {
-
+public record DeleteWatchlistCommand(
     @TargetAggregateIdentifier
-    WatchlistId watchlistId;
+    @NotNull(message = "Watchlist ID cannot be null")
+    WatchlistId watchlistId,
     
-    UserId userId;
+    @NotNull(message = "User ID cannot be null")
+    UserId userId,
     
-    @Builder.Default
-    LocalDateTime deletedAt = LocalDateTime.now();
-
-    public void validate() {
+    @NotNull(message = "Deleted at cannot be null")
+    LocalDateTime deletedAt
+) {
+    
+    /**
+     * Compact constructor with validation
+     */
+    public DeleteWatchlistCommand {
         if (watchlistId == null) {
-            throw new IllegalArgumentException("WatchlistId cannot be null");
+            throw new IllegalArgumentException("Watchlist ID cannot be null");
         }
         if (userId == null) {
-            throw new IllegalArgumentException("UserId cannot be null");
+            throw new IllegalArgumentException("User ID cannot be null");
         }
         if (deletedAt == null) {
-            throw new IllegalArgumentException("DeletedAt cannot be null");
+            deletedAt = LocalDateTime.now();
         }
+    }
+    
+    /**
+     * Factory method for deleting watchlist
+     */
+    public static DeleteWatchlistCommand create(WatchlistId watchlistId, UserId userId) {
+        return new DeleteWatchlistCommand(watchlistId, userId, LocalDateTime.now());
+    }
+    
+    /**
+     * Factory method with specific deletion time
+     */
+    public static DeleteWatchlistCommand create(WatchlistId watchlistId, UserId userId, LocalDateTime deletedAt) {
+        return new DeleteWatchlistCommand(watchlistId, userId, deletedAt);
+    }
+    
+    /**
+     * Validation method for backward compatibility
+     */
+    public void validate() {
+        // Record compact constructor already handles validation
+        // This method is kept for backward compatibility
     }
 }

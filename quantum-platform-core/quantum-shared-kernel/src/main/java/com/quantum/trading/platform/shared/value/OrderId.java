@@ -1,23 +1,19 @@
 package com.quantum.trading.platform.shared.value;
 
-import lombok.Value;
-
 import java.util.UUID;
 
 /**
- * 주문 식별자 Value Object
+ * 주문 식별자 Value Object (Record 타입)
  * 
  * Axon Framework에서 Aggregate Identifier로 사용되는 주문 고유 식별자
  */
-@Value
-public class OrderId {
-    String value;
+public record OrderId(String value) {
     
-    private OrderId(String value) {
+    public OrderId {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException("OrderId cannot be null or empty");
         }
-        this.value = value;
+        value = value.trim();
     }
     
     public static OrderId of(String value) {

@@ -1,8 +1,6 @@
 package com.quantum.trading.platform.shared.command;
 
 import com.quantum.trading.platform.shared.value.OrderId;
-import lombok.Builder;
-import lombok.Value;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 /**
@@ -10,13 +8,12 @@ import org.axonframework.modelling.command.TargetAggregateIdentifier;
  * 
  * 검증이 완료된 주문을 증권사 API에 제출하기 위한 명령
  */
-@Value
-@Builder
-public class SubmitOrderToBrokerCommand {
+public record SubmitOrderToBrokerCommand(
     @TargetAggregateIdentifier
-    OrderId orderId;
-    String brokerType;
-    String accountNumber;
+    OrderId orderId,
+    String brokerType,
+    String accountNumber
+) {
     
     public void validate() {
         if (orderId == null) {
