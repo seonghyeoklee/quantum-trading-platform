@@ -8,17 +8,22 @@
 3. RSS 피드 수집 (무료, 실시간)
 """
 
-import httpx
 import asyncio
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta
-from enum import Enum
-import re
-import os
-from bs4 import BeautifulSoup
-import feedparser
 import hashlib
 import json
+import logging
+import os
+import re
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import feedparser
+import httpx
+from bs4 import BeautifulSoup
+
+# 로깅 설정
+logger = logging.getLogger(__name__)
 
 
 class NewsSource(Enum):
@@ -62,6 +67,8 @@ class NewsCrawler:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
+        # AsyncClient 재사용을 위한 인스턴스 변수
+        self._client: Optional[httpx.AsyncClient] = None
         
         # 감성 분석용 키워드 사전
         self.positive_keywords = {
@@ -92,6 +99,21 @@ class NewsCrawler:
             NewsCategory.DIVIDEND: ["배당", "배당금", "현금배당", "주식배당", "무상증자"]
         }
     
+    async def _get_client(self) -> httpx.AsyncClient:
+        """AsyncClient 인스턴스 반환 (재사용)"""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=self.session_timeout,
+                headers=self.headers
+            )
+        return self._client
+    
+    async def _close_client(self) -> None:
+        """AsyncClient 종료"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+    
     async def crawl_naver_finance(self, stock_code: str, days: int = 7) -> List[Dict[str, Any]]:
         """
         네이버 금융에서 뉴스 크롤링
@@ -112,63 +134,54 @@ class NewsCrawler:
                 "https://finance.naver.com/news/news_list.naver?mode=LSS3D&section_id=101&section_id2=258&section_id3=402"   # 기업분석
             ]
             
-            for url in urls:
-                async with httpx.AsyncClient(timeout=self.session_timeout) as client:
-                    response = await client.get(url, headers=self.headers)
+            client = await self._get_client()
+            response = await client.get(url)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # 뉴스 목록 추출
+                news_items = soup.select('.type01 tr')
+                
+                for item in news_items:
+                    if not item.select('td.title'):
+                        continue
                     
-                    if response.status_code == 200:
-                        # 네이버는 euc-kr 인코딩 사용
-                        response.encoding = 'euc-kr'
-                        soup = BeautifulSoup(response.text, 'html.parser')
+                    title_elem = item.select_one('td.title a')
+                    date_elem = item.select_one('td.date')
+                    source_elem = item.select_one('td.info')
+                    
+                    if title_elem and date_elem:
+                        title = title_elem.text.strip()
+                        link = f"https://finance.naver.com{title_elem['href']}"
+                        date_str = date_elem.text.strip()
+                        source = source_elem.text.strip() if source_elem else "네이버금융"
                         
-                        # 뉴스 링크 추출
-                        news_links = soup.find_all('a', href=True)
+                        # 날짜 파싱
+                        try:
+                            news_date = datetime.strptime(date_str, "%Y.%m.%d %H:%M")
+                        except:
+                            news_date = datetime.now()
                         
-                        for link in news_links:
-                            href = link.get('href', '')
-                            if 'newsView' in href or 'news_read' in href:
-                                title = link.text.strip()
-                                if title and len(title) > 5:
-                                    # 종목명이 포함된 뉴스만 필터링
-                                    if stock_code in title or stock_name in title:
-                                        
-                                        # URL 정규화
-                                        if href.startswith('/'):
-                                            full_url = f"https://finance.naver.com{href}"
-                                        else:
-                                            full_url = href
+                        # 기간 필터링
+                        if news_date < datetime.now() - timedelta(days=days):
+                            break
                         
-                        if title_elem and date_elem:
-                            title = title_elem.text.strip()
-                            link = f"https://finance.naver.com{title_elem['href']}"
-                            date_str = date_elem.text.strip()
-                            source = source_elem.text.strip() if source_elem else "네이버금융"
-                            
-                            # 날짜 파싱
-                            try:
-                                news_date = datetime.strptime(date_str, "%Y.%m.%d %H:%M")
-                            except:
-                                news_date = datetime.now()
-                            
-                            # 기간 필터링
-                            if news_date < datetime.now() - timedelta(days=days):
-                                break
-                            
-                            # 뉴스 분석
-                            sentiment = self._analyze_sentiment(title)
-                            category = self._categorize_news(title)
-                            
-                            news_list.append({
-                                "title": title,
-                                "link": link,
-                                "date": news_date.isoformat(),
-                                "source": source,
-                                "sentiment": sentiment.value,
-                                "sentiment_label": sentiment.name,
-                                "category": category.value if category else "기타",
-                                "crawl_source": NewsSource.NAVER_FINANCE.value,
-                                "stock_code": stock_code
-                            })
+                        # 뉴스 분석
+                        sentiment = self._analyze_sentiment(title)
+                        category = self._categorize_news(title)
+                        
+                        news_list.append({
+                            "title": title,
+                            "link": link,
+                            "date": news_date.isoformat(),
+                            "source": source,
+                            "sentiment": sentiment.value,
+                            "sentiment_label": sentiment.name,
+                            "category": category.value if category else "기타",
+                            "crawl_source": NewsSource.NAVER_FINANCE.value,
+                            "stock_code": stock_code
+                        })
             
         except Exception as e:
             print(f"네이버 금융 크롤링 실패: {e}")

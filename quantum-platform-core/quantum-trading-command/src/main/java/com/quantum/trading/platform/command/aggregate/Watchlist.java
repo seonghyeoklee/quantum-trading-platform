@@ -58,7 +58,7 @@ public class Watchlist {
             command.getWatchlistId(),
             command.getUserId(),
             command.getName(),
-            command.getDescription(),
+            command.description(),
             command.isDefault()
         ));
     }
@@ -77,7 +77,7 @@ public class Watchlist {
         AggregateLifecycle.apply(StockAddedToWatchlistEvent.of(
             command.getWatchlistId(),
             command.getUserId(),
-            command.getSymbol(),
+            command.symbol(),
             command.getStockName(),
             command.getGroupId(),
             command.getNote()
@@ -98,8 +98,8 @@ public class Watchlist {
         AggregateLifecycle.apply(StockRemovedFromWatchlistEvent.of(
             command.getWatchlistId(),
             command.getUserId(),
-            command.getSymbol(),
-            getStockName(command.getSymbol()) // 기존에 저장된 종목명 조회 필요
+            command.symbol(),
+            getStockName(command.symbol()) // 기존에 저장된 종목명 조회 필요
         ));
     }
 
@@ -174,8 +174,8 @@ public class Watchlist {
         }
         
         // 중복 종목 검증
-        if (stocks.contains(command.getSymbol())) {
-            throw new IllegalArgumentException("Stock already exists in watchlist: " + command.getSymbol());
+        if (stocks.contains(command.symbol())) {
+            throw new IllegalArgumentException("Stock already exists in watchlist: " + command.symbol());
         }
         
         // 최대 종목 수 제한 (예: 200개)
@@ -196,8 +196,8 @@ public class Watchlist {
         }
         
         // 존재하는 종목인지 검증
-        if (!stocks.contains(command.getSymbol())) {
-            throw new IllegalArgumentException("Stock does not exist in watchlist: " + command.getSymbol());
+        if (!stocks.contains(command.symbol())) {
+            throw new IllegalArgumentException("Stock does not exist in watchlist: " + command.symbol());
         }
     }
 
@@ -216,7 +216,7 @@ public class Watchlist {
     private String getStockName(Symbol symbol) {
         // 실제로는 종목 정보 조회 서비스에서 가져와야 하지만, 
         // 일단 심볼을 문자열로 반환 (추후 개선)
-        return symbol.getValue();
+        return symbol.value();
     }
 
     // ===== Getter 메서드 (테스트용) =====

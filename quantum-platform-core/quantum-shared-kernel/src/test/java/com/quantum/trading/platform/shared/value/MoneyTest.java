@@ -12,8 +12,8 @@ class MoneyTest {
     void shouldCreateKrwMoney() {
         Money money = Money.ofKrw(BigDecimal.valueOf(10000));
         
-        assertEquals(BigDecimal.valueOf(10000), money.getAmount());
-        assertEquals("KRW", money.getCurrency().getCurrencyCode());
+        assertEquals(BigDecimal.valueOf(10000), money.amount());
+        assertEquals("KRW", money.currency().getCurrencyCode());
     }
     
     @Test
@@ -21,7 +21,7 @@ class MoneyTest {
         Money money = Money.zeroKrw();
         
         assertTrue(money.isZero());
-        assertEquals("KRW", money.getCurrency().getCurrencyCode());
+        assertEquals("KRW", money.currency().getCurrencyCode());
     }
     
     @Test
@@ -31,7 +31,7 @@ class MoneyTest {
         
         Money result = money1.add(money2);
         
-        assertEquals(BigDecimal.valueOf(15000), result.getAmount());
+        assertEquals(BigDecimal.valueOf(15000), result.amount());
     }
     
     @Test
@@ -41,7 +41,7 @@ class MoneyTest {
         
         Money result = money1.subtract(money2);
         
-        assertEquals(BigDecimal.valueOf(7000), result.getAmount());
+        assertEquals(BigDecimal.valueOf(7000), result.amount());
     }
     
     @Test
@@ -58,7 +58,7 @@ class MoneyTest {
         
         Money result = money.multiply(5);
         
-        assertEquals(BigDecimal.valueOf(5000), result.getAmount());
+        assertEquals(BigDecimal.valueOf(5000), result.amount());
     }
     
     @Test

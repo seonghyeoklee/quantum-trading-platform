@@ -28,6 +28,25 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Global client instance for reuse
+_client: Optional[httpx.AsyncClient] = None
+
+
+async def _get_client() -> httpx.AsyncClient:
+    """AsyncClient 인스턴스 반환 (재사용)"""
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=30.0)
+    return _client
+
+
+async def _close_client() -> None:
+    """AsyncClient 종료"""
+    global _client
+    if _client is not None and not _client.is_closed:
+        await _client.aclose()
+        _client = None
+
 
 async def fn_au10001(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
@@ -83,10 +102,9 @@ async def fn_au10001(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
             'Content-Type': 'application/json;charset=UTF-8',
         }
 
-        # 4. HTTP POST 요청
-        timeout = 30.0
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(url, headers=headers, json=params)
+        # 4. HTTP POST 요청 (AsyncClient 재사용)
+        client = await _get_client()
+        response = await client.post(url, headers=headers, json=params)
 
         # 5. 키움 API 응답 헤더 추출
         api_headers = {
@@ -124,51 +142,6 @@ async def fn_au10001(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
             'Body': {'error': error_msg}
         }
 
-
-async def get_valid_access_token() -> str:
-    """
-    유효한 Access Token을 반환하는 의존성 함수
-    
-    캐시된 토큰이 있고 유효하면 반환, 없으면 새로 발급
-    
-    Returns:
-        str: 유효한 access token
-        
-    Raises:
-        HTTPException: 토큰 발급 실패 시
-    """
-    try:
-        # 1. 캐시된 토큰 확인
-        cached_token = await token_cache.get_cached_token(settings.KIWOOM_APP_KEY)
-        if cached_token and cached_token.is_valid():
-            logger.info(f"✅ 캐시된 토큰 사용: {cached_token.token[:20]}...")
-            return cached_token.token
-        
-        # 2. 새 토큰 발급
-        logger.info("🔄 새 토큰 발급 중...")
-        result = await fn_au10001()
-        
-        if result['Code'] != 200:
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=401, 
-                detail=f"토큰 발급 실패: {result.get('Body', {}).get('error', '알 수 없는 오류')}"
-            )
-        
-        token = result['Body'].get('token')
-        if not token:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=401, detail="토큰이 응답에 없습니다")
-        
-        logger.info(f"✅ 새 토큰 발급 성공: {token[:20]}...")
-        return token
-        
-    except Exception as e:
-        logger.error(f"❌ 토큰 발급 실패: {str(e)}")
-        from fastapi import HTTPException
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"토큰 발급 중 오류: {str(e)}")
 
 
 async def get_access_token() -> Dict[str, Any]:

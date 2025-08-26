@@ -45,7 +45,7 @@ public class TradingOrder {
      */
     @CommandHandler
     public TradingOrder(CreateOrderCommand command) {
-        log.info("Creating new order: {}", command.getOrderId());
+        log.info("Creating new order: {}", command.orderId());
         
         // 명령 검증
         command.validate();
@@ -54,16 +54,14 @@ public class TradingOrder {
         validateNewOrder(command);
         
         // 주문 생성 이벤트 발행
-        AggregateLifecycle.apply(OrderCreatedEvent.builder()
-                .orderId(command.getOrderId())
-                .userId(command.getUserId())
-                .symbol(command.getSymbol())
-                .orderType(command.getOrderType())
-                .side(command.getSide())
-                .price(command.getPrice())
-                .quantity(command.getQuantity())
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(OrderCreatedEvent.create(
+                command.orderId(),
+                command.userId(),
+                command.symbol(),
+                command.orderType(),
+                command.side(),
+                command.price(),
+                command.quantity()));
     }
     
     /**
@@ -71,7 +69,7 @@ public class TradingOrder {
      */
     @CommandHandler
     public void handle(SubmitOrderToBrokerCommand command) {
-        log.info("Submitting order {} to broker {}", command.getOrderId(), command.getBrokerType());
+        log.info("Submitting order {} to broker {}", command.orderId(), command.brokerType());
         
         command.validate();
         
@@ -83,21 +81,17 @@ public class TradingOrder {
         }
         
         // 상태 변경 이벤트 발행
-        AggregateLifecycle.apply(OrderStatusChangedEvent.builder()
-                .orderId(this.orderId)
-                .previousStatus(this.status)
-                .newStatus(OrderStatus.SUBMITTED)
-                .reason("Order submitted to broker " + command.getBrokerType())
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(OrderStatusChangedEvent.create(
+                this.orderId,
+                this.status,
+                OrderStatus.SUBMITTED,
+                "Order submitted to broker " + command.brokerType()));
         
         // 증권사 제출 이벤트 발행
-        AggregateLifecycle.apply(OrderSubmittedToBrokerEvent.builder()
-                .orderId(this.orderId)
-                .brokerType(command.getBrokerType())
-                .brokerOrderId(null) // 실제 제출 후 업데이트
-                .submittedAt(Instant.now())
-                .build());
+        AggregateLifecycle.apply(OrderSubmittedToBrokerEvent.create(
+                this.orderId,
+                command.brokerType(),
+                null)); // 실제 제출 후 업데이트
     }
     
     /**
@@ -105,7 +99,7 @@ public class TradingOrder {
      */
     @CommandHandler
     public void handle(CancelOrderCommand command) {
-        log.info("Cancelling order {} with reason: {}", command.getOrderId(), command.getReason());
+        log.info("Cancelling order {} with reason: {}", command.orderId(), command.reason());
         
         command.validate();
         
@@ -117,13 +111,11 @@ public class TradingOrder {
         }
         
         // 주문 취소 이벤트 발행
-        AggregateLifecycle.apply(OrderStatusChangedEvent.builder()
-                .orderId(this.orderId)
-                .previousStatus(this.status)
-                .newStatus(OrderStatus.CANCELLED)
-                .reason(command.getReason())
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(OrderStatusChangedEvent.create(
+                this.orderId,
+                this.status,
+                OrderStatus.CANCELLED,
+                command.reason()));
     }
     
     /**
@@ -140,29 +132,24 @@ public class TradingOrder {
         }
         
         // 체결 이벤트 발행
-        AggregateLifecycle.apply(OrderExecutedEvent.builder()
-                .orderId(this.orderId)
-                .executedPrice(executedPrice)
-                .executedQuantity(executedQuantity)
-                .remainingQuantity(remainingQuantity)
-                .brokerOrderId(brokerOrderId)
-                .executionId(executionId)
-                .executedAt(Instant.now())
-                .isFullyExecuted(remainingQuantity.getValue() == 0)
-                .build());
+        AggregateLifecycle.apply(OrderExecutedEvent.create(
+                this.orderId,
+                executedPrice,
+                executedQuantity,
+                remainingQuantity,
+                brokerOrderId,
+                executionId));
         
         // 상태 변경 이벤트 발행
-        OrderStatus newStatus = remainingQuantity.getValue() == 0 
+        OrderStatus newStatus = remainingQuantity.value() == 0 
             ? OrderStatus.FILLED 
             : OrderStatus.PARTIALLY_FILLED;
             
-        AggregateLifecycle.apply(OrderStatusChangedEvent.builder()
-                .orderId(this.orderId)
-                .previousStatus(this.status)
-                .newStatus(newStatus)
-                .reason("Order executed: " + executedQuantity + " at " + executedPrice)
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(OrderStatusChangedEvent.create(
+                this.orderId,
+                this.status,
+                newStatus,
+                "Order executed: " + executedQuantity + " at " + executedPrice));
     }
     
     /**
@@ -170,44 +157,44 @@ public class TradingOrder {
      */
     @EventSourcingHandler
     public void on(OrderCreatedEvent event) {
-        this.orderId = event.getOrderId();
-        this.userId = event.getUserId();
-        this.symbol = event.getSymbol();
-        this.orderType = event.getOrderType();
-        this.side = event.getSide();
-        this.price = event.getPrice();
-        this.quantity = event.getQuantity();
+        this.orderId = event.orderId();
+        this.userId = event.userId();
+        this.symbol = event.symbol();
+        this.orderType = event.orderType();
+        this.side = event.side();
+        this.price = event.price();
+        this.quantity = event.quantity();
         this.status = OrderStatus.PENDING;
-        this.createdAt = event.getTimestamp();
-        this.updatedAt = event.getTimestamp();
+        this.createdAt = event.timestamp();
+        this.updatedAt = event.timestamp();
         
         log.debug("Order created: {}", this.orderId);
     }
     
     @EventSourcingHandler
     public void on(OrderStatusChangedEvent event) {
-        this.status = event.getNewStatus();
-        this.updatedAt = event.getTimestamp();
+        this.status = event.newStatus();
+        this.updatedAt = event.timestamp();
         
         log.debug("Order {} status changed from {} to {}", 
-            this.orderId, event.getPreviousStatus(), event.getNewStatus());
+            this.orderId, event.previousStatus(), event.newStatus());
     }
     
     @EventSourcingHandler
     public void on(OrderSubmittedToBrokerEvent event) {
-        this.brokerType = event.getBrokerType();
-        this.brokerOrderId = event.getBrokerOrderId();
-        this.updatedAt = event.getSubmittedAt();
+        this.brokerType = event.brokerType();
+        this.brokerOrderId = event.brokerOrderId();
+        this.updatedAt = event.submittedAt();
         
         log.debug("Order {} submitted to broker {}", this.orderId, this.brokerType);
     }
     
     @EventSourcingHandler
     public void on(OrderExecutedEvent event) {
-        this.updatedAt = event.getExecutedAt();
+        this.updatedAt = event.executedAt();
         
         log.debug("Order {} executed: {} at {}", 
-            this.orderId, event.getExecutedQuantity(), event.getExecutedPrice());
+            this.orderId, event.executedQuantity(), event.executedPrice());
     }
     
     /**
@@ -215,23 +202,23 @@ public class TradingOrder {
      */
     private void validateNewOrder(CreateOrderCommand command) {
         // 주문 수량 검증 (한국 주식은 1주 단위)
-        if (command.getQuantity().getValue() <= 0) {
+        if (command.quantity().value() <= 0) {
             throw new IllegalArgumentException("Order quantity must be positive");
         }
         
         // 가격 검증
-        if (command.getOrderType().requiresPrice()) {
-            if (command.getPrice() == null || command.getPrice().isZero()) {
+        if (command.orderType().requiresPrice()) {
+            if (command.price() == null || command.price().isZero()) {
                 throw new IllegalArgumentException(
-                    "Price is required for order type: " + command.getOrderType());
+                    "Price is required for order type: " + command.orderType());
             }
             
             // 최소 가격 단위 검증 (한국 주식은 호가 단위 존재)
-            validatePriceTickSize(command.getPrice(), command.getSymbol());
+            validatePriceTickSize(command.price(), command.symbol());
         }
         
         // 시간외 거래 검증 (필요시 시장 시간 체크)
-        if (command.getOrderType().isAfterHoursOrder()) {
+        if (command.orderType().isAfterHoursOrder()) {
             validateAfterHoursTrading(command);
         }
     }

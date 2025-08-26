@@ -7,11 +7,12 @@ Java kiwoom-service와 동일한 API 스펙 제공
 import logging
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # Distributed Tracing
@@ -68,8 +69,15 @@ def setup_tracing():
         trace.get_tracer_provider().add_span_processor(span_processor)
         
         return tracer
-    except:
-        # Zipkin 서버가 없으면 기본 tracer 반환 (트레이싱 비활성화)
+    except (requests.exceptions.RequestException, requests.exceptions.ConnectTimeout, 
+            requests.exceptions.ConnectionError) as e:
+        # Zipkin 서버 연결 실패 시 기본 tracer 반환 (트레이싱 비활성화)
+        print(f"⚠️ Zipkin 서버 연결 실패 - 트레이싱 비활성화: {str(e)}")
+        trace.set_tracer_provider(TracerProvider())
+        return trace.get_tracer(__name__)
+    except Exception as e:
+        # 기타 예외 처리
+        print(f"⚠️ 트레이싱 설정 실패: {str(e)}")
         trace.set_tracer_provider(TracerProvider())
         return trace.get_tracer(__name__)
 
@@ -153,6 +161,81 @@ app.include_router(websocket.router, prefix="")
 app.include_router(analysis_router.router, prefix="")
 app.include_router(comprehensive_router, prefix="")
 
+
+# ======== 글로벌 예외 처리기 ========
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 예외 처리"""
+    logger.error(
+        "HTTP 예외 발생",
+        status_code=exc.status_code,
+        detail=exc.detail,
+        path=request.url.path,
+        method=request.method,
+        client=request.client.host if request.client else None
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.status_code,
+                "message": exc.detail,
+                "path": str(request.url.path),
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """값 오류 처리"""
+    logger.error(
+        "값 오류 발생",
+        error=str(exc),
+        path=request.url.path,
+        method=request.method,
+        client=request.client.host if request.client else None
+    )
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": {
+                "code": 400,
+                "message": f"잘못된 요청 값: {str(exc)}",
+                "path": str(request.url.path),
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """일반 예외 처리"""
+    logger.error(
+        "예상치 못한 오류 발생",
+        error=str(exc),
+        error_type=type(exc).__name__,
+        path=request.url.path,
+        method=request.method,
+        client=request.client.host if request.client else None,
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": 500,
+                "message": "내부 서버 오류가 발생했습니다",
+                "path": str(request.url.path),
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+    )
+
+
 # 정적 파일 서빙 (대시보드용)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -171,13 +254,64 @@ async def dashboard():
 
 @app.get("/health")
 async def health_check():
-    """헬스 체크 엔드포인트"""
-    return {
-        "status": "healthy",
-        "service": "kiwoom-api-python",
-        "version": "0.1.0",
-        "mode": settings.kiwoom_mode_description
-    }
+    """향상된 헬스 체크 엔드포인트 - 서비스 상태 진단"""
+    try:
+        # 기본 상태 정보
+        health_data = {
+            "status": "healthy",
+            "service": "kiwoom-api-python",
+            "version": "0.1.0",
+            "mode": settings.kiwoom_mode_description,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # 설정 검증
+        config_status = "healthy"
+        config_issues = []
+        
+        # API 키 검증
+        if not settings.validate_keys():
+            config_status = "warning"
+            config_issues.append("API 키 설정 누락 또는 불완전")
+        
+        # 환경 변수 검증
+        if not settings.DART_API_KEY:
+            config_issues.append("DART API 키 설정 누락")
+        
+        health_data.update({
+            "config": {
+                "status": config_status,
+                "app_key_configured": bool(settings.KIWOOM_APP_KEY),
+                "app_secret_configured": bool(settings.KIWOOM_APP_SECRET),
+                "dart_api_configured": bool(settings.DART_API_KEY),
+                "issues": config_issues
+            },
+            "environment": {
+                "sandbox_mode": settings.KIWOOM_SANDBOX_MODE,
+                "kafka_enabled": settings.ENABLE_KAFKA,
+                "log_level": settings.LOG_LEVEL,
+                "host": settings.FASTAPI_HOST,
+                "port": settings.FASTAPI_PORT
+            }
+        })
+        
+        # 전체 상태 결정
+        if config_issues:
+            health_data["status"] = "warning"
+        
+        return health_data
+        
+    except Exception as e:
+        logger.error("헬스 체크 중 오류 발생", error=str(e), exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "unhealthy",
+                "service": "kiwoom-api-python",
+                "error": "헬스 체크 실패",
+                "timestamp": datetime.now().isoformat()
+            }
+        )
 
 
 if __name__ == "__main__":

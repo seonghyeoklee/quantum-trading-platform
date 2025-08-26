@@ -21,7 +21,6 @@ import httpx
 # Handle both relative and absolute imports for different execution contexts
 try:
     from ..config.settings import settings
-    from ..functions.auth import get_valid_access_token
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
     src_path = Path(__file__).parent.parent.parent
@@ -29,7 +28,6 @@ except ImportError:
         sys.path.insert(0, str(src_path))
 
     from kiwoom_api.config.settings import settings
-    from kiwoom_api.functions.auth import get_valid_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ============== 손익 관련 API 함수 ==============
 
 async def fn_ka10072(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -49,7 +47,7 @@ async def fn_ka10072(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (6자리)
               - strt_dt: 시작일자 (YYYYMMDD)
@@ -71,9 +69,9 @@ async def fn_ka10072(
     logger.info("💰 키움 일자별종목별실현손익요청_일자 시작 (ka10072)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd') or not data.get('strt_dt'):
@@ -175,7 +173,7 @@ async def fn_ka10072(
 
 
 async def fn_ka10073(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -188,7 +186,7 @@ async def fn_ka10073(
     - Response: dt_stk_rlzt_pl 리스트 (14개 필드)
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (String, Required, 6자리)
               - strt_dt: 시작일자 (String, Required, 8자리 YYYYMMDD)
@@ -215,9 +213,9 @@ async def fn_ka10073(
     logger.info("💰 키움 일자별종목별실현손익요청_기간 시작 (ka10073)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -332,7 +330,7 @@ async def fn_ka10073(
 
 
 async def fn_ka10074(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -345,7 +343,7 @@ async def fn_ka10074(
     - Response: 총매수/매도금액, 실현손익, 수수료/세금, dt_rlzt_pl 리스트
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - strt_dt: 시작일자 (String, Required, 8자리 YYYYMMDD)
               - end_dt: 종료일자 (String, Required, 8자리 YYYYMMDD)
@@ -376,9 +374,9 @@ async def fn_ka10074(
     logger.info("💰 키움 일자별실현손익요청 시작 (ka10074)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증 (키움 스펙: 둘 다 Required)
         if data is None:
@@ -492,7 +490,7 @@ async def fn_ka10074(
 
 
 async def fn_ka10075(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -505,7 +503,7 @@ async def fn_ka10075(
     - Response: oso 리스트 (미체결 정보 31개 필드)
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - all_stk_tp: 전체종목구분 (String, Required, 0:전체, 1:종목)
               - trde_tp: 매매구분 (String, Required, 0:전체, 1:매도, 2:매수)
@@ -533,9 +531,9 @@ async def fn_ka10075(
     logger.info("📋 키움 미체결요청 시작 (ka10075)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증 (키움 스펙: all_stk_tp, trde_tp, stex_tp 필수)
         if data is None:
@@ -655,7 +653,7 @@ async def fn_ka10075(
 
 
 async def fn_ka10076(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -668,7 +666,7 @@ async def fn_ka10076(
     - Response: cntr 리스트 (체결정보 19개 필드)
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (String, Optional, 6자리)
               - qry_tp: 조회구분 (String, Required, 0:전체, 1:종목)
@@ -697,9 +695,9 @@ async def fn_ka10076(
     logger.info("✅ 키움 체결요청 시작 (ka10076)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증 (키움 스펙: qry_tp, sell_tp, stex_tp 필수)
         if data is None:
@@ -824,7 +822,7 @@ async def fn_ka10076(
 
 
 async def fn_ka10077(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -837,7 +835,7 @@ async def fn_ka10077(
     - Response: tdy_rlzt_pl(당일실현손익), tdy_rlzt_pl_dtl 리스트 (당일실현손익상세 9개 필드)
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (String, Required, 6자리)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -864,9 +862,9 @@ async def fn_ka10077(
     logger.info("💰 키움 당일실현손익상세요청 시작 (ka10077)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증 (키움 스펙: stk_cd 필수)
         if data is None:
@@ -981,7 +979,7 @@ async def fn_ka10077(
 
 
 async def fn_ka10085(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -994,7 +992,7 @@ async def fn_ka10085(
     - Response: acnt_prft_rt 리스트 (계좌수익률 정보 17개 필드)
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stex_tp: 거래소구분 (String, Required, 0:통합, 1:KRX, 2:NXT)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -1021,9 +1019,9 @@ async def fn_ka10085(
     logger.info("📈 키움 계좌수익률요청 시작 (ka10085)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증 (키움 스펙: stex_tp 필수)
         if data is None:
@@ -1132,7 +1130,7 @@ async def fn_ka10085(
 
 
 async def fn_ka10088(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1176,8 +1174,8 @@ async def fn_ka10088(
     
     try:
         # 토큰 검증
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None or not data.get('ord_no'):
@@ -1246,7 +1244,7 @@ async def fn_ka10088(
 
 
 async def fn_ka10170(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1299,8 +1297,8 @@ async def fn_ka10170(
     
     try:
         # 토큰 검증
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None or not data.get('ottks_tp') or not data.get('ch_crd_tp'):
@@ -1376,7 +1374,7 @@ async def fn_ka10170(
 # ============== 계좌 현황 관련 API 함수 (kt00001~kt00018) ==============
 
 async def fn_kt00001(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1489,8 +1487,8 @@ async def fn_kt00001(
     
     try:
         # 토큰 검증
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None or not data.get('qry_tp'):
@@ -1559,7 +1557,7 @@ async def fn_kt00001(
 
 
 async def fn_kt00002(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1598,8 +1596,8 @@ async def fn_kt00002(
     
     try:
         # 토큰 검증
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None or not data.get('start_dt') or not data.get('end_dt'):
@@ -1671,7 +1669,7 @@ async def fn_kt00002(
 # 나머지 kt00003~kt00018 함수들을 간단한 형태로 구현 (패턴 동일)
 
 async def fn_kt00003(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1700,8 +1698,8 @@ async def fn_kt00003(
     
     try:
         # 토큰 검증
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None or not data.get('qry_tp'):
@@ -1769,7 +1767,7 @@ async def fn_kt00003(
         }
 
 async def fn_kt00004(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1780,7 +1778,7 @@ async def fn_kt00004(
     계좌평가현황요청 - 전체 계좌의 평가 현황과 보유종목별 평가정보 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - qry_tp (str): 상장폐지조회구분 (0:전체, 1:상장폐지종목제외)
             - dmst_stex_tp (str): 국내거래소구분 (KRX:한국거래소, NXT:넥스트트레이드)
@@ -1847,8 +1845,7 @@ async def fn_kt00004(
     logger.info("🏁 키움증권 계좌평가현황요청 (kt00004) 시작")
     
     if not token:
-        token = await get_valid_access_token()
-        logger.info(f"🔑 토큰 자동 획득: {token[:10]}...")
+        raise ValueError("Access token is required")
         
     if not data:
         logger.error("❌ data 매개변수가 필요합니다")
@@ -1953,7 +1950,7 @@ async def fn_kt00004(
         }
 
 async def fn_kt00005(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -1964,7 +1961,7 @@ async def fn_kt00005(
     체결잔고요청 - 계좌의 예수금 정보와 보유종목별 체결잔고 정보 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - dmst_stex_tp (str): 국내거래소구분 (KRX:한국거래소, NXT:넥스트트레이드)
         cont_yn (str): 연속조회여부 (N: 최초, Y: 연속)
@@ -2038,8 +2035,7 @@ async def fn_kt00005(
     logger.info("🏁 키움증권 체결잔고요청 (kt00005) 시작")
     
     if not token:
-        token = await get_valid_access_token()
-        logger.info(f"🔑 토큰 자동 획득: {token[:10]}...")
+        raise ValueError("Access token is required")
         
     if not data:
         logger.error("❌ data 매개변수가 필요합니다")
@@ -2149,7 +2145,7 @@ async def fn_kt00005(
         }
 
 async def fn_kt00007(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -2160,7 +2156,7 @@ async def fn_kt00007(
     계좌별주문체결내역상세요청 - 계좌의 주문 및 체결 내역 상세 정보 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - ord_dt (Optional[str]): 주문일자 YYYYMMDD (선택사항)
             - qry_tp (str): 조회구분 (1:주문순, 2:역순, 3:미체결, 4:체결내역만)
@@ -2223,8 +2219,7 @@ async def fn_kt00007(
     logger.info("🏁 키움증권 계좌별주문체결내역상세요청 (kt00007) 시작")
     
     if not token:
-        token = await get_valid_access_token()
-        logger.info(f"🔑 토큰 자동 획득: {token[:10]}...")
+        raise ValueError("Access token is required")
         
     if not data:
         logger.error("❌ data 매개변수가 필요합니다")
@@ -2330,7 +2325,7 @@ async def fn_kt00007(
         }
 
 async def fn_kt00008(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -2341,7 +2336,7 @@ async def fn_kt00008(
     계좌별익일결제예정내역요청 - 계좌의 익일 결제 예정 내역 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - strt_dcd_seq (Optional[str]): 시작결제번호 (선택사항, 7자리)
         cont_yn (str): 연속조회여부 (N: 최초, Y: 연속)
@@ -2391,8 +2386,7 @@ async def fn_kt00008(
     logger.info("🏁 키움증권 계좌별익일결제예정내역요청 (kt00008) 시작")
     
     if not token:
-        token = await get_valid_access_token()
-        logger.info(f"🔑 토큰 자동 획득: {token[:10]}...")
+        raise ValueError("Access token is required")
         
     if not data:
         data = {}
@@ -2488,7 +2482,7 @@ async def fn_kt00008(
         }
 
 async def fn_kt00009(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -2499,7 +2493,7 @@ async def fn_kt00009(
     계좌별주문체결현황요청 - 계좌별 주문 및 체결 현황 정보 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - ord_dt (Optional[str]): 주문일자 YYYYMMDD (선택사항)
             - stk_bond_tp (str): 주식채권구분 (0:전체, 1:주식, 2:채권)
@@ -2553,10 +2547,9 @@ async def fn_kt00009(
     logger.info("📊 키움증권 계좌별주문체결현황요청 (kt00009) 시작")
 
     try:
-        # 토큰 검증 및 획득
-        if token is None:
-            logger.info("🔑 OAuth 토큰 자동 획득 중...")
-            token = await get_valid_access_token()
+        # 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None:
@@ -2701,7 +2694,7 @@ async def fn_kt00009(
         }
 
 async def fn_kt00010(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -2712,7 +2705,7 @@ async def fn_kt00010(
     주문인출가능금액요청 - 종목별 주문가능금액 및 수량 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - io_amt (Optional[str]): 입출금액 (선택사항)
             - stk_cd (str): 종목번호 (12자리)
@@ -2765,10 +2758,9 @@ async def fn_kt00010(
     logger.info("💳 키움증권 주문인출가능금액요청 (kt00010) 시작")
 
     try:
-        # 토큰 검증 및 획득
-        if token is None:
-            logger.info("🔑 OAuth 토큰 자동 획득 중...")
-            token = await get_valid_access_token()
+        # 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None:
@@ -2903,7 +2895,7 @@ async def fn_kt00010(
         }
 
 async def fn_kt00011(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -2914,7 +2906,7 @@ async def fn_kt00011(
     증거금율별주문가능수량조회요청 - 종목별 증거금율에 따른 주문가능수량 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - stk_cd (str): 종목번호 (12자리)
             - uv (Optional[str]): 매수가격 (선택사항, 10자리)
@@ -2971,10 +2963,9 @@ async def fn_kt00011(
     logger.info("📊 키움증권 증거금율별주문가능수량조회요청 (kt00011) 시작")
 
     try:
-        # 토큰 검증 및 획득
-        if token is None:
-            logger.info("🔑 OAuth 토큰 자동 획득 중...")
-            token = await get_valid_access_token()
+        # 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None:
@@ -3096,7 +3087,7 @@ async def fn_kt00011(
         }
 
 async def fn_kt00012(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3107,7 +3098,7 @@ async def fn_kt00012(
     신용보증금율별주문가능수량조회요청 - 종목별 신용보증금율에 따른 주문가능수량 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터
             - stk_cd (str): 종목번호 (12자리)
             - uv (Optional[str]): 매수가격 (선택사항, 10자리)
@@ -3155,10 +3146,9 @@ async def fn_kt00012(
     logger.info("📊 키움증권 신용보증금율별주문가능수량조회요청 (kt00012) 시작")
 
     try:
-        # 토큰 검증 및 획득
-        if token is None:
-            logger.info("🔑 OAuth 토큰 자동 획득 중...")
-            token = await get_valid_access_token()
+        # 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 데이터 검증
         if data is None:
@@ -3281,7 +3271,7 @@ async def fn_kt00012(
         }
 
 async def fn_kt00013(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3292,7 +3282,7 @@ async def fn_kt00013(
     증거금세부내역조회요청 - 계좌의 증거금 세부 내역 정보 조회
     
     Args:
-        token (Optional[str]): OAuth 토큰. None시 자동 획득
+        token (str): OAuth 토큰 (필수)
         data (Optional[Dict[str, Any]]): 요청 데이터 (이 API는 Body 파라미터 없음)
         cont_yn (str): 연속조회여부 (N: 최초, Y: 연속)
         next_key (str): 연속조회키 (연속조회시 필요)
@@ -3361,10 +3351,9 @@ async def fn_kt00013(
     logger.info("📋 키움증권 증거금세부내역조회요청 (kt00013) 시작")
 
     try:
-        # 토큰 검증 및 획득
-        if token is None:
-            logger.info("🔑 OAuth 토큰 자동 획득 중...")
-            token = await get_valid_access_token()
+        # 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
 
         # API 엔드포인트 및 헤더 설정
         url = settings.kiwoom_base_url + '/api/dostk/acnt'
@@ -3476,7 +3465,7 @@ async def fn_kt00013(
         }
 
 async def fn_kt00015(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3484,7 +3473,7 @@ async def fn_kt00015(
     """키움증권 위탁종합거래내역요청 (kt00015)
     
     Args:
-        token: OAuth Bearer 토큰
+        token: 접근토큰 (필수)
         data: 요청 데이터
             - strt_dt (str): 시작일자 (YYYYMMDD)
             - end_dt (str): 종료일자 (YYYYMMDD)
@@ -3504,12 +3493,7 @@ async def fn_kt00015(
         - Body: 응답본문 (위탁종합거래내역 배열)
     """
     if not token:
-        logger.error("❌ 토큰이 제공되지 않았습니다")
-        return {
-            'Code': 401,
-            'Header': {},
-            'Body': {'error': '인증 토큰이 필요합니다'}
-        }
+        raise ValueError("Access token is required")
     
     # 요청 데이터 준비
     if not data:
@@ -3629,7 +3613,7 @@ async def fn_kt00015(
         }
 
 async def fn_kt00016(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3637,7 +3621,7 @@ async def fn_kt00016(
     """키움증권 일별계좌수익률상세현황요청 (kt00016)
     
     Args:
-        token: OAuth Bearer 토큰
+        token: 접근토큰 (필수)
         data: 요청 데이터
             - fr_dt (str): 평가시작일 (YYYYMMDD)
             - to_dt (str): 평가종료일 (YYYYMMDD)
@@ -3651,12 +3635,7 @@ async def fn_kt00016(
         - Body: 응답본문 (일별계좌수익률상세현황)
     """
     if not token:
-        logger.error("❌ 토큰이 제공되지 않았습니다")
-        return {
-            'Code': 401,
-            'Header': {},
-            'Body': {'error': '인증 토큰이 필요합니다'}
-        }
+        raise ValueError("Access token is required")
     
     # 요청 데이터 준비
     if not data:
@@ -3781,7 +3760,7 @@ async def fn_kt00016(
         }
 
 async def fn_kt00017(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3789,7 +3768,7 @@ async def fn_kt00017(
     """키움증권 계좌별당일현황요청 (kt00017)
     
     Args:
-        token: OAuth Bearer 토큰
+        token: 접근토큰 (필수)
         data: 요청 데이터 (이 API는 Body 파라미터가 없음)
         cont_yn: 연속조회여부 ('N': 최초, 'Y': 연속)
         next_key: 연속조회키
@@ -3801,12 +3780,7 @@ async def fn_kt00017(
         - Body: 응답본문 (계좌별당일현황)
     """
     if not token:
-        logger.error("❌ 토큰이 제공되지 않았습니다")
-        return {
-            'Code': 401,
-            'Header': {},
-            'Body': {'error': '인증 토큰이 필요합니다'}
-        }
+        raise ValueError("Access token is required")
     
     # 요청 데이터 준비 (이 API는 Body 파라미터 없음)
     request_data = {}
@@ -3927,7 +3901,7 @@ async def fn_kt00017(
         }
 
 async def fn_kt00018(
-    token: Optional[str] = None,
+    token: str,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
     next_key: str = ''
@@ -3935,7 +3909,7 @@ async def fn_kt00018(
     """키움증권 계좌평가잔고내역요청 (kt00018)
     
     Args:
-        token: OAuth Bearer 토큰
+        token: 접근토큰 (필수)
         data: 요청 데이터
             - qry_tp (str): 조회구분 (1:합산, 2:개별)
             - dmst_stex_tp (str): 국내거래소구분 (KRX:한국거래소, NXT:넥스트트레이드)
@@ -3949,12 +3923,7 @@ async def fn_kt00018(
         - Body: 응답본문 (계좌평가잔고내역)
     """
     if not token:
-        logger.error("❌ 토큰이 제공되지 않았습니다")
-        return {
-            'Code': 401,
-            'Header': {},
-            'Body': {'error': '인증 토큰이 필요합니다'}
-        }
+        raise ValueError("Access token is required")
     
     # 요청 데이터 준비
     if not data:
@@ -4082,7 +4051,7 @@ async def fn_kt00018(
 async def _execute_kt_api(
     api_id: str,
     log_message: str,
-    token: Optional[str],
+    token: str,
     data: Optional[Dict[str, Any]],
     cont_yn: str,
     next_key: str,
@@ -4094,7 +4063,7 @@ async def _execute_kt_api(
     Args:
         api_id: API ID (예: kt00007)
         log_message: 로그 메시지
-        token: 접근토큰
+        token: 접근토큰 (필수)
         data: 요청 데이터
         cont_yn: 연속조회여부
         next_key: 연속조회키
@@ -4103,8 +4072,8 @@ async def _execute_kt_api(
     logger.info(f"{log_message} 시작 ({api_id})")
 
     try:
-        if token is None:
-            token = await get_valid_access_token()
+        if not token:
+            raise ValueError("Access token is required")
         
         if data is None:
             raise ValueError("요청 데이터가 필요합니다")

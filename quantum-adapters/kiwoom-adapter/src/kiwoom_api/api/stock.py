@@ -5,37 +5,99 @@
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Header, Query
 from fastapi.responses import JSONResponse
 
 try:
-    from ..models.stock import StockInfoRequest, StockListRequest, IndustryCodeRequest, WatchlistRequest, ProgramTradeRequest, StockBuyOrderRequest, StockSellOrderRequest, StockModifyOrderRequest, StockCancelOrderRequest
-    from ..models.kiwoom_request import KiwoomStockOrderbookRequest, KiwoomStockHistoricalRequest, KiwoomStockMinuteRequest, KiwoomStockMarketInfoRequest, KiwoomNewStockRightsRequest, KiwoomDailyInstitutionalTradeRequest, KiwoomStockInstitutionalTrendRequest
+    # Stock models
+    from ..models.stock import (
+        StockInfoRequest, StockListRequest, IndustryCodeRequest, 
+        WatchlistRequest, ProgramTradeRequest, StockBuyOrderRequest,
+        StockSellOrderRequest, StockModifyOrderRequest, StockCancelOrderRequest
+    )
+    # Kiwoom request models
+    from ..models.kiwoom_request import (
+        KiwoomStockOrderbookRequest, KiwoomStockHistoricalRequest,
+        KiwoomStockMinuteRequest, KiwoomStockMarketInfoRequest,
+        KiwoomNewStockRightsRequest, KiwoomDailyInstitutionalTradeRequest,
+        KiwoomStockInstitutionalTrendRequest
+    )
+    # Response models
     from ..models.orderbook import OrderbookApiResponse, OrderbookResponse, OrderbookData
-    from ..models.chart import ChartApiResponse, ChartResponse, MinuteChartApiResponse, MinuteChartResponse, MarketInfoApiResponse, MarketInfoResponse, NewStockRightsApiResponse, NewStockRightsResponse, DailyInstitutionalTradeApiResponse, DailyInstitutionalTradeResponse, StockInstitutionalTrendApiResponse, StockInstitutionalTrendResponse
-    from ..functions.stock import fn_ka10001, fn_ka10099, fn_ka10100, fn_ka10101, fn_ka10095, fn_ka90003, fn_kt10000, fn_kt10001, fn_kt10002, fn_kt10003
+    from ..models.chart import (
+        ChartApiResponse, ChartResponse, MinuteChartApiResponse, MinuteChartResponse,
+        MarketInfoApiResponse, MarketInfoResponse, NewStockRightsApiResponse,
+        NewStockRightsResponse, DailyInstitutionalTradeApiResponse,
+        DailyInstitutionalTradeResponse, StockInstitutionalTrendApiResponse,
+        StockInstitutionalTrendResponse
+    )
+    # Stock business functions
+    from ..functions.stock import (
+        fn_ka10001, fn_ka10099, fn_ka10100, fn_ka10101, fn_ka10095, fn_ka90003,
+        fn_kt10000, fn_kt10001, fn_kt10002, fn_kt10003
+    )
+    # Specialized data functions
     from ..functions.orderbook import fn_ka10004, convert_orderbook_data
     from ..functions.historical import fn_ka10005, convert_chart_data
     from ..functions.minute_chart import fn_ka10006, convert_minute_data, get_stock_name_from_code
     from ..functions.market_info import fn_ka10007, convert_market_info_data
-    from ..functions.new_stock_rights import fn_ka10011, convert_new_stock_rights_data, get_rights_type_name
-    from ..functions.daily_institutional_trade import fn_ka10044, convert_daily_institutional_trade_data, get_trade_type_name, get_market_type_name, get_exchange_type_name
-    from ..functions.stock_institutional_trend import fn_ka10045, convert_stock_institutional_trend_data, get_change_sign_name
-    from ..functions.auth import get_valid_access_token
+    from ..functions.new_stock_rights import (
+        fn_ka10011, convert_new_stock_rights_data, get_rights_type_name
+    )
+    from ..functions.daily_institutional_trade import (
+        fn_ka10044, convert_daily_institutional_trade_data,
+        get_trade_type_name, get_market_type_name, get_exchange_type_name
+    )
+    from ..functions.stock_institutional_trend import (
+        fn_ka10045, convert_stock_institutional_trend_data, get_change_sign_name
+    )
+    # Authentication
+    from ..auth.token_validator import extract_bearer_token
 except ImportError:
-    from kiwoom_api.models.stock import StockInfoRequest, StockListRequest, IndustryCodeRequest, WatchlistRequest, ProgramTradeRequest, StockBuyOrderRequest, StockSellOrderRequest, StockModifyOrderRequest, StockCancelOrderRequest
-    from kiwoom_api.models.kiwoom_request import KiwoomStockOrderbookRequest, KiwoomStockHistoricalRequest, KiwoomStockMinuteRequest, KiwoomStockMarketInfoRequest, KiwoomNewStockRightsRequest, KiwoomDailyInstitutionalTradeRequest, KiwoomStockInstitutionalTrendRequest
+    # Stock models
+    from kiwoom_api.models.stock import (
+        StockInfoRequest, StockListRequest, IndustryCodeRequest, 
+        WatchlistRequest, ProgramTradeRequest, StockBuyOrderRequest,
+        StockSellOrderRequest, StockModifyOrderRequest, StockCancelOrderRequest
+    )
+    # Kiwoom request models
+    from kiwoom_api.models.kiwoom_request import (
+        KiwoomStockOrderbookRequest, KiwoomStockHistoricalRequest,
+        KiwoomStockMinuteRequest, KiwoomStockMarketInfoRequest,
+        KiwoomNewStockRightsRequest, KiwoomDailyInstitutionalTradeRequest,
+        KiwoomStockInstitutionalTrendRequest
+    )
+    # Response models
     from kiwoom_api.models.orderbook import OrderbookApiResponse, OrderbookResponse, OrderbookData
-    from kiwoom_api.models.chart import ChartApiResponse, ChartResponse, MinuteChartApiResponse, MinuteChartResponse, MarketInfoApiResponse, MarketInfoResponse, NewStockRightsApiResponse, NewStockRightsResponse, DailyInstitutionalTradeApiResponse, DailyInstitutionalTradeResponse, StockInstitutionalTrendApiResponse, StockInstitutionalTrendResponse
-    from kiwoom_api.functions.stock import fn_ka10001, fn_ka10099, fn_ka10100, fn_ka10101, fn_ka10095, fn_ka90003, fn_kt10000, fn_kt10001, fn_kt10002, fn_kt10003
+    from kiwoom_api.models.chart import (
+        ChartApiResponse, ChartResponse, MinuteChartApiResponse, MinuteChartResponse,
+        MarketInfoApiResponse, MarketInfoResponse, NewStockRightsApiResponse,
+        NewStockRightsResponse, DailyInstitutionalTradeApiResponse,
+        DailyInstitutionalTradeResponse, StockInstitutionalTrendApiResponse,
+        StockInstitutionalTrendResponse
+    )
+    # Stock business functions
+    from kiwoom_api.functions.stock import (
+        fn_ka10001, fn_ka10099, fn_ka10100, fn_ka10101, fn_ka10095, fn_ka90003,
+        fn_kt10000, fn_kt10001, fn_kt10002, fn_kt10003
+    )
+    # Specialized data functions
     from kiwoom_api.functions.orderbook import fn_ka10004, convert_orderbook_data
     from kiwoom_api.functions.historical import fn_ka10005, convert_chart_data
     from kiwoom_api.functions.minute_chart import fn_ka10006, convert_minute_data, get_stock_name_from_code
     from kiwoom_api.functions.market_info import fn_ka10007, convert_market_info_data
-    from kiwoom_api.functions.new_stock_rights import fn_ka10011, convert_new_stock_rights_data, get_rights_type_name
-    from kiwoom_api.functions.daily_institutional_trade import fn_ka10044, convert_daily_institutional_trade_data, get_trade_type_name, get_market_type_name, get_exchange_type_name
-    from kiwoom_api.functions.stock_institutional_trend import fn_ka10045, convert_stock_institutional_trend_data, get_change_sign_name
-    from kiwoom_api.functions.auth import get_valid_access_token
+    from kiwoom_api.functions.new_stock_rights import (
+        fn_ka10011, convert_new_stock_rights_data, get_rights_type_name
+    )
+    from kiwoom_api.functions.daily_institutional_trade import (
+        fn_ka10044, convert_daily_institutional_trade_data,
+        get_trade_type_name, get_market_type_name, get_exchange_type_name
+    )
+    from kiwoom_api.functions.stock_institutional_trend import (
+        fn_ka10045, convert_stock_institutional_trend_data, get_change_sign_name
+    )
+    # Authentication
+    from kiwoom_api.auth.token_validator import extract_bearer_token
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +109,7 @@ async def api_fn_ka10001(
     request: StockInfoRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주식기본정보요청 (ka10001)
@@ -62,12 +124,14 @@ async def api_fn_ka10001(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka10001 요청: {request.stk_cd}")
 
         # fn_ka10001 직접 호출
         result = await fn_ka10001(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -87,7 +151,7 @@ async def api_fn_ka10099(
     request: StockListRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 종목정보 리스트 (ka10099)
@@ -109,12 +173,14 @@ async def api_fn_ka10099(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka10099 요청: {request.mrkt_tp}")
 
         # fn_ka10099 직접 호출
         result = await fn_ka10099(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -134,7 +200,7 @@ async def api_fn_ka10100(
     request: StockInfoRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 종목정보 조회 (ka10100)
@@ -162,12 +228,14 @@ async def api_fn_ka10100(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka10100 요청: {request.stk_cd}")
 
         # fn_ka10100 직접 호출
         result = await fn_ka10100(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -187,7 +255,7 @@ async def api_fn_ka10101(
     request: IndustryCodeRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 업종코드 리스트 (ka10101)
@@ -211,12 +279,14 @@ async def api_fn_ka10101(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka10101 요청: {request.mrkt_tp}")
 
         # fn_ka10101 직접 호출
         result = await fn_ka10101(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -236,7 +306,7 @@ async def api_fn_ka10095(
     request: WatchlistRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 관심종목정보요청 (ka10095)
@@ -273,12 +343,14 @@ async def api_fn_ka10095(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka10095 요청: {request.stk_cd}")
 
         # fn_ka10095 직접 호출
         result = await fn_ka10095(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -298,7 +370,7 @@ async def api_fn_ka90003(
     request: ProgramTradeRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 프로그램순매수상위50요청 (ka90003)
@@ -336,12 +408,14 @@ async def api_fn_ka90003(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_ka90003 요청: {request.trde_upper_tp}/{request.amt_qty_tp}/{request.mrkt_tp}/{request.stex_tp}")
 
         # fn_ka90003 직접 호출
         result = await fn_ka90003(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -363,7 +437,7 @@ async def api_fn_ka10004(
     request: KiwoomStockOrderbookRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> OrderbookApiResponse:
     """
     키움증권 주식호가요청 (ka10004) - 실시간 호가 스냅샷 조회
@@ -398,14 +472,13 @@ async def api_fn_ka10004(
     - WebSocket: 실시간 스트리밍 데이터 (밀리초 단위 업데이트)
     """
     try:
-        from datetime import datetime
-
+        # Note: fn_ka10004 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
         logger.info(f"📊 fn_ka10004 요청: {request.stk_cd} (호가 스냅샷)")
 
         # fn_ka10004 호출
         result = await fn_ka10004(
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -454,7 +527,7 @@ async def api_fn_ka10005(
     request: KiwoomStockHistoricalRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> ChartApiResponse:
     """
     키움증권 주식일주월시분요청 (ka10005) - 차트 데이터 조회
@@ -485,14 +558,13 @@ async def api_fn_ka10005(
     - 기술적 분석 지표 계산 기초 데이터
     """
     try:
-        from datetime import datetime
-
+        # Note: fn_ka10005 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
         logger.info(f"📈 fn_ka10005 요청: {request.stk_cd} (차트 데이터)")
 
         # fn_ka10005 호출
         result = await fn_ka10005(
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -543,7 +615,7 @@ async def api_fn_ka10006(
     request: KiwoomStockMinuteRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> MinuteChartApiResponse:
     """
     키움증권 주식시분요청 (ka10006) - 실시간 시분 데이터 조회
@@ -575,14 +647,13 @@ async def api_fn_ka10006(
     - 분봉 차트 데이터 기초
     """
     try:
-        from datetime import datetime
-
+        # Note: fn_ka10006 uses internal token management, no explicit token required
         request_time = datetime.now().strftime('%Y%m%d%H%M%S')
         logger.info(f"⏰ fn_ka10006 요청: {request.stk_cd} (시분 데이터)")
 
         # fn_ka10006 호출
         result = await fn_ka10006(
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -630,7 +701,10 @@ async def api_fn_ka10006(
 
 
 @router.post("/fn_ka10007", summary="키움 시세표성정보요청 (ka10007)", tags=["시세 API"])
-async def api_fn_ka10007(request: KiwoomStockMarketInfoRequest) -> MarketInfoApiResponse:
+async def api_fn_ka10007(
+    request: KiwoomStockMarketInfoRequest,
+    authorization: str = Header(..., description="Bearer {access_token}")
+) -> MarketInfoApiResponse:
     """
     키움증권 시세표성정보요청 (ka10007) - 포괄적인 시세표 정보
 
@@ -658,11 +732,12 @@ async def api_fn_ka10007(request: KiwoomStockMarketInfoRequest) -> MarketInfoApi
     **실시간 시세표성정보를 제공하는 핵심 API입니다**
     """
     try:
+        # Note: fn_ka10007 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
         logger.info(f"📊 fn_ka10007 요청: {request.stk_cd}")
 
         # fn_ka10007 호출
-        result = await fn_ka10007(data=request.dict())
+        result = await fn_ka10007(data=request.model_dump())
 
         if result.get('Code') == 200:
             # 응답 처리 시간
@@ -709,7 +784,10 @@ async def api_fn_ka10007(request: KiwoomStockMarketInfoRequest) -> MarketInfoApi
 
 
 @router.post("/fn_ka10011", summary="키움 신주인수권전체시세요청 (ka10011)", tags=["시세 API"])
-async def api_fn_ka10011(request: KiwoomNewStockRightsRequest) -> NewStockRightsApiResponse:
+async def api_fn_ka10011(
+    request: KiwoomNewStockRightsRequest,
+    authorization: str = Header(..., description="Bearer {access_token}")
+) -> NewStockRightsApiResponse:
     """
     키움증권 신주인수권전체시세요청 (ka10011) - 신주인수권 전체 시세 정보
 
@@ -737,11 +815,12 @@ async def api_fn_ka10011(request: KiwoomNewStockRightsRequest) -> NewStockRights
     **신주인수권 시장 전체 현황을 제공하는 종합 API입니다**
     """
     try:
+        # Note: fn_ka10011 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
         logger.info(f"📋 fn_ka10011 요청: {request.newstk_recvrht_tp}")
 
         # fn_ka10011 호출
-        result = await fn_ka10011(data=request.dict())
+        result = await fn_ka10011(data=request.model_dump())
 
         if result.get('Code') == 200:
             # 응답 처리 시간
@@ -792,7 +871,10 @@ async def api_fn_ka10011(request: KiwoomNewStockRightsRequest) -> NewStockRights
 
 
 @router.post("/fn_ka10044", summary="키움 일별기관매매종목요청 (ka10044)", tags=["시세 API"])
-async def api_fn_ka10044(request: KiwoomDailyInstitutionalTradeRequest) -> DailyInstitutionalTradeApiResponse:
+async def api_fn_ka10044(
+    request: KiwoomDailyInstitutionalTradeRequest,
+    authorization: str = Header(..., description="Bearer {access_token}")
+) -> DailyInstitutionalTradeApiResponse:
     """
     키움증권 일별기관매매종목요청 (ka10044) - 기관 투자자 일별 매매 종목 현황
 
@@ -825,11 +907,12 @@ async def api_fn_ka10044(request: KiwoomDailyInstitutionalTradeRequest) -> Daily
     **기관 투자자의 매매 동향 분석에 필수적인 API입니다**
     """
     try:
+        # Note: fn_ka10044 uses internal token management, no explicit token required
         request_time = datetime.now().strftime("%Y%m%d%H%M%S")
         logger.info(f"📊 fn_ka10044 요청: {request.strt_dt}-{request.end_dt}, {get_trade_type_name(request.trde_tp)}")
 
         # fn_ka10044 호출
-        result = await fn_ka10044(data=request.dict())
+        result = await fn_ka10044(data=request.model_dump())
 
         if result.get('Code') == 200:
             # 응답 처리 시간
@@ -897,7 +980,7 @@ async def api_fn_kt10000(
     request: StockBuyOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주식 매수주문 (kt10000)
@@ -939,12 +1022,14 @@ async def api_fn_kt10000(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📈 fn_kt10000 요청: {request.stk_cd} {request.ord_qty}주 매수주문")
 
         # fn_kt10000 직접 호출
         result = await fn_kt10000(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -964,7 +1049,7 @@ async def api_fn_kt10001(
     request: StockSellOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주식 매도주문 (kt10001)
@@ -1006,12 +1091,14 @@ async def api_fn_kt10001(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📉 fn_kt10001 요청: {request.stk_cd} {request.ord_qty}주 매도주문")
 
         # fn_kt10001 직접 호출
         result = await fn_kt10001(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1031,7 +1118,7 @@ async def api_fn_kt10002(
     request: StockModifyOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주식 정정주문 (kt10002)
@@ -1057,12 +1144,14 @@ async def api_fn_kt10002(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"🔄 fn_kt10002 요청: {request.orig_ord_no} 주문 {request.mdfy_qty}주 → {request.mdfy_uv}원으로 정정")
 
         # fn_kt10002 직접 호출
         result = await fn_kt10002(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1082,7 +1171,7 @@ async def api_fn_kt10003(
     request: StockCancelOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주식 취소주문 (kt10003)
@@ -1107,13 +1196,15 @@ async def api_fn_kt10003(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         cncl_desc = "잔량 전부 취소" if request.cncl_qty == "0" else f"{request.cncl_qty}주 취소"
         logger.info(f"❌ fn_kt10003 요청: {request.orig_ord_no} 주문 {cncl_desc}")
 
         # fn_kt10003 직접 호출
         result = await fn_kt10003(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1129,7 +1220,10 @@ async def api_fn_kt10003(
 
 
 @router.post("/fn_ka10045", summary="키움 종목별기관매매추이요청 (ka10045)", tags=["시세 API"])
-async def api_fn_ka10045(request: KiwoomStockInstitutionalTrendRequest) -> StockInstitutionalTrendApiResponse:
+async def api_fn_ka10045(
+    request: KiwoomStockInstitutionalTrendRequest,
+    authorization: str = Header(..., description="Bearer {access_token}")
+) -> StockInstitutionalTrendApiResponse:
     """
     키움증권 종목별기관매매추이요청 (ka10045) - 특정 종목의 기관/외국인 매매 추이 정보
 
@@ -1157,18 +1251,19 @@ async def api_fn_ka10045(request: KiwoomStockInstitutionalTrendRequest) -> Stock
     키움 원본 데이터와 가공된 구조화 데이터를 함께 제공합니다.
     """
     try:
-        logger.info(f"📊 fn_ka10045 요청: {request.stk_cd} ({request.strt_dt}-{request.end_dt})")
+        # Note: fn_ka10045 uses internal token management, no explicit token required
+        logger.info(f"📊 fn_ka10045 요청: {request.data.stk_cd} ({request.data.strt_dt}-{request.data.end_dt})")
 
         # fn_ka10045 호출
         result = await fn_ka10045(
-            data=request.dict(),
-            cont_yn='N',
-            next_key=''
+            data=request.data.model_dump(),
+            cont_yn=request.cont_yn,
+            next_key=request.next_key
         )
 
         if result.get('Code') == 200:
             # 성공 응답 처리
-            logger.info(f"✅ fn_ka10045 성공: {request.stk_cd}")
+            logger.info(f"✅ fn_ka10045 성공: {request.data.stk_cd}")
 
             # 원본 응답 데이터
             raw_response = StockInstitutionalTrendResponse(**result['Body'])

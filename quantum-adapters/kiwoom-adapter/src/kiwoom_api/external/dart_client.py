@@ -74,6 +74,27 @@ class DARTClient:
         
         self.base_url = "https://opendart.fss.or.kr/api"
         self.timeout = httpx.Timeout(30.0)
+        self._client: Optional[httpx.AsyncClient] = None
+    
+    async def _get_client(self) -> httpx.AsyncClient:
+        """AsyncClient 인스턴스 반환 (재사용)"""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
+    
+    async def _close_client(self) -> None:
+        """AsyncClient 종료"""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+    
+    async def __aenter__(self):
+        """async context manager 진입"""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """async context manager 종료"""
+        await self._close_client()
         
     async def get_corp_code(self, stock_code: str) -> Optional[str]:
         """
@@ -121,9 +142,9 @@ class DARTClient:
         if not corp_code:
             return {}
         
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            # 단일회사 재무정보 API
-            response = await client.get(
+        # 단일회사 재무정보 API (AsyncClient 재사용)
+        client = await self._get_client()
+        response = await client.get(
                 f"{self.base_url}/fnlttSinglAcnt.json",
                 params={
                     "crtfc_key": self.api_key,
@@ -132,13 +153,13 @@ class DARTClient:
                     "reprt_code": quarter
                 }
             )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "000":
-                    return self._parse_financial_data(data.get("list", []))
-            
-            return {}
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "000":
+                return self._parse_financial_data(data.get("list", []))
+        
+        return {}
     
     def _parse_financial_data(self, raw_data: List[Dict]) -> Dict[str, Any]:
         """
@@ -250,8 +271,9 @@ class DARTClient:
         if not start_date:
             start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
         
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
+        # 공시정보 리스트 API (AsyncClient 재사용)
+        client = await self._get_client()
+        response = await client.get(
                 f"{self.base_url}/list.json",
                 params={
                     "crtfc_key": self.api_key,
@@ -261,13 +283,13 @@ class DARTClient:
                     "page_count": "100"
                 }
             )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "000":
-                    return self._analyze_disclosures(data.get("list", []))
-            
-            return []
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "000":
+                return self._analyze_disclosures(data.get("list", []))
+        
+        return []
     
     def _analyze_disclosures(self, disclosures: List[Dict]) -> List[Dict[str, Any]]:
         """
@@ -341,8 +363,9 @@ class DARTClient:
         if not corp_code:
             return {}
         
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
+        # 주요사항보고서 API (AsyncClient 재사용)
+        client = await self._get_client()
+        response = await client.get(
                 f"{self.base_url}/alotMatter.json",
                 params={
                     "crtfc_key": self.api_key,
@@ -351,21 +374,21 @@ class DARTClient:
                     "reprt_code": "11011"  # 사업보고서
                 }
             )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "000" and data.get("list"):
-                    dividend_data = data["list"][0]
-                    return {
-                        "dividend_rate": float(dividend_data.get("thstrm_dividend_rate", "0")),
-                        "dividend_per_share": float(dividend_data.get("thstrm", "0")),
-                        "dividend_yield": self._calculate_dividend_yield(
-                            dividend_data.get("thstrm", "0"),
-                            stock_code
-                        )
-                    }
-            
-            return {}
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "000" and data.get("list"):
+                dividend_data = data["list"][0]
+                return {
+                    "dividend_rate": float(dividend_data.get("thstrm_dividend_rate", "0")),
+                    "dividend_per_share": float(dividend_data.get("thstrm", "0")),
+                    "dividend_yield": self._calculate_dividend_yield(
+                        dividend_data.get("thstrm", "0"),
+                        stock_code
+                    )
+                }
+        
+        return {}
     
     def _calculate_dividend_yield(self, dividend_per_share: str, stock_code: str) -> float:
         """

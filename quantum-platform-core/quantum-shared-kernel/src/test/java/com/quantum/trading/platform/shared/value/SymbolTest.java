@@ -10,7 +10,7 @@ class SymbolTest {
     void shouldCreateValidKoreanStockSymbol() {
         Symbol symbol = Symbol.of("005930");
         
-        assertEquals("005930", symbol.getValue());
+        assertEquals("005930", symbol.value());
         assertFalse(symbol.isPreferredStock());
         assertEquals("005930", symbol.getBaseCode());
     }
@@ -19,7 +19,7 @@ class SymbolTest {
     void shouldCreateValidPreferredStock() {
         Symbol symbol = Symbol.of("A005930");
         
-        assertEquals("A005930", symbol.getValue());
+        assertEquals("A005930", symbol.value());
         assertTrue(symbol.isPreferredStock());
         assertEquals("005930", symbol.getBaseCode());
     }
@@ -37,7 +37,7 @@ class SymbolTest {
     void shouldTrimWhitespace() {
         Symbol symbol = Symbol.of("  005930  ");
         
-        assertEquals("005930", symbol.getValue());
+        assertEquals("005930", symbol.value());
     }
     
     @Test

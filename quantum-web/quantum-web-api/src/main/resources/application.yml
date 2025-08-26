@@ -119,6 +119,18 @@ cors:
   allowed-headers: "*"
   allow-credentials: true
 
+# Quantum Trading Platform Configuration
+quantum:
+  encryption:
+    master-key: ${QUANTUM_MASTER_KEY:DEFAULT_MASTER_KEY_CHANGE_IN_PRODUCTION_12345678901234567890123456789012}
+  kiwoom:
+    api:
+      base-url: ${KIWOOM_API_BASE_URL:http://localhost:8100}
+      timeout: 30000
+    token:
+      default-ttl: 14400  # 4시간 (초)
+      refresh-threshold: 1800  # 30분 (초)
+
 
 
 ---

@@ -20,7 +20,6 @@ import httpx
 # Handle both relative and absolute imports for different execution contexts
 try:
     from ..config.settings import settings
-    from ..functions.auth import get_valid_access_token
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
     src_path = Path(__file__).parent.parent.parent
@@ -28,7 +27,6 @@ except ImportError:
         sys.path.insert(0, str(src_path))
 
     from kiwoom_api.config.settings import settings
-    from kiwoom_api.functions.auth import get_valid_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +44,7 @@ async def fn_ka10001(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (거래소별 종목코드)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -66,9 +64,9 @@ async def fn_ka10001(
     logger.info("🏢 키움 종목기본정보 요청 시작 (ka10001)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -155,7 +153,7 @@ async def fn_ka10099(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - mrkt_tp: 시장구분 (0:코스피,10:코스닥,3:ELW,8:ETF,30:K-OTC,50:코넥스,5:신주인수권,4:뮤추얼펀드,6:리츠,9:하이일드)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -175,9 +173,9 @@ async def fn_ka10099(
     logger.info("🏢 키움 종목정보 리스트 요청 시작 (ka10099)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('mrkt_tp'):
@@ -264,7 +262,7 @@ async def fn_ka10100(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (6자리)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -284,9 +282,9 @@ async def fn_ka10100(
     logger.info("🏢 키움 종목정보 조회 시작 (ka10100)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -373,7 +371,7 @@ async def fn_ka10101(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - mrkt_tp: 시장구분 (0:코스피(거래소),1:코스닥,2:KOSPI200,4:KOSPI100,7:KRX100(통합지수))
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -393,9 +391,9 @@ async def fn_ka10101(
     logger.info("🏢 키움 업종코드 리스트 요청 시작 (ka10101)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('mrkt_tp'):
@@ -482,7 +480,7 @@ async def fn_ka10095(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - stk_cd: 종목코드 (거래소별 종목코드, 여러 종목시 | 로 구분)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
@@ -502,9 +500,9 @@ async def fn_ka10095(
     logger.info("🏢 키움 관심종목정보 요청 시작 (ka10095)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
@@ -591,7 +589,7 @@ async def fn_ka90003(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - trde_upper_tp: 매매상위구분 (1:순매도상위, 2:순매수상위)
               - amt_qty_tp: 금액수량구분 (1:금액, 2:수량)
@@ -615,9 +613,9 @@ async def fn_ka90003(
     logger.info("🏢 키움 프로그램순매수상위50 요청 시작 (ka90003)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -716,7 +714,7 @@ async def fn_kt10000(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - dmst_stex_tp: 국내거래소구분 (KRX,NXT,SOR)
               - stk_cd: 종목코드
@@ -750,9 +748,9 @@ async def fn_kt10000(
     logger.info("📈 키움 주식 매수주문 시작 (kt10000)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -861,7 +859,7 @@ async def fn_kt10001(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - dmst_stex_tp: 국내거래소구분 (KRX,NXT,SOR)
               - stk_cd: 종목코드
@@ -895,9 +893,9 @@ async def fn_kt10001(
     logger.info("📉 키움 주식 매도주문 시작 (kt10001)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -1006,7 +1004,7 @@ async def fn_kt10002(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - dmst_stex_tp: 국내거래소구분 (KRX,NXT,SOR)
               - orig_ord_no: 원주문번호
@@ -1042,9 +1040,9 @@ async def fn_kt10002(
     logger.info("🔄 키움 주식 정정주문 시작 (kt10002)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:
@@ -1155,7 +1153,7 @@ async def fn_kt10003(
     사용자 제공 코드와 동일한 방식으로 구현
 
     Args:
-        token: 접근토큰 (없으면 자동 발급)
+        token: 접근토큰 (필수)
         data: 요청 데이터
               - dmst_stex_tp: 국내거래소구분 (KRX,NXT,SOR)
               - orig_ord_no: 원주문번호
@@ -1186,9 +1184,9 @@ async def fn_kt10003(
     logger.info("❌ 키움 주식 취소주문 시작 (kt10003)")
 
     try:
-        # 1. 토큰 준비
-        if token is None:
-            token = await get_valid_access_token()
+        # 1. 토큰 검증
+        if not token:
+            raise ValueError("Access token is required")
         
         # 2. 요청 데이터 검증
         if data is None:

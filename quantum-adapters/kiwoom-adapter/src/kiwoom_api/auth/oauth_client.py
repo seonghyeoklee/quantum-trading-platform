@@ -10,7 +10,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import httpx
 
@@ -44,11 +44,32 @@ class KiwoomOAuthClient:
         self.sandbox_mode = sandbox_mode
         self.base_url = settings.kiwoom_base_url
         self.timeout = 30.0
+        self._client: Optional[httpx.AsyncClient] = None
         
         logger.info(
             f"키움 OAuth 클라이언트 초기화 - 모드: {settings.kiwoom_mode_description}, "
             f"앱키: {app_key}"
         )
+    
+    async def _get_client(self) -> httpx.AsyncClient:
+        """AsyncClient 인스턴스 반환 (재사용)"""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
+    
+    async def _close_client(self) -> None:
+        """AsyncClient 종료"""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+    
+    async def __aenter__(self):
+        """async context manager 진입"""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """async context manager 종료"""
+        await self._close_client()
     
     async def request_token(self) -> TokenResponse:
         """키움 OAuth 2.0 토큰 발급 (au10001)
@@ -88,33 +109,33 @@ class KiwoomOAuthClient:
         logger.info(f"키움 API 호출 - URL: {url}, 앱키: {self.app_key}")
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                # 4. HTTP POST 요청 (사용자 코드와 동일)
-                response = await client.post(url, headers=headers, json=data)
+            # 4. HTTP POST 요청 (AsyncClient 재사용)
+            client = await self._get_client()
+            response = await client.post(url, headers=headers, json=data)
+            
+            # 5. 응답 상태 코드와 데이터 출력 (사용자 코드 스타일 유지)
+            logger.info(f"Code: {response.status_code}")
+            
+            # 응답 헤더 확인 (키움 API 스펙)
+            response_headers = {
+                key: response.headers.get(key) 
+                for key in ['next-key', 'cont-yn', 'api-id']
+            }
+            logger.info(f"Header: {json.dumps(response_headers, indent=4, ensure_ascii=False)}")
+            
+            # 응답 처리
+            if response.status_code == 200:
+                response_data = response.json()
+                logger.info(f"Body: {json.dumps(response_data, indent=4, ensure_ascii=False)}")
                 
-                # 5. 응답 상태 코드와 데이터 출력 (사용자 코드 스타일 유지)
-                logger.info(f"Code: {response.status_code}")
-                
-                # 응답 헤더 확인 (키움 API 스펙)
-                response_headers = {
-                    key: response.headers.get(key) 
-                    for key in ['next-key', 'cont-yn', 'api-id']
-                }
-                logger.info(f"Header: {json.dumps(response_headers, indent=4, ensure_ascii=False)}")
-                
-                # 응답 처리
-                if response.status_code == 200:
-                    response_data = response.json()
-                    logger.info(f"Body: {json.dumps(response_data, indent=4, ensure_ascii=False)}")
-                    
-                    return TokenResponse(**response_data)
-                else:
-                    error_msg = f"키움 API 호출 실패 - Status: {response.status_code}"
-                    logger.error(error_msg)
-                    return TokenResponse.create_error_response(
-                        response.status_code,
-                        f"키움 API 호출 실패: {error_msg}"
-                    )
+                return TokenResponse(**response_data)
+            else:
+                error_msg = f"키움 API 호출 실패 - Status: {response.status_code}"
+                logger.error(error_msg)
+                return TokenResponse.create_error_response(
+                    response.status_code,
+                    f"키움 API 호출 실패: {error_msg}"
+                )
                     
         except httpx.TimeoutException:
             error_msg = f"키움 API 호출 타임아웃 - {self.timeout}초"

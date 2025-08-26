@@ -4,10 +4,11 @@
 """
 import logging
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Header, Query
 from fastapi.responses import JSONResponse
 
 try:
+    # Account models
     from ..models.account import (
         DailyStockProfitLossRequest, DailyStockProfitLossPeriodRequest, DailyProfitLossRequest,
         UnfilledOrderRequest, FilledOrderRequest, TodayProfitLossDetailRequest,
@@ -19,14 +20,17 @@ try:
         TrustComprehensiveTransactionRequest, DailyAccountReturnDetailRequest, AccountDailyStatusRequest,
         AccountEvaluationBalanceDetailRequest
     )
+    # Business functions
     from ..functions.account import (
         fn_ka10072, fn_ka10073, fn_ka10074, fn_ka10075, fn_ka10076, fn_ka10077, fn_ka10085,
         fn_ka10088, fn_ka10170, fn_kt00001, fn_kt00002, fn_kt00003, fn_kt00004, fn_kt00005,
         fn_kt00007, fn_kt00008, fn_kt00009, fn_kt00010, fn_kt00011,
         fn_kt00012, fn_kt00013, fn_kt00015, fn_kt00016, fn_kt00017, fn_kt00018
     )
-    from ..functions.auth import get_valid_access_token
+    # Authentication
+    from ..auth.token_validator import extract_bearer_token
 except ImportError:
+    # Account models
     from kiwoom_api.models.account import (
         DailyStockProfitLossRequest, DailyStockProfitLossPeriodRequest, DailyProfitLossRequest,
         UnfilledOrderRequest, FilledOrderRequest, TodayProfitLossDetailRequest,
@@ -38,13 +42,15 @@ except ImportError:
         TrustComprehensiveTransactionRequest, DailyAccountReturnDetailRequest, AccountDailyStatusRequest,
         AccountEvaluationBalanceDetailRequest
     )
+    # Business functions
     from kiwoom_api.functions.account import (
         fn_ka10072, fn_ka10073, fn_ka10074, fn_ka10075, fn_ka10076, fn_ka10077, fn_ka10085,
         fn_ka10088, fn_ka10170, fn_kt00001, fn_kt00002, fn_kt00003, fn_kt00004, fn_kt00005,
         fn_kt00007, fn_kt00008, fn_kt00009, fn_kt00010, fn_kt00011,
         fn_kt00012, fn_kt00013, fn_kt00015, fn_kt00016, fn_kt00017, fn_kt00018
     )
-    from kiwoom_api.functions.auth import get_valid_access_token
+    # Authentication
+    from kiwoom_api.auth.token_validator import extract_bearer_token
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +64,7 @@ async def api_fn_ka10072(
     request: DailyStockProfitLossRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 일자별종목별실현손익요청_일자 (ka10072)
@@ -68,6 +74,9 @@ async def api_fn_ka10072(
     - **cont_yn**: 연속조회여부 (N: 최초, Y: 연속)
     - **next_key**: 연속조회키 (연속조회시 필요)
     
+    **요청 헤더:**
+    - **Authorization**: Bearer {access_token} (Java Backend에서 제공)
+    
     **응답 필드:**
     - 일자별 종목별 실현손익 상세 내역
     - 매수/매도 정보
@@ -76,11 +85,13 @@ async def api_fn_ka10072(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💰 fn_ka10072 요청: {request.stk_cd} ({request.strt_dt})")
         
         result = await fn_ka10072(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -100,7 +111,7 @@ async def api_fn_ka10073(
     request: DailyStockProfitLossPeriodRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 일자별종목별실현손익요청_기간 (ka10073) - 정확한 키움 스펙
@@ -131,11 +142,13 @@ async def api_fn_ka10073(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💰 fn_ka10073 요청: {request.stk_cd}")
         
         result = await fn_ka10073(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -155,7 +168,7 @@ async def api_fn_ka10074(
     request: DailyProfitLossRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 일자별실현손익요청 (ka10074) - 정확한 키움 스펙
@@ -182,11 +195,13 @@ async def api_fn_ka10074(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💰 fn_ka10074 요청: {request.strt_dt}~{request.end_dt}")
         
         result = await fn_ka10074(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -206,7 +221,7 @@ async def api_fn_ka10075(
     request: UnfilledOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 미체결요청 (ka10075)
@@ -238,11 +253,13 @@ async def api_fn_ka10075(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_ka10075 요청: 전체종목구분={request.all_stk_tp}, 매매구분={request.trde_tp}, 종목코드={request.stk_cd or 'N/A'}, 거래소구분={request.stex_tp}")
         
         result = await fn_ka10075(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -262,7 +279,7 @@ async def api_fn_ka10076(
     request: FilledOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 체결요청 (ka10076)
@@ -299,11 +316,13 @@ async def api_fn_ka10076(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"✅ fn_ka10076 요청: 조회구분={request.qry_tp}, 매도수구분={request.sell_tp}, 종목코드={request.stk_cd or 'N/A'}, 거래소구분={request.stex_tp}")
         
         result = await fn_ka10076(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -323,7 +342,7 @@ async def api_fn_ka10077(
     request: TodayProfitLossDetailRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 당일실현손익상세요청 (ka10077)
@@ -348,11 +367,13 @@ async def api_fn_ka10077(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💰 fn_ka10077 요청: 종목코드={request.stk_cd}")
         
         result = await fn_ka10077(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -372,7 +393,7 @@ async def api_fn_ka10085(
     request: AccountReturnRateRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌수익률요청 (ka10085)
@@ -404,11 +425,13 @@ async def api_fn_ka10085(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📈 fn_ka10085 요청: 거래소구분={request.stex_tp}")
         
         result = await fn_ka10085(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -430,7 +453,7 @@ async def api_fn_ka10088(
     request: UnfilledSplitOrderDetailRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 미체결 분할주문 상세 (ka10088)
@@ -459,11 +482,13 @@ async def api_fn_ka10088(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_ka10088 요청: {request.ord_no}")
         
         result = await fn_ka10088(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -485,7 +510,7 @@ async def api_fn_kt00001(
     request: DepositDetailStatusRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 예수금상세현황요청 (kt00001)
@@ -583,11 +608,13 @@ async def api_fn_kt00001(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💳 fn_kt00001 요청: 조회구분={request.qry_tp}")
         
         result = await fn_kt00001(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -607,7 +634,7 @@ async def api_fn_kt00002(
     request: DailyEstimatedAssetStatusRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 일별추정예탁자산현황요청 (kt00002)
@@ -631,11 +658,13 @@ async def api_fn_kt00002(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00002 요청: {request.start_dt} ~ {request.end_dt}")
         
         result = await fn_kt00002(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -655,7 +684,7 @@ async def api_fn_kt00003(
     request: EstimatedAssetInquiryRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 추정자산조회요청 (kt00003)
@@ -670,11 +699,13 @@ async def api_fn_kt00003(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💰 fn_kt00003 요청: 상장폐지조회구분={request.qry_tp}")
         
         result = await fn_kt00003(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -694,7 +725,7 @@ async def api_fn_kt00004(
     request: AccountEvaluationStatusRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌평가현황요청 (kt00004)
@@ -748,11 +779,13 @@ async def api_fn_kt00004(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📈 fn_kt00004 요청: qry_tp={request.qry_tp}, dmst_stex_tp={request.dmst_stex_tp}")
         
         result = await fn_kt00004(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -772,7 +805,7 @@ async def api_fn_kt00005(
     request: FilledBalanceRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 체결잔고요청 (kt00005)
@@ -834,11 +867,13 @@ async def api_fn_kt00005(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_kt00005 요청: dmst_stex_tp={request.dmst_stex_tp}")
         
         result = await fn_kt00005(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -862,7 +897,7 @@ async def api_fn_kt00007(
     request: AccountOrderFilledDetailRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌별주문체결내역상세요청 (kt00007)
@@ -907,11 +942,13 @@ async def api_fn_kt00007(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00007 요청: qry_tp={request.qry_tp}, stk_bond_tp={request.stk_bond_tp}, sell_tp={request.sell_tp}, dmst_stex_tp={request.dmst_stex_tp}")
         
         result = await fn_kt00007(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -933,7 +970,7 @@ async def api_fn_kt00008(
     request: AccountNextDaySettlementRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌별익일결제예정내역요청 (kt00008)
@@ -971,6 +1008,8 @@ async def api_fn_kt00008(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_kt00008 요청: strt_dcd_seq={request.strt_dcd_seq or ''}")
         result = await fn_kt00008(token=access_token, data=request.dict(), cont_yn=cont_yn, next_key=next_key)
         return JSONResponse(status_code=result['Code'], content=result)
@@ -984,7 +1023,7 @@ async def api_fn_kt00009(
     request: AccountOrderFilledStatusRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌별주문체결현황요청 (kt00009)
@@ -1034,6 +1073,8 @@ async def api_fn_kt00009(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00009 요청: 주식채권구분={request.stk_bond_tp}, 시장구분={request.mrkt_tp}, 조회구분={request.qry_tp}")
         result = await fn_kt00009(token=access_token, data=request.dict(), cont_yn=cont_yn, next_key=next_key)
         return JSONResponse(status_code=result['Code'], content=result)
@@ -1047,7 +1088,7 @@ async def api_fn_kt00010(
     request: OrderWithdrawalAmountRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 주문인출가능금액요청 (kt00010)
@@ -1097,6 +1138,8 @@ async def api_fn_kt00010(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"💳 fn_kt00010 요청: 종목번호={request.stk_cd}, 매매구분={request.trde_tp}, 매수가격={request.uv}")
         result = await fn_kt00010(token=access_token, data=request.dict(), cont_yn=cont_yn, next_key=next_key)
         return JSONResponse(status_code=result['Code'], content=result)
@@ -1110,7 +1153,7 @@ async def api_fn_kt00011(
     request: MarginRateOrderQuantityRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 증거금율별주문가능수량조회요청 (kt00011)
@@ -1164,6 +1207,8 @@ async def api_fn_kt00011(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00011 요청: 종목번호={request.stk_cd}, 매수가격={getattr(request, 'uv', 'N/A')}")
         result = await fn_kt00011(token=access_token, data=request.dict(), cont_yn=cont_yn, next_key=next_key)
         return JSONResponse(status_code=result['Code'], content=result)
@@ -1177,7 +1222,7 @@ async def api_fn_kt00012(
     request: CreditMarginRateOrderQuantityRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 신용보증금율별주문가능수량조회요청 (kt00012)
@@ -1222,6 +1267,8 @@ async def api_fn_kt00012(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00012 요청: 종목번호={request.stk_cd}, 매수가격={getattr(request, 'uv', 'N/A')}")
         result = await fn_kt00012(token=access_token, data=request.dict(), cont_yn=cont_yn, next_key=next_key)
         return JSONResponse(status_code=result['Code'], content=result)
@@ -1236,7 +1283,7 @@ async def api_fn_kt00013(
     request: MarginDetailInquiryRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 증거금세부내역조회요청 (kt00013)
@@ -1306,12 +1353,14 @@ async def api_fn_kt00013(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_kt00013 요청: (Body 파라미터 없음)")
         
         # fn_kt00013 직접 호출
         result = await fn_kt00013(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1331,7 +1380,7 @@ async def api_fn_kt00015(
     request: TrustComprehensiveTransactionRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 위탁종합거래내역요청 (kt00015)
@@ -1430,12 +1479,14 @@ async def api_fn_kt00015(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00015 요청: {request.strt_dt} ~ {request.end_dt} (구분: {request.tp})")
         
         # fn_kt00015 직접 호출
         result = await fn_kt00015(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1455,7 +1506,7 @@ async def api_fn_kt00016(
     request: DailyAccountReturnDetailRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 일별계좌수익률상세현황요청 (kt00016)
@@ -1533,12 +1584,14 @@ async def api_fn_kt00016(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📈 fn_kt00016 요청: {request.fr_dt} ~ {request.to_dt}")
         
         # fn_kt00016 직접 호출
         result = await fn_kt00016(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1558,7 +1611,7 @@ async def api_fn_kt00017(
     request: AccountDailyStatusRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌별당일현황요청 (kt00017)
@@ -1611,12 +1664,14 @@ async def api_fn_kt00017(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📊 fn_kt00017 요청: (Body 파라미터 없음)")
         
         # fn_kt00017 직접 호출
         result = await fn_kt00017(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1636,7 +1691,7 @@ async def api_fn_kt00018(
     request: AccountEvaluationBalanceDetailRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 계좌평가잔고내역요청 (kt00018)
@@ -1706,12 +1761,14 @@ async def api_fn_kt00018(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📋 fn_kt00018 요청: 조회구분={request.qry_tp}, 거래소={request.dmst_stex_tp}")
         
         # fn_kt00018 직접 호출
         result = await fn_kt00018(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )
@@ -1733,7 +1790,7 @@ async def api_fn_ka10170(
     request: DailyTradingLogRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
-    access_token: str = Depends(get_valid_access_token)
+    authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
     키움증권 당일매매일지요청 (ka10170)
@@ -1767,11 +1824,13 @@ async def api_fn_ka10170(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
+        # Java Backend에서 전달받은 토큰 추출
+        access_token = extract_bearer_token(authorization)
         logger.info(f"📔 fn_ka10170 요청: 기준일자={request.base_dt}, 단주구분={request.ottks_tp}, 현금신용구분={request.ch_crd_tp}")
         
         result = await fn_ka10170(
             token=access_token,
-            data=request.dict(),
+            data=request.model_dump(),
             cont_yn=cont_yn,
             next_key=next_key
         )

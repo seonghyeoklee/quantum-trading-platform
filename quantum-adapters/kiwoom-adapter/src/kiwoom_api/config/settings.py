@@ -38,8 +38,8 @@ class KiwoomSettings(BaseSettings):
     # Kafka 설정
     ENABLE_KAFKA: bool = Field(True, description="Kafka 연결 활성화 여부")
     
-    # DART API 설정
-    DART_API_KEY: str = Field("", description="DART API 키")
+    # DART API 설정 (한국 금융감독원 전자공시 시스템)
+    DART_API_KEY: str = Field("", description="DART API 키 (재무데이터 조회용)")
     
     class Config:
         env_file = ".env"

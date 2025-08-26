@@ -55,21 +55,20 @@ public class Portfolio {
      */
     @CommandHandler
     public void handle(DepositCashCommand command) {
-        log.info("Depositing cash to portfolio {}: {}", portfolioId, command.getAmount());
+        log.info("Depositing cash to portfolio {}: {}", portfolioId, command.amount());
         
         command.validate();
         
         Money newBalance = Money.ofKrw(
-                cashBalance.getAmount().add(command.getAmount().getAmount())
+                cashBalance.amount().add(command.amount().amount())
         );
         
-        AggregateLifecycle.apply(CashDepositedEvent.builder()
-                .portfolioId(portfolioId)
-                .amount(command.getAmount())
-                .newCashBalance(newBalance)
-                .description(command.getDescription())
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(new CashDepositedEvent(
+                portfolioId,
+                command.amount(),
+                newBalance,
+                command.description(),
+                Instant.now()));
     }
     
     /**
@@ -78,12 +77,12 @@ public class Portfolio {
     @CommandHandler
     public void handle(UpdatePositionCommand command) {
         log.info("Updating position in portfolio {}: {} {} {} @ {}", 
-                portfolioId, command.getSide(), command.getQuantity(), 
-                command.getSymbol(), command.getPrice());
+                portfolioId, command.side(), command.quantity(), 
+                command.symbol(), command.price());
         
         command.validate();
         
-        if (command.getSide() == OrderSide.BUY) {
+        if (command.side() == OrderSide.BUY) {
             handleBuyOrder(command);
         } else {
             handleSellOrder(command);
@@ -92,71 +91,69 @@ public class Portfolio {
     
     private void handleBuyOrder(UpdatePositionCommand command) {
         // 매수 시 현금 잔액 확인
-        if (cashBalance.getAmount().compareTo(command.getTotalAmount().getAmount()) < 0) {
+        if (cashBalance.amount().compareTo(command.totalAmount().amount()) < 0) {
             throw new IllegalStateException("Insufficient cash balance for purchase");
         }
         
         Position newPosition;
-        Position existingPosition = positions.get(command.getSymbol());
+        Position existingPosition = positions.get(command.symbol());
         
         if (existingPosition == null || existingPosition.isEmpty()) {
             // 신규 포지션 생성
-            newPosition = Position.create(command.getSymbol(), command.getQuantity(), command.getPrice());
+            newPosition = Position.create(command.symbol(), command.quantity(), command.price());
         } else {
             // 기존 포지션에 수량 추가 (평균 단가 재계산)
-            newPosition = existingPosition.addQuantity(command.getQuantity(), command.getPrice());
+            newPosition = existingPosition.addQuantity(command.quantity(), command.price());
         }
         
         // 현금 잔액 차감
         Money newCashBalance = Money.ofKrw(
-                cashBalance.getAmount().subtract(command.getTotalAmount().getAmount())
+                cashBalance.amount().subtract(command.totalAmount().amount())
         );
         
-        AggregateLifecycle.apply(PositionUpdatedEvent.builder()
-                .portfolioId(portfolioId)
-                .orderId(command.getOrderId())
-                .symbol(command.getSymbol())
-                .side(command.getSide())
-                .quantity(command.getQuantity())
-                .price(command.getPrice())
-                .totalAmount(command.getTotalAmount())
-                .newPosition(newPosition)
-                .newCashBalance(newCashBalance)
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(new PositionUpdatedEvent(
+                portfolioId,
+                command.orderId(),
+                command.symbol(),
+                command.side(),
+                command.quantity(),
+                command.price(),
+                command.totalAmount(),
+                newPosition,
+                newCashBalance,
+                Instant.now()));
     }
     
     private void handleSellOrder(UpdatePositionCommand command) {
-        Position existingPosition = positions.get(command.getSymbol());
+        Position existingPosition = positions.get(command.symbol());
         
         if (existingPosition == null || existingPosition.isEmpty()) {
-            throw new IllegalStateException("No position to sell for symbol: " + command.getSymbol());
+            throw new IllegalStateException("No position to sell for symbol: " + command.symbol());
         }
         
-        if (existingPosition.getQuantity().getValue() < command.getQuantity().getValue()) {
+        if (existingPosition.getQuantity().value() < command.quantity().value()) {
             throw new IllegalStateException("Insufficient quantity to sell");
         }
         
         // 포지션에서 수량 차감
-        Position newPosition = existingPosition.reduceQuantity(command.getQuantity());
+        Position newPosition = existingPosition.reduceQuantity(command.quantity());
         
         // 현금 잔액 증가
         Money newCashBalance = Money.ofKrw(
-                cashBalance.getAmount().add(command.getTotalAmount().getAmount())
+                cashBalance.amount().add(command.totalAmount().amount())
         );
         
-        AggregateLifecycle.apply(PositionUpdatedEvent.builder()
-                .portfolioId(portfolioId)
-                .orderId(command.getOrderId())
-                .symbol(command.getSymbol())
-                .side(command.getSide())
-                .quantity(command.getQuantity())
-                .price(command.getPrice())
-                .totalAmount(command.getTotalAmount())
-                .newPosition(newPosition)
-                .newCashBalance(newCashBalance)
-                .timestamp(Instant.now())
-                .build());
+        AggregateLifecycle.apply(new PositionUpdatedEvent(
+                portfolioId,
+                command.orderId(),
+                command.symbol(),
+                command.side(),
+                command.quantity(),
+                command.price(),
+                command.totalAmount(),
+                newPosition,
+                newCashBalance,
+                Instant.now()));
     }
     
     /**
@@ -177,10 +174,10 @@ public class Portfolio {
      */
     @EventSourcingHandler
     public void on(CashDepositedEvent event) {
-        this.cashBalance = event.getNewCashBalance();
+        this.cashBalance = event.newCashBalance();
         
         log.debug("Cash deposited to portfolio {}: {}, new balance: {}", 
-                portfolioId, event.getAmount(), cashBalance);
+                portfolioId, event.amount(), cashBalance);
     }
     
     /**
@@ -188,18 +185,18 @@ public class Portfolio {
      */
     @EventSourcingHandler
     public void on(PositionUpdatedEvent event) {
-        this.cashBalance = event.getNewCashBalance();
+        this.cashBalance = event.newCashBalance();
         
-        if (event.getNewPosition().isEmpty()) {
+        if (event.newPosition().isEmpty()) {
             // 포지션이 비어있으면 제거
-            this.positions.remove(event.getSymbol());
+            this.positions.remove(event.symbol());
         } else {
             // 포지션 업데이트
-            this.positions.put(event.getSymbol(), event.getNewPosition());
+            this.positions.put(event.symbol(), event.newPosition());
         }
         
         log.debug("Position updated in portfolio {}: {} {}, new cash balance: {}", 
-                portfolioId, event.getSide(), event.getSymbol(), cashBalance);
+                portfolioId, event.side(), event.symbol(), cashBalance);
     }
     
     // Getters for testing
@@ -227,13 +224,13 @@ public class Portfolio {
      * 총 포트폴리오 가치 계산 (현금 + 주식 평가액)
      */
     public Money calculateTotalValue(Map<Symbol, Money> currentPrices) {
-        BigDecimal totalValue = cashBalance.getAmount();
+        BigDecimal totalValue = cashBalance.amount();
         
         for (Position position : positions.values()) {
             Money currentPrice = currentPrices.get(position.getSymbol());
             if (currentPrice != null) {
                 totalValue = totalValue.add(
-                        position.calculateMarketValue(currentPrice).getAmount()
+                        position.calculateMarketValue(currentPrice).amount()
                 );
             }
         }

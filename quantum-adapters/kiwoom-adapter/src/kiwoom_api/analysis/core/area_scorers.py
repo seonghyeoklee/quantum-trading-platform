@@ -25,7 +25,7 @@ except ImportError:
     from kiwoom_api.analysis.core.vlookup_calculator import VLOOKUPCalculator
     from kiwoom_api.analysis.core.evaluation_criteria import EvaluationCriteria
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime
 
 

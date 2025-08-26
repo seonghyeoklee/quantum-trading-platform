@@ -106,6 +106,16 @@ public class UserView {
     @Column(name = "two_factor_setup_at")
     private Instant twoFactorSetupAt;
     
+    // Kiwoom Account Integration
+    @Column(name = "kiwoom_account_id", length = 8)
+    private String kiwoomAccountId;
+    
+    @Column(name = "kiwoom_account_assigned_at")
+    private Instant kiwoomAccountAssignedAt;
+    
+    @Column(name = "kiwoom_credentials_updated_at")
+    private Instant kiwoomCredentialsUpdatedAt;
+    
     @Version
     private Long version;
     
@@ -238,6 +248,16 @@ public class UserView {
     }
     
     /**
+     * 키움증권 계좌 할당
+     */
+    public void assignKiwoomAccount(String kiwoomAccountId, Instant assignedAt) {
+        this.kiwoomAccountId = kiwoomAccountId;
+        this.kiwoomAccountAssignedAt = assignedAt;
+        this.kiwoomCredentialsUpdatedAt = assignedAt;
+        this.updatedAt = Instant.now();
+    }
+    
+    /**
      * 2FA 비활성화
      */
     public void disableTwoFactor() {
@@ -245,6 +265,14 @@ public class UserView {
         this.totpSecretKey = null;
         this.backupCodeHashes = null;
         this.twoFactorSetupAt = null;
+        this.updatedAt = Instant.now();
+    }
+    
+    /**
+     * 키움증권 인증 정보 업데이트
+     */
+    public void updateKiwoomCredentials(Instant updatedAt) {
+        this.kiwoomCredentialsUpdatedAt = updatedAt;
         this.updatedAt = Instant.now();
     }
     
@@ -270,5 +298,29 @@ public class UserView {
             // LazyInitializationException이나 다른 Hibernate 관련 예외 처리
             return 0;
         }
+    }
+    
+    /**
+     * 키움증권 계좌 할당 취소
+     */
+    public void revokeKiwoomAccount() {
+        this.kiwoomAccountId = null;
+        this.kiwoomAccountAssignedAt = null;
+        this.kiwoomCredentialsUpdatedAt = null;
+        this.updatedAt = Instant.now();
+    }
+    
+    /**
+     * 키움증권 계좌 할당 여부 확인
+     */
+    public boolean hasKiwoomAccount() {
+        return this.kiwoomAccountId != null && !this.kiwoomAccountId.trim().isEmpty();
+    }
+    
+    /**
+     * 키움증권 계좌 ID 반환
+     */
+    public String getKiwoomAccountId() {
+        return this.kiwoomAccountId;
     }
 }
