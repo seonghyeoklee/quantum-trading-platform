@@ -17,19 +17,16 @@ import os
 from pathlib import Path
 from typing import Dict, Any, List
 
-# 환경 설정 로드 (상대 경로 import)
+# Handle both relative and absolute imports for different execution contexts
 try:
     from .realtime.client import RealtimeClient
     from .realtime.models.realtime_data import RealtimeResponse
 except ImportError:
-    # 직접 실행 시 절대 경로 import
-    # 프로젝트 루트를 PYTHONPATH에 추가
-    project_root = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(project_root / 'src'))
-    
-    # .env 파일 로드를 위한 경로 설정
-    os.chdir(project_root)
-    
+    # If relative imports fail, add src to path and use absolute imports
+    src_path = Path(__file__).parent.parent
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+
     from kiwoom_api.realtime.client import RealtimeClient
     from kiwoom_api.realtime.models.realtime_data import RealtimeResponse
 
@@ -46,7 +43,7 @@ class KiwoomWebSocketClient:
     
     def __init__(self, uri):
         self.uri = uri
-        self._client = RealtimeClient(uri)
+        self._client = RealtimeClient(uri, skip_login=True)  # 개발 테스트용 로그인 스킵
         
         # Legacy 호환성을 위한 속성들
         self.websocket = None
@@ -128,7 +125,8 @@ async def main():
     
     # 새로운 구조 사용 권장
     print("✨ 통합 구조로 실행 중...")
-    client = RealtimeClient(SOCKET_URL)
+    # skip_login=False로 변경하여 정상 로그인 진행
+    client = RealtimeClient(SOCKET_URL, skip_login=False)
     
     # TR 콜백 등록
     def tr_callback(tr_name: str, result: Dict[str, Any]):
@@ -148,13 +146,18 @@ async def main():
     client.add_tr_callback(tr_callback)
     
     try:
-        # 연결
+        # 연결 및 로그인
         if await client.connect():
-            print("✅ 연결 성공!")
+            print("✅ WebSocket 연결 및 로그인 성공!")
             
-            # 로그인 완료 후 3초 대기 (안정적인 구독을 위해)
-            print("⏳ 로그인 완료 대기 중... (3초)")
-            await asyncio.sleep(3)
+            # 로그인 완료 후 안정적인 대기 시간 (5초)
+            print("⏳ 로그인 후 안정화 대기 중... (5초)")
+            await asyncio.sleep(5)
+            
+            # 연결 상태 확인
+            if not client.connected:
+                print("❌ 연결이 끊어졌습니다. 프로그램을 종료합니다.")
+                return
             
             print(f"\n📊 지원 기능:")
             stats = client.get_subscription_statistics()
@@ -163,28 +166,39 @@ async def main():
             print(f"   - TR 명령어: {len(tr_stats['supported_trs'])}개 지원")
             print(f"     * {', '.join(tr_stats['supported_trs'])}")
             
-            # 실시간 시세 구독 테스트 (기존 기능)
+            # 실시간 시세 구독 테스트
             print("\n📝 실시간 시세 구독 테스트...")
-            await client.subscribe(['005930'], ['0A', '0B'])
-            await asyncio.sleep(0.5)
-            
-            # TR 명령어 테스트 (신규 기능)  
-            print("\n🔧 TR 명령어 테스트...")
-            
-            # 1. 조건검색 목록조회
-            print("1️⃣ 조건검색 목록조회 요청...")
-            await client.get_screener_list()
+            print("   📊 삼성전자(005930) - 호가(0A), 체결(0B) 구독")
+            subscribe_result = await client.subscribe(['005930'], ['0A', '0B'])
+            if subscribe_result:
+                print("   ✅ 실시간 시세 구독 성공")
+            else:
+                print("   ❌ 실시간 시세 구독 실패")
             await asyncio.sleep(1)
             
-            # 2. 조건검색 실행 (일반 모드)
-            print("2️⃣ 조건검색 실행 (일반 모드)...")
-            await client.execute_screener_search("0", "0")  # 첫 번째 조건식, 일반 모드
-            await asyncio.sleep(1)
+            # TR 명령어 테스트 (로그인 상태 확인 후 실행)
+            print("\n🔧 TR 명령어 테스트 (로그인 완료 후)...")
             
-            # 3. 조건검색 실행 (실시간 모드)
-            print("3️⃣ 조건검색 실행 (실시간 모드)...")
-            await client.execute_screener_search("0", "1")  # 첫 번째 조건식, 실시간 모드
-            await asyncio.sleep(2)
+            if client.connected and client.access_token:
+                print("   🔐 인증 상태: 정상")
+                
+                # 1. 조건검색 목록조회
+                print("1️⃣ 조건검색 목록조회 요청...")
+                await client.get_screener_list()
+                await asyncio.sleep(2)  # 응답 대기 시간 증가
+                
+                # 2. 조건검색 실행 (일반 모드) - 조심스럽게 테스트
+                print("2️⃣ 조건검색 실행 (일반 모드)...")
+                await client.execute_screener_search("0", "0")  # 첫 번째 조건식, 일반 모드
+                await asyncio.sleep(2)
+                
+                # 3. 조건검색 실행 (실시간 모드) - 더 조심스럽게
+                print("3️⃣ 조건검색 실행 (실시간 모드)...")
+                await client.execute_screener_search("0", "1")  # 첫 번째 조건식, 실시간 모드
+                await asyncio.sleep(3)  # 더 긴 대기
+            else:
+                print("   ⚠️ 인증 상태가 불완전하여 TR 명령어 테스트를 스킵합니다.")
+                print(f"   연결상태: {client.connected}, 토큰: {'있음' if client.access_token else '없음'}")
             
             print(f"\n📊 현재 구독 상태:")
             stats = client.get_subscription_statistics()
@@ -195,6 +209,9 @@ async def main():
             print("\n📊 데이터 수신 중... (실시간 시세 + 조건검색 알림)")
             print("   * Ctrl+C로 종료")
             await client.receive_messages()
+        else:
+            print("❌ WebSocket 연결 또는 로그인 실패")
+            print("💡 참고: 실시간 시세만 테스트하려면 'kiwoom_websocket_simple_client.py'를 사용하세요")
             
     except KeyboardInterrupt:
         print("\n🛑 사용자에 의해 중단됨")

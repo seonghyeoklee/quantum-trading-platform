@@ -1,5 +1,7 @@
 package com.quantum.trading.platform.shared.event;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.quantum.trading.platform.shared.value.UserId;
 import lombok.Builder;
 import lombok.Value;
@@ -15,15 +17,46 @@ import java.util.Set;
 @Value
 @Builder
 public class UserRegisteredEvent {
+    @JsonProperty("userId")
     UserId userId;
+    @JsonProperty("username")
     String username;
+    @JsonProperty("passwordHash")
     String passwordHash;
+    @JsonProperty("name")
     String name;
+    @JsonProperty("email")
     String email;
+    @JsonProperty("phone")
     String phone;
+    @JsonProperty("initialRoles")
     Set<String> initialRoles;
+    @JsonProperty("registeredAt")
     Instant registeredAt;
+    @JsonProperty("registeredBy")
     String registeredBy;
+    
+    @JsonCreator
+    public UserRegisteredEvent(
+            @JsonProperty("userId") UserId userId,
+            @JsonProperty("username") String username,
+            @JsonProperty("passwordHash") String passwordHash,
+            @JsonProperty("name") String name,
+            @JsonProperty("email") String email,
+            @JsonProperty("phone") String phone,
+            @JsonProperty("initialRoles") Set<String> initialRoles,
+            @JsonProperty("registeredAt") Instant registeredAt,
+            @JsonProperty("registeredBy") String registeredBy) {
+        this.userId = userId;
+        this.username = username;
+        this.passwordHash = passwordHash;
+        this.name = name;
+        this.email = email;
+        this.phone = phone;
+        this.initialRoles = initialRoles;
+        this.registeredAt = registeredAt;
+        this.registeredBy = registeredBy;
+    }
     
     public static UserRegisteredEvent create(
             UserId userId,

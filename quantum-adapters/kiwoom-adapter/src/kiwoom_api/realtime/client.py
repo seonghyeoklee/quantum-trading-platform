@@ -22,12 +22,16 @@ try:
     from .models.realtime_data import RealtimeData, RealtimeResponse
     from .models.tr_data import TRRequest, TRResponse
     from .handlers.tr_handlers import TRHandlerRegistry
+    from ..events.kafka_publisher import get_kafka_publisher
+    from ..events.realtime_transformer import RealtimeEventTransformer
 except ImportError:
     from kiwoom_api.auth.oauth_client import KiwoomOAuthClient
     from kiwoom_api.config.settings import settings
     from kiwoom_api.realtime.models.realtime_data import RealtimeData, RealtimeResponse
     from kiwoom_api.realtime.models.tr_data import TRRequest, TRResponse
     from kiwoom_api.realtime.handlers.tr_handlers import TRHandlerRegistry
+    from kiwoom_api.events.kafka_publisher import get_kafka_publisher
+    from kiwoom_api.events.realtime_transformer import RealtimeEventTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +47,21 @@ class RealtimeClient:
         - CNSRCLR: 조건검색 실시간 해제
     """
 
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, enable_kafka: bool = None, skip_login: bool = False):
         self.uri = uri
         self.websocket = None
         self.access_token = None
         self.connected = False
+        # enable_kafka가 None이면 설정 파일의 값 사용
+        self.enable_kafka = enable_kafka if enable_kafka is not None else settings.ENABLE_KAFKA
+        self.skip_login = skip_login  # 로그인 스킵 옵션 (개발/테스트용)
 
         # OAuth 클라이언트 초기화
-        self.oauth_client = KiwoomOAuthClient()
+        self.oauth_client = KiwoomOAuthClient(
+            app_key=settings.get_app_key(),
+            app_secret=settings.get_app_secret(),
+            sandbox_mode=settings.KIWOOM_SANDBOX_MODE
+        )
 
         # 실시간 데이터 구독 관리
         self.subscriptions = {}  # {symbol: [types]}
@@ -64,7 +75,11 @@ class RealtimeClient:
         self.message_callbacks = []
         self.tr_callbacks = []
 
-        logger.info("RealtimeClient 초기화 완료 - 실시간 데이터 + TR 명령어 지원")
+        # Kafka 이벤트 시스템 초기화
+        self.kafka_publisher = None
+        self.event_transformer = RealtimeEventTransformer()
+
+        logger.info(f"RealtimeClient 초기화 완료 - 실시간 데이터 + TR 명령어 지원 (Kafka: {enable_kafka})")
 
     def add_connection_callback(self, callback: Callable[[bool], None]):
         """연결 상태 변경 콜백 등록"""
@@ -82,10 +97,17 @@ class RealtimeClient:
         """액세스 토큰 획득"""
         try:
             logger.info("액세스 토큰 요청 중...")
-            token = await self.oauth_client.get_token()
-            self.access_token = token
-            logger.info("액세스 토큰 획득 성공")
-            return token
+            token_response = await self.oauth_client.request_token()
+            
+            # TokenResponse에서 실제 토큰 추출
+            if token_response.return_code == 0:  # 정수 0으로 비교
+                self.access_token = token_response.token
+                logger.info("액세스 토큰 획득 성공")
+                return token_response.token
+            else:
+                logger.error(f"토큰 발급 실패: {token_response.return_msg}")
+                return None
+                
         except Exception as e:
             logger.error(f"액세스 토큰 획득 실패: {e}")
             return None
@@ -93,17 +115,36 @@ class RealtimeClient:
     async def connect(self) -> bool:
         """WebSocket 서버에 연결"""
         try:
-            # 액세스 토큰 획득
-            if not self.access_token:
-                token = await self.get_access_token()
-                if not token:
-                    logger.error("액세스 토큰이 없어 연결 불가")
-                    return False
+            # 로그인 스킵 모드가 아닌 경우에만 토큰 획득
+            if not self.skip_login:
+                # 액세스 토큰 획득
+                if not self.access_token:
+                    token = await self.get_access_token()
+                    if not token:
+                        logger.error("액세스 토큰이 없어 연결 불가")
+                        return False
+
+            # Kafka Publisher 초기화 (WebSocket 연결 전)
+            if self.enable_kafka:
+                try:
+                    self.kafka_publisher = await get_kafka_publisher()
+                    logger.info("✅ Kafka Publisher 초기화 완료")
+                except Exception as e:
+                    logger.warning(f"⚠️ Kafka Publisher 초기화 실패: {e}")
+                    # Kafka 실패해도 WebSocket은 계속 진행
+                    self.enable_kafka = False
 
             logger.info(f"WebSocket 서버 연결 중: {self.uri}")
 
             # WebSocket 연결
             self.websocket = await websockets.connect(self.uri)
+
+            # 로그인 스킵 모드인 경우 로그인 과정 생략
+            if self.skip_login:
+                logger.info("🔧 로그인 스킵 모드 - 개발/테스트용")
+                self.connected = True
+                logger.info("✅ WebSocket 연결 성공! (로그인 스킵)")
+                return True
 
             # 로그인 메시지 전송
             login_message = {
@@ -175,36 +216,44 @@ class RealtimeClient:
 
     # ============== 실시간 데이터 구독 관리 (기존 기능) ==============
 
-    async def subscribe(self, symbols: List[str], types: List[str] = None) -> bool:
-        """실시간 시세 구독
+    async def subscribe(self, symbols: List[str], types: List[str] = None, refresh: str = "0") -> bool:
+        """실시간 시세 구독 (키움 공식 REG 메시지 형식)
 
         Args:
             symbols: 종목 코드 리스트
-            types: 실시간 타입 리스트 (기본값: ['0A'])
+            types: 실시간 타입 리스트 (기본값: ['0B'])
+            refresh: 기존등록유지여부 ("0": 기존해지, "1": 기존유지)
         """
         if not types:
-            types = ['0A']  # 기본: 체결처리
+            types = ['0B']  # 기본: 주식체결
 
         try:
-            for symbol in symbols:
-                for rt_type in types:
-                    message = {
-                        "trnm": "REG",
-                        "data": [{"symbol": symbol, "type": rt_type}]
-                    }
-
-                    success = await self.send_message(message)
-                    if success:
-                        # 구독 정보 저장
-                        if symbol not in self.subscriptions:
-                            self.subscriptions[symbol] = []
+            # 키움 공식 REG 메시지 형식
+            message = {
+                "trnm": "REG",          # 서비스명
+                "grp_no": "1",          # 그룹번호
+                "refresh": refresh,     # 기존등록유지여부
+                "data": [{
+                    "item": symbols,    # 실시간 등록 종목 리스트
+                    "type": types,      # 실시간 항목 리스트
+                }]
+            }
+            
+            success = await self.send_message(message)
+            if success:
+                # 구독 정보 저장 (전체 종목에 대해)
+                for symbol in symbols:
+                    if symbol not in self.subscriptions:
+                        self.subscriptions[symbol] = []
+                    for rt_type in types:
                         if rt_type not in self.subscriptions[symbol]:
                             self.subscriptions[symbol].append(rt_type)
 
-                        logger.info(f"실시간 구독: {symbol} - {rt_type}")
-                        await asyncio.sleep(0.1)  # 요청 간격
-
-            return True
+                logger.info(f"✅ 실시간 구독 성공: {symbols} - {types}")
+                return True
+            else:
+                logger.error(f"❌ 실시간 구독 실패: 메시지 전송 오류")
+                return False
 
         except Exception as e:
             logger.error(f"실시간 구독 실패: {e}")
@@ -249,22 +298,38 @@ class RealtimeClient:
             data: TR 요청 데이터
         """
         try:
+            # 로그인 상태 확인
+            if not self.is_authenticated():
+                logger.error(f"TR 요청 실패 ({tr_name}): 로그인 상태가 아닙니다")
+                return False
+
             tr_message = {
                 "trnm": tr_name,
                 **data
             }
 
-            logger.info(f"TR 요청 전송: {tr_name}")
+            logger.info(f"TR 요청 전송: {tr_name} (인증 상태: 정상)")
             success = await self.send_message(tr_message)
 
             if success:
                 logger.debug(f"TR 요청 성공: {tr_name}")
+            else:
+                logger.warning(f"TR 요청 전송 실패: {tr_name}")
 
             return success
 
         except Exception as e:
             logger.error(f"TR 요청 실패 ({tr_name}): {e}")
             return False
+    
+    def is_authenticated(self) -> bool:
+        """로그인 및 인증 상태 확인"""
+        if self.skip_login:
+            # 스킵 로그인 모드에서는 연결만 확인
+            return self.connected
+        else:
+            # 일반 모드에서는 연결 + 토큰 모두 확인
+            return self.connected and bool(self.access_token)
 
     async def get_screener_list(self) -> Dict[str, Any]:
         """조건검색 목록조회 (CNSRLST)"""
@@ -341,6 +406,10 @@ class RealtimeClient:
         try:
             trnm = data.get('trnm', '')
 
+            # Kafka 이벤트 발행 (모든 메시지 대상)
+            if self.enable_kafka and self.kafka_publisher:
+                await self._publish_websocket_events(data)
+
             # TR 응답 처리
             if trnm in ['CNSRLST', 'CNSRREQ', 'CNSRCLR']:
                 await self._process_tr_response(data)
@@ -349,10 +418,10 @@ class RealtimeClient:
             elif trnm == 'REAL':
                 await self._process_realtime_data(data)
 
-            # PING/PONG 처리
+            # PING/PONG 처리 (키움 서버는 PONG을 지원하지 않음)
             elif trnm == 'PING':
-                await self.send_message({"trnm": "PONG"})
-                logger.debug("PONG 응답 전송")
+                # 키움 서버는 PONG 응답을 지원하지 않으므로 응답하지 않음
+                logger.debug("PING 수신 - PONG 응답 비활성화 (키움 서버 미지원)")
 
             # 기타 메시지
             else:
@@ -472,3 +541,53 @@ class RealtimeClient:
             logger.error(f"실행 중 오류: {e}")
         finally:
             await self.disconnect()
+
+    # ============== Kafka 이벤트 발행 기능 ==============
+    
+    async def _publish_websocket_events(self, ws_data: Dict[str, Any]):
+        """WebSocket 메시지를 Kafka 이벤트로 발행"""
+        try:
+            if not self.kafka_publisher:
+                return
+                
+            # WebSocket 메시지를 이벤트로 변환
+            events = await self.event_transformer.transform_websocket_message(ws_data)
+            
+            if not events:
+                return
+                
+            # 배치로 이벤트 발행
+            success_count = 0
+            for event_data in events:
+                try:
+                    success = await self.kafka_publisher.publish_event(event_data)
+                    if success:
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"개별 이벤트 발행 실패: {e}")
+                    
+            if success_count > 0:
+                logger.debug(f"📤 Kafka 이벤트 발행 성공: {success_count}개")
+                
+        except Exception as e:
+            logger.error(f"Kafka 이벤트 발행 중 오류: {e}")
+            
+    async def get_kafka_status(self) -> Dict[str, Any]:
+        """Kafka 연동 상태 정보 반환"""
+        status = {
+            'kafka_enabled': self.enable_kafka,
+            'kafka_connected': False,
+            'kafka_publisher': None
+        }
+        
+        if self.kafka_publisher:
+            try:
+                kafka_info = await self.kafka_publisher.get_connection_info()
+                status.update({
+                    'kafka_connected': kafka_info.get('is_connected', False),
+                    'kafka_publisher': kafka_info
+                })
+            except Exception as e:
+                logger.error(f"Kafka 상태 조회 실패: {e}")
+                
+        return status

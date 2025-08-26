@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키움 실시간 시세 WebSocket 테스트</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .logs {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .stock-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stock-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: white;
+        }
+        .stock-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .price-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .price-up {
+            color: #e74c3c;
+        }
+        .price-down {
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 키움 실시간 시세 WebSocket 테스트</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            연결 상태: 끊어짐
+        </div>
+
+        <div class="controls">
+            <button onclick="connect()" class="btn-primary">WebSocket 연결</button>
+            <button onclick="disconnect()" class="btn-danger">연결 해제</button>
+            <button onclick="clearLogs()" class="btn-secondary">로그 지우기</button>
+        </div>
+
+        <div class="subscription-panel" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <h3>📊 종목 구독 관리</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin: 15px 0;">
+                <div>
+                    <label>종목 코드:</label>
+                    <input type="text" id="stockCode" placeholder="예: 005930,000660" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">쉼표로 구분하여 여러 종목 입력</small>
+                </div>
+                <div>
+                    <label>데이터 타입:</label>
+                    <select id="dataTypes" multiple style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="0A" selected>0A (주식호가)</option>
+                        <option value="0B" selected>0B (주식체결)</option>
+                        <option value="0C">0C (예상체결)</option>
+                        <option value="0D">0D (예상호가)</option>
+                        <option value="0E">0E (투자자별매매동향)</option>
+                    </select>
+                    <small style="color: #666;">Ctrl+클릭으로 다중 선택</small>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="subscribeStocks()" class="btn-primary">구독</button>
+                    <button onclick="unsubscribeAll()" class="btn-danger">전체해지</button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <h4>📈 포트폴리오 빠른 선택:</h4>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                    <button onclick="subscribePortfolio('big5')" class="btn-primary">🏆 대형주 TOP 5</button>
+                    <button onclick="subscribePortfolio('tech')" class="btn-primary">💻 테크주</button>
+                    <button onclick="subscribePortfolio('bio')" class="btn-primary">🧬 바이오</button>
+                    <button onclick="subscribePortfolio('battery')" class="btn-primary">🔋 배터리</button>
+                </div>
+                
+                <h4 style="margin-top: 15px;">개별 종목 선택:</h4>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                    <button onclick="quickSubscribe('005930', '삼성전자')" class="btn-secondary">삼성전자</button>
+                    <button onclick="quickSubscribe('000660', 'SK하이닉스')" class="btn-secondary">SK하이닉스</button>
+                    <button onclick="quickSubscribe('373220', 'LG에너지솔루션')" class="btn-secondary">LG에너지솔루션</button>
+                    <button onclick="quickSubscribe('207940', '삼성바이오로직스')" class="btn-secondary">삼성바이오로직스</button>
+                    <button onclick="quickSubscribe('005380', '현대차')" class="btn-secondary">현대차</button>
+                    <button onclick="quickSubscribe('035420', 'NAVER')" class="btn-secondary">NAVER</button>
+                    <button onclick="quickSubscribe('035720', '카카오')" class="btn-secondary">카카오</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="stock-data" id="stockData">
+            <!-- 실시간 주식 데이터가 여기에 표시됩니다 -->
+        </div>
+
+        <h3>실시간 로그</h3>
+        <div id="logs" class="logs"></div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let stockData = {};
+
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString('ko-KR');
+            const color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#fff';
+            logs.innerHTML += `<div style="color: ${color};">[${timestamp}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.className = 'status connected';
+                status.textContent = '연결 상태: 연결됨 ✅';
+            } else {
+                status.className = 'status disconnected';
+                status.textContent = '연결 상태: 끊어짐 ❌';
+            }
+        }
+
+        function connect() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                addLog('이미 연결되어 있습니다.', 'info');
+                return;
+            }
+
+            // 현재 포트가 8100이므로 명시적으로 설정
+            const wsUrl = `ws://127.0.0.1:8100/ws/realtime`;
+            addLog(`WebSocket 연결 시도: ${wsUrl}`, 'info');
+
+            try {
+                websocket = new WebSocket(wsUrl);
+            } catch (error) {
+                addLog(`WebSocket 생성 오류: ${error.message}`, 'error');
+                return;
+            }
+
+            websocket.onopen = function(event) {
+                addLog('WebSocket 연결 성공! 🎉', 'success');
+                updateConnectionStatus(true);
+            };
+
+            websocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'status') {
+                        addLog(`상태: ${data.message}`, 'info');
+                    } else if (data.type === 'realtime_data') {
+                        handleRealtimeData(data.data);
+                    } else if (data.type === 'kiwoom_realtime') {
+                        handleKiwoomRealtime(data);
+                    } else if (data.trnm === 'REG') {
+                        handleRegistrationResponse(data);
+                    } else if (data.trnm === 'REMOVE') {
+                        handleRemovalResponse(data);
+                    } else {
+                        addLog(`수신: ${JSON.stringify(data)}`, 'info');
+                    }
+                } catch (e) {
+                    addLog(`메시지 파싱 오류: ${event.data}`, 'error');
+                }
+            };
+
+            websocket.onclose = function(event) {
+                const reason = event.reason || '알 수 없는 이유';
+                const code = event.code;
+                addLog(`WebSocket 연결 종료 (코드: ${code}, 이유: ${reason})`, 'error');
+                updateConnectionStatus(false);
+                websocket = null;
+                
+                // 자동 재연결 (5초 후)
+                if (!event.wasClean) {
+                    addLog('5초 후 자동 재연결 시도...', 'info');
+                    setTimeout(connect, 5000);
+                }
+            };
+
+            websocket.onerror = function(error) {
+                addLog(`WebSocket 오류: ${error.type || error}`, 'error');
+                updateConnectionStatus(false);
+            };
+        }
+
+        function disconnect() {
+            if (websocket) {
+                websocket.close();
+                addLog('WebSocket 연결을 종료합니다.', 'info');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function handleRealtimeData(data) {
+            // 실시간 데이터 처리
+            if (data && data.data && Array.isArray(data.data)) {
+                data.data.forEach(item => {
+                    const stockCode = item.item;
+                    const dataType = item.type;
+                    const values = item.values || {};
+
+                    if (dataType === '0B') { // 주식체결
+                        updateStockCard(stockCode, values);
+                        addLog(`📈 [${stockCode}] 체결: ${values['10']}원`, 'success');
+                    } else if (dataType === '0A') { // 주식호가
+                        addLog(`📊 [${stockCode}] 호가 업데이트`, 'info');
+                    }
+                });
+            }
+        }
+
+        function updateStockCard(stockCode, values) {
+            const stockDataDiv = document.getElementById('stockData');
+            let card = document.getElementById(`stock_${stockCode}`);
+            
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'stock-card';
+                card.id = `stock_${stockCode}`;
+                stockDataDiv.appendChild(card);
+            }
+
+            const stockName = getStockName(stockCode);
+            const currentPrice = values['10'] || 'N/A';
+            const priceChange = values['11'] || '0';
+            const changeRate = values['12'] || '0%';
+            const volume = values['15'] || 'N/A';
+
+            const priceClass = priceChange.startsWith('+') ? 'price-up' : 
+                              priceChange.startsWith('-') ? 'price-down' : '';
+
+            card.innerHTML = `
+                <div class="stock-name">${stockName} (${stockCode})</div>
+                <div class="price-info">
+                    <span>현재가:</span>
+                    <span class="${priceClass}">${currentPrice}원</span>
+                </div>
+                <div class="price-info">
+                    <span>전일대비:</span>
+                    <span class="${priceClass}">${priceChange} (${changeRate})</span>
+                </div>
+                <div class="price-info">
+                    <span>거래량:</span>
+                    <span>${volume}주</span>
+                </div>
+            `;
+        }
+
+        function getStockName(stockCode) {
+            const stockNames = {
+                // 대형주 TOP 5
+                '005930': '삼성전자',
+                '000660': 'SK하이닉스',
+                '373220': 'LG에너지솔루션',
+                '207940': '삼성바이오로직스',
+                '005380': '현대차',
+                
+                // 추가 대형주
+                '006400': '삼성SDI',
+                '051910': 'LG화학',
+                '068270': '셀트리온',
+                
+                // 테크주
+                '035420': 'NAVER',
+                '035720': '카카오',
+                '036570': '엔씨소프트',
+                '051900': 'LG생활건강',
+                
+                // 바이오
+                '196170': '알테오젠',
+                '326030': 'SK바이오팜',
+                '302440': '지씨셀',
+                
+                // 배터리/화학
+                '096770': 'SK이노베이션',
+                '066970': '엘앤에프',
+                
+                // 기타 주요 종목
+                '017670': 'SK텔레콤',
+                '030200': 'KT',
+                '003550': 'LG',
+                '028260': '삼성물산',
+                '000270': '기아',
+                '012330': '현대모비스'
+            };
+            return stockNames[stockCode] || `종목${stockCode}`;
+        }
+
+        // 키움 실시간 원본 데이터 처리
+        function handleKiwoomRealtime(data) {
+            const original = data.original_data;
+            const trnm = original.trnm;
+
+            if (trnm === 'REAL') {
+                // 실시간 데이터 처리
+                const realData = original.data || [];
+                realData.forEach(item => {
+                    const stockCode = item.item;
+                    const dataType = item.type;
+                    const values = item.values || {};
+
+                    if (dataType === '0B') {
+                        // 주식체결 데이터
+                        updateStockCardFromKiwoom(stockCode, values, '체결');
+                        addLog(`📈 [${getStockName(stockCode)}(${stockCode})] 체결: ${values['10']}원`, 'success');
+                    } else if (dataType === '0A') {
+                        // 주식호가 데이터
+                        addLog(`📊 [${getStockName(stockCode)}(${stockCode})] 호가 업데이트`, 'info');
+                    }
+                });
+            } else if (trnm === 'PONG') {
+                // PING/PONG 메시지는 로그만
+                addLog(`💓 키움 서버 PONG 수신`, 'info');
+            } else {
+                addLog(`📡 키움 메시지: ${trnm}`, 'info');
+            }
+        }
+
+        // 키움 원본 데이터로 주식 카드 업데이트
+        function updateStockCardFromKiwoom(stockCode, values, dataType) {
+            const stockDataDiv = document.getElementById('stockData');
+            let card = document.getElementById(`stock_${stockCode}`);
+            
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'stock-card';
+                card.id = `stock_${stockCode}`;
+                stockDataDiv.appendChild(card);
+            }
+
+            const stockName = getStockName(stockCode);
+            const currentPrice = values['10'] || 'N/A';
+            const priceChange = values['11'] || '0';
+            const changeRate = values['12'] || '0%';
+            const volume = values['15'] || 'N/A';
+            const cumulativeVolume = values['13'] || 'N/A';
+
+            const priceClass = priceChange.startsWith('+') ? 'price-up' : 
+                              priceChange.startsWith('-') ? 'price-down' : '';
+
+            card.innerHTML = `
+                <div class="stock-name">${stockName} (${stockCode})</div>
+                <div class="price-info">
+                    <span>현재가:</span>
+                    <span class="${priceClass}">${currentPrice ? `${parseInt(currentPrice).toLocaleString()}원` : 'N/A'}</span>
+                </div>
+                <div class="price-info">
+                    <span>전일대비:</span>
+                    <span class="${priceClass}">${priceChange} (${changeRate})</span>
+                </div>
+                <div class="price-info">
+                    <span>거래량:</span>
+                    <span>${volume ? parseInt(volume).toLocaleString() : 'N/A'}주</span>
+                </div>
+                <div class="price-info">
+                    <span>누적거래량:</span>
+                    <span>${cumulativeVolume ? parseInt(cumulativeVolume).toLocaleString() : 'N/A'}주</span>
+                </div>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    데이터타입: ${dataType} | 업데이트: ${new Date().toLocaleTimeString()}
+                </div>
+            `;
+        }
+
+        // 종목 구독 함수
+        function subscribeStocks() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                addLog('WebSocket이 연결되지 않았습니다', 'error');
+                return;
+            }
+
+            const stockCodeInput = document.getElementById('stockCode').value.trim();
+            const dataTypesSelect = document.getElementById('dataTypes');
+            
+            if (!stockCodeInput) {
+                addLog('종목 코드를 입력하세요', 'error');
+                return;
+            }
+
+            const stockCodes = stockCodeInput.split(',').map(code => code.trim()).filter(code => code);
+            const selectedTypes = Array.from(dataTypesSelect.selectedOptions).map(option => option.value);
+
+            if (selectedTypes.length === 0) {
+                addLog('데이터 타입을 선택하세요', 'error');
+                return;
+            }
+
+            const regMessage = {
+                command: 'REG',
+                grp_no: '1',
+                refresh: '0',  // 기존 구독 해지하고 새로운 종목만 구독
+                data: [{
+                    item: stockCodes,
+                    type: selectedTypes
+                }]
+            };
+
+            websocket.send(JSON.stringify(regMessage));
+            addLog(`📊 종목 구독 요청: ${stockCodes.join(', ')} -> ${selectedTypes.join(', ')}`, 'info');
+        }
+
+        // 빠른 구독 함수
+        function quickSubscribe(stockCode, stockName) {
+            document.getElementById('stockCode').value = stockCode;
+            addLog(`🚀 ${stockName}(${stockCode}) 빠른 선택`, 'info');
+            subscribeStocks();
+        }
+
+        // 포트폴리오 구독
+        function subscribePortfolio(portfolioType) {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                addLog('WebSocket이 연결되지 않았습니다', 'error');
+                return;
+            }
+
+            const portfolios = {
+                'big5': {
+                    name: '대형주 TOP 5',
+                    stocks: ['005930', '000660', '373220', '207940', '005380'],
+                    emoji: '🏆'
+                },
+                'tech': {
+                    name: '테크주',
+                    stocks: ['005930', '035420', '035720', '036570', '051900'],
+                    emoji: '💻'
+                },
+                'bio': {
+                    name: '바이오',
+                    stocks: ['207940', '068270', '196170', '326030', '302440'],
+                    emoji: '🧬'
+                },
+                'battery': {
+                    name: '배터리',
+                    stocks: ['373220', '006400', '051910', '096770', '066970'],
+                    emoji: '🔋'
+                }
+            };
+
+            const portfolio = portfolios[portfolioType];
+            if (!portfolio) {
+                addLog('알 수 없는 포트폴리오 타입입니다', 'error');
+                return;
+            }
+
+            const regMessage = {
+                command: 'REG',
+                grp_no: '1',
+                refresh: '0',
+                data: [{
+                    item: portfolio.stocks,
+                    type: ['0B']  // 체결 데이터만
+                }]
+            };
+
+            websocket.send(JSON.stringify(regMessage));
+            addLog(`${portfolio.emoji} ${portfolio.name} 포트폴리오 구독: ${portfolio.stocks.length}개 종목`, 'success');
+            
+            // UI 입력창도 업데이트
+            document.getElementById('stockCode').value = portfolio.stocks.join(',');
+        }
+
+        // 전체 구독 해지
+        function unsubscribeAll() {
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                addLog('WebSocket이 연결되지 않았습니다', 'error');
+                return;
+            }
+
+            const removeMessage = {
+                command: 'REMOVE',
+                grp_no: '1',
+                data: [] // 빈 배열이면 전체 해지
+            };
+
+            websocket.send(JSON.stringify(removeMessage));
+            addLog('📊 전체 구독 해지 요청', 'info');
+        }
+
+        // 구독 응답 처리
+        function handleRegistrationResponse(data) {
+            if (data.return_code === 0) {
+                addLog(`✅ 종목 구독 성공: ${data.return_msg}`, 'success');
+            } else {
+                addLog(`❌ 종목 구독 실패: ${data.return_msg}`, 'error');
+            }
+        }
+
+        // 해지 응답 처리
+        function handleRemovalResponse(data) {
+            if (data.return_code === 0) {
+                addLog(`✅ 구독 해지 성공: ${data.return_msg}`, 'success');
+            } else {
+                addLog(`❌ 구독 해지 실패: ${data.return_msg}`, 'error');
+            }
+        }
+
+        // 페이지 로드 시 안내
+        window.onload = function() {
+            addLog('키움 실시간 시세 WebSocket 테스트 페이지가 로드되었습니다.', 'info');
+            addLog('연결 버튼을 클릭하여 실시간 시세를 확인하세요.', 'info');
+        };
+
+        // 페이지 종료 시 WebSocket 정리
+        window.onbeforeunload = function() {
+            if (websocket) {
+                websocket.close();
+            }
+        };
+    </script>
+</body>
+</html>

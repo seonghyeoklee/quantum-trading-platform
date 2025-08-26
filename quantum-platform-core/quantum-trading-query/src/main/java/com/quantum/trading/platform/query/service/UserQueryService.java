@@ -256,17 +256,45 @@ public class UserQueryService {
      * 사용자 인증 정보 조회 (로그인용)
      */
     public Optional<UserLoginInfo> findLoginInfo(String usernameOrEmail) {
-        return findForLogin(usernameOrEmail)
-                .filter(user -> user.getStatus() != UserStatus.DELETED)
-                .filter(user -> user.getPasswordHash() != null) // 패스워드 해시가 있는 사용자만
-                .map(user -> new UserLoginInfo(
-                        user.getUserId(),
-                        user.getUsername(),
-                        user.getPasswordHash(),
-                        user.getStatus(),
-                        user.getFailedLoginAttempts(),
-                        user.canLogin()
-                ));
+        try {
+            log.info("Finding login info for: {}", usernameOrEmail);
+            Optional<UserView> userOpt = findForLogin(usernameOrEmail);
+            
+            if (userOpt.isEmpty()) {
+                log.warn("No user found for login: {}", usernameOrEmail);
+                return Optional.empty();
+            }
+            
+            UserView user = userOpt.get();
+            log.info("Found user: userId={}, username={}, status={}, hasPasswordHash={}", 
+                    user.getUserId(), user.getUsername(), user.getStatus(), user.getPasswordHash() != null);
+            
+            if (user.getStatus() == UserStatus.DELETED) {
+                log.warn("User is deleted: {}", user.getUsername());
+                return Optional.empty();
+            }
+            
+            if (user.getPasswordHash() == null) {
+                log.warn("User has no password hash: {}", user.getUsername());
+                return Optional.empty();
+            }
+            
+            UserLoginInfo loginInfo = new UserLoginInfo(
+                    user.getUserId(),
+                    user.getUsername(),
+                    user.getPasswordHash(),
+                    user.getStatus(),
+                    user.getFailedLoginAttempts(),
+                    user.canLogin()
+            );
+            
+            log.info("Login info created successfully for: {}", user.getUsername());
+            return Optional.of(loginInfo);
+            
+        } catch (Exception e) {
+            log.error("Error in findLoginInfo for: {} - Error: {}", usernameOrEmail, e.getMessage(), e);
+            throw e;
+        }
     }
     
     /**

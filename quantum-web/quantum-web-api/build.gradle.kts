@@ -25,6 +25,16 @@ dependencies {
     // Redis (실시간 데이터 캐싱)
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
+    // Apache Kafka (실시간 이벤트 스트리밍)
+    implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.apache.kafka:kafka-streams")
+
+    // WebSocket Support (실시간 데이터 브로드캐스트)
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+
+    // InfluxDB (시계열 데이터베이스)
+    implementation("com.influxdb:influxdb-client-java:6.10.0")
+
     // Spring Security & JWT
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.security:spring-security-web")

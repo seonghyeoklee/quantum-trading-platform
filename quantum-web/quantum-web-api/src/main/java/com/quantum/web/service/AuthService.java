@@ -42,72 +42,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    /**
-     * 시스템 초기화 시 기본 사용자 생성
-     * ApplicationReadyEvent로 Command Handler 등록 후 실행
-     */
-    @EventListener(ApplicationReadyEvent.class)
-    public void initializeDefaultUsers() {
-        log.info("Initializing default users...");
-        
-        // Event Store에서 이벤트 재생이 완료될 때까지 잠시 대기
-        try {
-            Thread.sleep(2000); // 2초 대기
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        
-        try {
-            
-            // 관리자 계정 생성 (새 ID 사용하여 기존 이벤트와 충돌 방지)
-            createDefaultUserIfNotExists("USER-101", "admin", "admin123", "시스템 관리자", 
-                    "admin@quantum-trading.com", "010-0000-0001",
-                    Set.of("ROLE_ADMIN", "ROLE_MANAGER", "ROLE_TRADER"));
-            
-            // 매니저 계정 생성  
-            createDefaultUserIfNotExists("USER-102", "manager", "manager123", "포트폴리오 매니저",
-                    "manager@quantum-trading.com", "010-0000-0002", 
-                    Set.of("ROLE_MANAGER", "ROLE_TRADER"));
-            
-            // 트레이더 계정 생성
-            createDefaultUserIfNotExists("USER-103", "trader", "trader123", "퀀트 트레이더",
-                    "trader@quantum-trading.com", "010-0000-0003",
-                    Set.of("ROLE_TRADER"));
-                    
-        } catch (Exception e) {
-            log.error("Error during user initialization", e);
-        }
-    }
-    
-    private void createDefaultUserIfNotExists(String userId, String username, String password, String name,
-                                            String email, String phone, Set<String> roles) {
-        // 사용자가 존재하지만 비밀번호 해시가 없는 경우도 고려
-        Optional<UserQueryService.UserLoginInfo> loginInfo = userQueryService.findLoginInfo(username);
-        
-        if (loginInfo.isEmpty()) {
-            // 사용자가 존재하지 않거나 비밀번호 해시가 없는 경우 새로 생성
-            try {
-                String hashedPassword = passwordEncoder.encode(password); // 사용자별 비밀번호 해시화
-                RegisterUserCommand command = RegisterUserCommand.builder()
-                        .userId(UserId.of(userId))
-                        .username(username)
-                        .password(hashedPassword) // 해시된 비밀번호
-                        .name(name)
-                        .email(email)
-                        .phone(phone)
-                        .initialRoles(roles)
-                        .registeredBy(UserId.of("SYSTEM"))
-                        .build();
-                
-                commandGateway.sendAndWait(command);
-                log.info("Default user created: {}", username);
-            } catch (Exception e) {
-                log.error("Failed to create default user: {}", username, e);
-            }
-        } else {
-            log.info("Default user already exists with valid password hash: {}", username);
-        }
-    }
 
     /**
      * 사용자 인증 및 토큰 발급 (Event-Driven 방식)
@@ -134,11 +68,19 @@ public class AuthService {
         }
         
         // Query Side에서 사용자 조회
-        UserQueryService.UserLoginInfo loginInfo = loginInfoOpt
-                .orElseThrow(() -> {
-                    log.warn("Authentication failed - user not found: {} (userExists: {})", username, userExists);
-                    return new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username);
-                });
+        UserQueryService.UserLoginInfo loginInfo;
+        try {
+            loginInfo = loginInfoOpt
+                    .orElseThrow(() -> {
+                        log.warn("Authentication failed - user not found: {} (userExists: {})", username, userExists);
+                        return new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username);
+                    });
+            log.info("Login info retrieved successfully: userId={}, username={}, status={}", 
+                    loginInfo.userId(), loginInfo.username(), loginInfo.status());
+        } catch (Exception e) {
+            log.error("Error retrieving login info for user: {} - Error: {}", username, e.getMessage(), e);
+            throw new IllegalArgumentException("사용자 정보 조회에 실패하였습니다: " + e.getMessage());
+        }
         
         // 계정 상태 확인
         if (!loginInfo.canLogin()) {
