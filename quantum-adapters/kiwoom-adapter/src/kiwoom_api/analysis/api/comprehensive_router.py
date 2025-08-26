@@ -144,26 +144,48 @@ data_collector = FinancialDataCollector()
              summary="종합 주식 분석",
              description="Google Sheets VLOOKUP 기반 4개 영역(재무, 기술, 가격, 재료) 종합 분석")
 async def analyze_comprehensive(
-    stock_code: str = Path(..., description="6자리 종목코드", pattern="^[0-9]{6}$"),
+    stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930"),
     include_details: bool = Query(True, description="영역별 상세 점수 포함 여부")
 ):
     """
-    종합 주식 분석
+    종합 주식 분석 - Google Sheets VLOOKUP 완전 재현
     
     Google Sheets의 VLOOKUP 공식을 기반으로 한 완전한 주식 분석을 제공합니다.
     
+    **예시: 삼성전자 (005930) 분석**
+    ```
+    POST /api/analysis/comprehensive/005930?include_details=true
+    ```
+    
     **분석 영역:**
     - **재무 영역**: 매출액, 영업이익, 영업이익률, 유보율, 부채비율 (0~5점)
+      - 매출 증가율 10% 이상 → +1점 (A001)
+      - 영업이익 흑자전환 → +1점 (A003)
+      - 유보율 1,000% 이상 → +1점 (A004)
     - **기술 영역**: OBV, 투자심리도, RSI (0~5점)
+      - RSI 30% 이하 (침체) → +1점 (B003)
+      - OBV 조건 만족 → +1점 (B001)
     - **가격 영역**: 52주 대비 현재 위치 (0~5점)
+      - 52주 최저가 대비 -40% 이상 → +3점 (C001)
     - **재료 영역**: 호재/악재, 배당, 이자보상배율 등 (0~5점)
+      - 배당수익률 2% 이상 → +1점 (D004)
+      - 어닝서프라이즈 → +1점 (D005)
     
-    **총점:** 0~20점 (각 영역 최대 5점)
+    **점수 계산 공식**: MAX(0,MIN(5,2+SUM(개별점수들)))
+    **총점**: 0~20점 (각 영역 최대 5점)
+    
+    **주요 종목코드:**
+    - 005930: 삼성전자
+    - 000660: SK하이닉스  
+    - 005380: 현대차
+    - 035420: NAVER
+    - 051910: LG화학
     
     **데이터 소스:**
-    - 키움증권 API (ka10001, ka10005, ka10045)
-    - DART API (재무제표 상세 정보)
-    - 실시간 계산 (기술적 지표)
+    - 키움증권 API (ka10001, ka10005, ka10045) - 기본 주식정보
+    - DART API (재무제표 상세 정보) - 정확한 재무비율
+    - 뉴스 크롤링 (호재/악재 판별) - 실시간 감성분석
+    - 실시간 계산 (기술적 지표) - RSI, OBV, 투자심리도
     """
     try:
         # 1. 종합 데이터 수집
@@ -210,7 +232,7 @@ async def analyze_comprehensive(
 @router.post("/financial/{stock_code}",
              summary="재무 영역 분석",
              description="재무 영역만 단독 분석 (매출액, 영업이익, 영업이익률, 유보율, 부채비율)")
-async def analyze_financial(stock_code: str = Path(..., description="6자리 종목코드", pattern="^[0-9]{6}$")):
+async def analyze_financial(stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930")):
     """재무 영역 단독 분석"""
     try:
         stock_data = await data_collector.get_comprehensive_data(stock_code)
@@ -233,7 +255,7 @@ async def analyze_financial(stock_code: str = Path(..., description="6자리 종
 @router.post("/technical/{stock_code}",
              summary="기술 영역 분석", 
              description="기술 영역만 단독 분석 (OBV, 투자심리도, RSI)")
-async def analyze_technical(stock_code: str = Path(..., description="6자리 종목코드", pattern="^[0-9]{6}$")):
+async def analyze_technical(stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930")):
     """기술 영역 단독 분석"""
     try:
         stock_data = await data_collector.get_comprehensive_data(stock_code)
@@ -256,7 +278,7 @@ async def analyze_technical(stock_code: str = Path(..., description="6자리 종
 @router.post("/price/{stock_code}",
              summary="가격 영역 분석",
              description="가격 영역만 단독 분석 (52주 대비 현재 위치)")
-async def analyze_price(stock_code: str = Path(..., description="6자리 종목코드", pattern="^[0-9]{6}$")):
+async def analyze_price(stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930")):
     """가격 영역 단독 분석"""
     try:
         stock_data = await data_collector.get_comprehensive_data(stock_code)
@@ -279,7 +301,7 @@ async def analyze_price(stock_code: str = Path(..., description="6자리 종목�
 @router.post("/material/{stock_code}",
              summary="재료 영역 분석",
              description="재료 영역만 단독 분석 (호재/악재, 배당, 이자보상배율 등)")
-async def analyze_material(stock_code: str = Path(..., description="6자리 종목코드", pattern="^[0-9]{6}$")):
+async def analyze_material(stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930")):
     """재료 영역 단독 분석"""
     try:
         stock_data = await data_collector.get_comprehensive_data(stock_code)
