@@ -53,7 +53,7 @@ function KiwoomAccountManagement() {
       } else {
         setError('Failed to fetch account information');
       }
-    } catch {
+    } catch (err) {
       setError('Error connecting to server');
     } finally {
       setLoading(false);
@@ -86,7 +86,7 @@ function KiwoomAccountManagement() {
       });
 
       if (response.ok) {
-        await response.json();
+        const data = await response.json();
         setSuccess('키움증권 계정이 성공적으로 등록되었습니다');
         setClientId('');
         setClientSecret('');
@@ -95,7 +95,7 @@ function KiwoomAccountManagement() {
         const data = await response.json();
         setError(data.message || '계정 등록에 실패했습니다');
       }
-    } catch {
+    } catch (err) {
       setError('서버 연결 오류가 발생했습니다');
     } finally {
       setRegistering(false);
@@ -136,7 +136,7 @@ function KiwoomAccountManagement() {
         const data = await response.json();
         setError(data.message || 'Failed to update credentials');
       }
-    } catch {
+    } catch (err) {
       setError('Error connecting to server');
     } finally {
       setUpdating(false);
@@ -168,7 +168,7 @@ function KiwoomAccountManagement() {
       } else {
         setError('Failed to refresh token');
       }
-    } catch {
+    } catch (err) {
       setError('Error connecting to server');
     } finally {
       setUpdating(false);
@@ -504,7 +504,7 @@ function KiwoomAccountManagement() {
                   </div>
                   <div className="pl-8 space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      API 토큰이 만료된 경우 &ldquo;API 토큰 갱신&rdquo; 버튼을 클릭하여 새로운 토큰을 발급받으세요.
+                      API 토큰이 만료된 경우 "API 토큰 갱신" 버튼을 클릭하여 새로운 토큰을 발급받으세요.
                     </p>
                   </div>
                 </div>

@@ -86,4 +86,54 @@ public record AuthenticateUserCommand(
                                                String sessionId, String ipAddress, String userAgent) {
         return new AuthenticateUserCommand(userId, username, password, sessionId, ipAddress, userAgent);
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private UserId userId;
+        private String username;
+        private String password;
+        private String sessionId;
+        private String ipAddress;
+        private String userAgent;
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder username(String username) {
+            this.username = username;
+            return this;
+        }
+        
+        public Builder password(String password) {
+            this.password = password;
+            return this;
+        }
+        
+        public Builder sessionId(String sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
+        
+        public Builder ipAddress(String ipAddress) {
+            this.ipAddress = ipAddress;
+            return this;
+        }
+        
+        public Builder userAgent(String userAgent) {
+            this.userAgent = userAgent;
+            return this;
+        }
+        
+        public AuthenticateUserCommand build() {
+            return new AuthenticateUserCommand(userId, username, password, sessionId, ipAddress, userAgent);
+        }
+    }
 }

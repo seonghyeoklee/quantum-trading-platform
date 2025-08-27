@@ -8,7 +8,6 @@ from typing import Dict, Any, Optional, List
 # Handle both relative and absolute imports for different execution contexts
 try:
     from ..config.settings import settings
-    from ..auth.token_manager import token_manager
     from ..models.chart import StockInstitutionalTrendResponse, StructuredStockInstitutionalTrendData, StockInstitutionalTrendApiResponse, StockInstitutionalTrendData
 except ImportError:
     import sys
@@ -18,10 +17,39 @@ except ImportError:
         sys.path.insert(0, str(src_path))
     
     from kiwoom_api.config.settings import settings
-    from kiwoom_api.auth.token_manager import token_manager
     from kiwoom_api.models.chart import StockInstitutionalTrendResponse, StructuredStockInstitutionalTrendData, StockInstitutionalTrendApiResponse, StockInstitutionalTrendData
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_valid_token() -> str:
+    """유효한 토큰 획득 (캐시 또는 fn_au10001 호출)"""
+    try:
+        from ..auth.token_cache import token_cache
+        from ..functions.auth import fn_au10001
+    except ImportError:
+        from kiwoom_api.auth.token_cache import token_cache
+        from kiwoom_api.functions.auth import fn_au10001
+    
+    # 1. 캐시에서 유효한 토큰 확인
+    cached_token = await token_cache.get_default_token()
+    if cached_token and not cached_token.is_expired():
+        logger.info("✅ 캐시된 토큰 사용")
+        return cached_token.token
+    
+    # 2. 새 토큰 발급
+    logger.info("🔄 새 토큰 발급 중...")
+    auth_result = await fn_au10001()
+    
+    if auth_result['Code'] == 200 and auth_result['Body'].get('token'):
+        token = auth_result['Body']['token']
+        logger.info("✅ 새 토큰 발급 성공")
+        return token
+    else:
+        logger.error(f"❌ 토큰 발급 실패: {auth_result}")
+        # 실패 시 환경변수 고정키 사용 (fallback)
+        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
+        return settings.KIWOOM_APP_KEY
 
 
 async def fn_ka10045(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '') -> Dict[str, Any]:
@@ -37,8 +65,8 @@ async def fn_ka10045(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         키움 API 응답 데이터
     """
     try:
-        # 1. 접근 토큰 획득
-        access_token = await token_manager.get_valid_token()
+        # 1. 접근 토큰 획득 (fn_au10001 기반)
+        access_token = await _get_valid_token()
         logger.info(f"키움 종목별기관매매추이요청 시작: {data.get('stk_cd')} ({data.get('strt_dt')}-{data.get('end_dt')})")
         
         # 2. 요청 URL 및 헤더 구성

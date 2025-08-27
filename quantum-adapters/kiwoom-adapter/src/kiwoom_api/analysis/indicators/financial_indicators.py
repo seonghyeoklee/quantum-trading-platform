@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 import asyncio
 from typing import Dict, Any, Optional
-import httpx
 from datetime import datetime, timedelta
 import json
 
@@ -26,30 +25,15 @@ except ImportError:
     from kiwoom_api.config.settings import settings
 
 
-# 임시 더미 함수들 (실제 구현 필요)
-async def fn_ka10005(stock_code: str, start_date: str, end_date: str, period: str):
-    """임시 더미 함수 - 과거시세조회"""
-    return {
-        "output2": [
-            {
-                "stck_bsop_date": "20241225",
-                "stck_clpr": "75000",
-                "acml_vol": "1000000"
-            }
-        ]
-    }
-
-async def fn_ka10045(stock_code: str):
-    """임시 더미 함수 - 종목별기관매매추이요청"""
-    return {
-        "output": {
-            "frgn_hldn_qty": "1000000",
-            "frgn_hldn_rt": "50.5",
-            "inst_hldn_qty": "2000000", 
-            "inst_hldn_rt": "15.2",
-            "lstg_stqt": "10000000"
-        }
-    }
+# 실제 키움 API 함수들과 DART API 클라이언트 임포트
+try:
+    from ..functions.historical import fn_ka10005
+    from ..functions.stock_institutional_trend import fn_ka10045
+    from ..external.dart_client import DARTClient
+except ImportError:
+    from kiwoom_api.functions.historical import fn_ka10005
+    from kiwoom_api.functions.stock_institutional_trend import fn_ka10045
+    from kiwoom_api.external.dart_client import DARTClient
 
 
 class FinancialDataCollector:
@@ -60,6 +44,17 @@ class FinancialDataCollector:
         self.dart_api_key = getattr(settings, 'DART_API_KEY', None)
         self.cache = {}
         self.cache_ttl = 300  # 5분 캐시
+        self.dart_client = None  # DART 클라이언트 (지연 초기화)
+    
+    async def _get_dart_client(self) -> Optional[DARTClient]:
+        """DART 클라이언트 인스턴스 획득 (지연 초기화)"""
+        if self.dart_client is None and self.dart_api_key:
+            try:
+                self.dart_client = DARTClient(self.dart_api_key)
+            except Exception as e:
+                print(f"DART 클라이언트 초기화 실패: {e}")
+                return None
+        return self.dart_client
     
     async def get_stock_basic_info(self, stock_code: str) -> Dict[str, Any]:
         """
@@ -75,80 +70,57 @@ class FinancialDataCollector:
         if self._is_cache_valid(cache_key):
             return self.cache[cache_key]['data']
         
-        # 샘플 데이터 (주요 종목들)
-        sample_data = {
-            "005930": {  # 삼성전자
-                'stock_code': "005930",
-                'stock_name': "삼성전자",
-                'current_price': 75000.0,
-                'per': 15.5,
-                'pbr': 1.8,
-                'roe': 12.5,
-                'dividend_yield': 2.1,
-                'market_cap': 450000000000,  # 450조
-                'volume': 12500000,
-                'high_52w': 89000.0,
-                'low_52w': 58000.0
-            },
-            "000660": {  # SK하이닉스
-                'stock_code': "000660",
-                'stock_name': "SK하이닉스",
-                'current_price': 125000.0,
-                'per': 8.2,
-                'pbr': 1.1,
-                'roe': 15.8,
-                'dividend_yield': 1.5,
-                'market_cap': 95000000000,
-                'volume': 3200000,
-                'high_52w': 145000.0,
-                'low_52w': 85000.0
-            },
-            "005380": {  # 현대차
-                'stock_code': "005380",
-                'stock_name': "현대차",
-                'current_price': 215000.0,
-                'per': 6.8,
-                'pbr': 0.9,
-                'roe': 13.2,
-                'dividend_yield': 3.5,
-                'market_cap': 46000000000,
-                'volume': 850000,
-                'high_52w': 245000.0,
-                'low_52w': 165000.0
-            }
-        }
-        
-        # 샘플 데이터가 있으면 반환
-        if stock_code in sample_data:
-            result = sample_data[stock_code]
-            
-            # 캐시 저장
-            self.cache[cache_key] = {
-                'data': result,
-                'timestamp': datetime.now()
-            }
-            
-            return result
+        # 실제 키움 API ka10001로 기본 주식 정보 수집
         
         try:
             # ka10001: 주식기본정보요청 (실제 API 호출)
-            basic_info = await fn_ka10001(stock_code)
+            basic_info = await fn_ka10001(data={'stk_cd': stock_code})
             
-            if basic_info and 'output' in basic_info:
-                data = basic_info['output']
+            if basic_info and basic_info.get('Code') == 200:
+                body = basic_info.get('Body', {})
+                
+                # 키움 API 응답에서 올바른 필드명 사용
+                # cur_prc: 현재가, 250hgst: 250일(약 52주) 최고가, 250lwst: 250일(약 52주) 최저가
+                def parse_price(price_str):
+                    """가격 문자열 파싱 (+70600 -> 70600.0)"""
+                    if not price_str:
+                        return 0.0
+                    return float(str(price_str).replace('+', '').replace('-', '').replace(',', ''))
+                
+                current_price = parse_price(body.get('cur_prc', '0'))
+                high_52w = parse_price(body.get('250hgst', '0'))  # 250일 최고가 (약 52주)
+                low_52w = parse_price(body.get('250lwst', '0'))   # 250일 최저가 (약 52주)
+                
                 result = {
                     'stock_code': stock_code,
-                    'stock_name': data.get('hts_kor_isnm', ''),
-                    'current_price': float(data.get('stck_prpr', 0)),
-                    'per': float(data.get('per', 0)),
-                    'pbr': float(data.get('pbr', 0)),
-                    'roe': float(data.get('roe', 0)),
-                    'dividend_yield': float(data.get('dvd_yld', 0)),
-                    'market_cap': float(data.get('hts_avls', 0)),  # 시가총액
-                    'volume': int(data.get('acml_vol', 0)),
-                    'high_52w': float(data.get('w52_hgpr', 0)),
-                    'low_52w': float(data.get('w52_lwpr', 0))
+                    'stock_name': body.get('stk_nm', ''),
+                    'current_price': current_price,
+                    'per': float(body.get('per', 0)),
+                    'pbr': float(body.get('pbr', 0)),
+                    'roe': float(body.get('roe', 0)),
+                    'dividend_yield': float(body.get('eps', 0)) / current_price * 100 if current_price > 0 else 0,  # EPS/현재가 * 100
+                    'market_cap': float(body.get('mac', 0)) * 100000000,  # 시가총액(백만원 단위)
+                    'volume': int(str(body.get('trde_qty', '0')).replace(',', '') or '0'),
+                    'high_52w': high_52w,
+                    'low_52w': low_52w
                 }
+                
+                # 52주 대비 위치 계산 (Google Sheets 공식에 맞게)
+                # 예: -40%는 최저가 대비 40% 하락 의미
+                if high_52w > 0 and low_52w > 0:
+                    # 옵션 1: 최저가 대비 변화율 (Google Sheets 공식에 맞는 방식)
+                    position_52w_low_based = ((current_price - low_52w) / low_52w) * 100 - 100  # 최저가 대비 %
+                    
+                    # 옵션 2: 전통적인 52주 위치 (참고용)
+                    position_52w_range = ((current_price - low_52w) / (high_52w - low_52w)) * 100
+                    
+                    # Google Sheets 공식에서 -40% 등의 음수값을 기대하므로 옵션 1 사용
+                    result['position_52w'] = position_52w_low_based
+                    print(f"디버깅 - 52주 데이터: current={current_price}, high={high_52w}, low={low_52w}")
+                    print(f"디버깅 - 최저가 대비: {position_52w_low_based:.2f}% | 전통적 위치: {position_52w_range:.2f}%")
+                else:
+                    result['position_52w'] = 0
+                    print(f"52주 데이터 부족: high={high_52w}, low={low_52w}")
                 
                 # 캐시 저장
                 self.cache[cache_key] = {
@@ -195,10 +167,18 @@ class FinancialDataCollector:
             end_date = datetime.now().strftime('%Y%m%d')
             start_date = (datetime.now() - timedelta(days=period_days)).strftime('%Y%m%d')
             
-            historical_data = await fn_ka10005(stock_code, start_date, end_date, "D")
+            # fn_ka10005 함수 인터페이스에 맞게 호출
+            request_data = {
+                'stk_cd': stock_code,
+                'strt_dt': start_date,
+                'end_dt': end_date,
+                'period_div_cd': '1'  # 1: 일봉
+            }
+            historical_data = await fn_ka10005(request_data)
             
-            if historical_data and 'output2' in historical_data:
-                data_list = historical_data['output2']
+            if historical_data and historical_data.get('Code') == 200:
+                body = historical_data.get('Body', {})
+                data_list = body.get('output2', [])
                 if data_list:
                     # 최근 데이터부터 정렬
                     data_list.sort(key=lambda x: x.get('stck_bsop_date', ''), reverse=True)
@@ -265,18 +245,42 @@ class FinancialDataCollector:
         
         try:
             # ka10045: 종목별기관매매추이요청
-            institutional_data = await fn_ka10045(stock_code)
+            # 최근 30일간의 기관매매 추이 조회
+            end_date = datetime.now().strftime('%Y%m%d')
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
             
-            if institutional_data and 'output' in institutional_data:
-                data = institutional_data['output']
-                result = {
-                    'stock_code': stock_code,
-                    'foreign_ownership': float(data.get('frgn_hldn_qty', 0)),
-                    'foreign_ratio': float(data.get('frgn_hldn_rt', 0)),
-                    'institutional_ownership': float(data.get('inst_hldn_qty', 0)),
-                    'institutional_ratio': float(data.get('inst_hldn_rt', 0)),
-                    'listed_shares': float(data.get('lstg_stqt', 0))
-                }
+            request_data = {
+                'stk_cd': stock_code,
+                'strt_dt': start_date,
+                'end_dt': end_date
+            }
+            institutional_data = await fn_ka10045(request_data)
+            
+            if institutional_data and institutional_data.get('Code') == 200:
+                body = institutional_data.get('Body', {})
+                # output2 배열에서 최근 데이터 추출
+                output_data = body.get('output2', [])
+                if output_data:
+                    # 최근 데이터 사용 (첫 번째 데이터)
+                    latest_data = output_data[0]
+                    result = {
+                        'stock_code': stock_code,
+                        'foreign_ownership': float(latest_data.get('frgn_ntby_qty', 0)),  # 외국인 순매수수량
+                        'foreign_ratio': float(latest_data.get('frgn_hldn_rt', 0)),  # 외국인 보유비율
+                        'institutional_ownership': float(latest_data.get('inst_ntby_qty', 0)),  # 기관 순매수수량
+                        'institutional_ratio': float(latest_data.get('inst_hldn_rt', 0)),  # 기관 보유비율
+                        'listed_shares': float(latest_data.get('lstg_stqt', 0))  # 상장주식수
+                    }
+                else:
+                    # 데이터가 없으면 기본값 설정
+                    result = {
+                        'stock_code': stock_code,
+                        'foreign_ownership': 0.0,
+                        'foreign_ratio': 0.0,
+                        'institutional_ownership': 0.0,
+                        'institutional_ratio': 0.0,
+                        'listed_shares': 0.0
+                    }
                 
                 # 최근 1-3개월 기관/외국인 순매수 비율 계산 (상장주식수 대비)
                 if result['listed_shares'] > 0:
@@ -316,50 +320,66 @@ class FinancialDataCollector:
             return self.cache[cache_key]['data']
         
         try:
-            # DART API 호출 (예시 - 실제 구현 시 DART API 스펙에 맞게 수정 필요)
-            async with httpx.AsyncClient() as client:
-                params = {
-                    'crtfc_key': self.dart_api_key,
-                    'corp_code': stock_code,
-                    'bsns_year': datetime.now().year - 1,  # 전년도 데이터
-                    'reprt_code': '11011'  # 사업보고서
+            # 실제 DART 클라이언트 사용
+            dart_client = await self._get_dart_client()
+            if not dart_client:
+                print(f"DART 클라이언트가 없어 {stock_code} DART 데이터 수집을 건너뜁니다")
+                return {}
+            
+            # 최근년도 재무제표 데이터 조회 (사업보고서)
+            current_year = datetime.now().year - 1  # 전년도 사업보고서
+            financial_data = await dart_client.get_financial_statement(
+                stock_code, current_year, "11011"  # 사업보고서
+            )
+            
+            if financial_data:
+                # DART 클라이언트에서 이미 계산된 지표들을 매핑
+                result = {
+                    'stock_code': stock_code,
+                    'current_sales': financial_data.get('revenue_current', 0),  # 당기매출액
+                    'previous_sales': financial_data.get('revenue_previous', 0),  # 전기매출액
+                    'current_profit': financial_data.get('operating_profit_current', 0),  # 당기영업이익
+                    'previous_profit': financial_data.get('operating_profit_previous', 0),  # 전기영업이익
+                    'operating_margin': financial_data.get('operating_margin', 0),  # 영업이익률
+                    'retention_ratio': financial_data.get('retention_ratio', 0),  # 유보율
+                    'debt_ratio': financial_data.get('debt_ratio', 0),  # 부채비율
+                    'interest_coverage_ratio': financial_data.get('interest_coverage_ratio', None),  # 이자보상배율
+                    'roe': financial_data.get('roe', 0),  # ROE
+                    'roa': financial_data.get('roa', 0),  # ROA
+                    'total_assets': financial_data.get('total_assets', 0),  # 자산총계
+                    'total_equity': financial_data.get('total_equity', 0),  # 자본총계
+                    'net_income': financial_data.get('net_income', 0)  # 당기순이익
                 }
                 
-                # 재무제표 데이터 수집 (가상의 엔드포인트)
-                response = await client.get(
-                    'https://opendart.fss.or.kr/api/fnlttSinglAcnt.json',
-                    params=params,
-                    timeout=10
-                )
+                # 매출 성장률 계산
+                if result['previous_sales'] > 0:
+                    result['sales_growth_rate'] = (
+                        (result['current_sales'] - result['previous_sales']) / result['previous_sales'] * 100
+                    )
+                else:
+                    result['sales_growth_rate'] = 0
                 
-                if response.status_code == 200:
-                    dart_data = response.json()
-                    
-                    # DART 데이터에서 필요한 재무 지표 추출
-                    result = {
-                        'stock_code': stock_code,
-                        'current_sales': 0,  # 당기매출액
-                        'previous_sales': 0,  # 전기매출액
-                        'current_profit': 0,  # 당기영업이익
-                        'previous_profit': 0,  # 전기영업이익
-                        'operating_margin': 0,  # 영업이익률
-                        'retention_ratio': 0,  # 유보율
-                        'debt_ratio': 0,  # 부채비율
-                        'interest_coverage_ratio': None  # 이자보상배율
-                    }
-                    
-                    # 실제 DART 데이터 파싱 로직 (구현 필요)
-                    # TODO: DART API 스펙에 맞는 데이터 파싱 구현
-                    
-                    # 캐시 저장
-                    self.cache[cache_key] = {
-                        'data': result,
-                        'timestamp': datetime.now()
-                    }
-                    
-                    return result
+                # 영업이익 성장률 계산  
+                if result['previous_profit'] > 0:
+                    result['profit_growth_rate'] = (
+                        (result['current_profit'] - result['previous_profit']) / result['previous_profit'] * 100
+                    )
+                else:
+                    result['profit_growth_rate'] = 0
+                
+                print(f"DART 데이터 수집 성공: {stock_code}, 매출액: {result['current_sales']:,.0f}천원, ROE: {result['roe']:.2f}%")
+                
+                # 캐시 저장
+                self.cache[cache_key] = {
+                    'data': result,
+                    'timestamp': datetime.now()
+                }
+                
+                return result
+            
         except Exception as e:
-            print(f"Error fetching DART data for {stock_code}: {e}")
+            print(f"DART 데이터 수집 실패 for {stock_code}: {e}")
+            # DART 데이터 수집 실패 시 빈 결과 반환 (기본값으로 처리됨)
             return {}
         
         return {}
@@ -409,7 +429,7 @@ class FinancialDataCollector:
             'rsi_value': historical.get('rsi', 50),
             'obv_value': historical.get('obv', 0),
             'obv_satisfied': historical.get('obv', 0) > 0,  # 단순화된 OBV 판정
-            'position_52w': historical.get('position_52w', 0),
+            'position_52w': basic_info.get('position_52w', historical.get('position_52w', 0)),  # basic_info에서 우선 가져오기
             'sentiment_percentage': 50,  # TODO: 투자심리도 계산 로직 필요
             
             # 기관/외국인 데이터 (키움 API)
@@ -446,6 +466,9 @@ class FinancialDataCollector:
                 'technical': 'Calculated'
             }
         }
+        
+        # 디버깅: position_52w 전달 확인
+        print(f"디버깅 - comprehensive_data position_52w: {comprehensive_data['position_52w']}, basic_info에서: {basic_info.get('position_52w', 'None')}")
         
         return comprehensive_data
     

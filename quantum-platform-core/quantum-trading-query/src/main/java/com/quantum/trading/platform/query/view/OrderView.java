@@ -4,9 +4,12 @@ import com.quantum.trading.platform.shared.value.*;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.envers.Audited;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /**
  * 주문 조회용 View (CQRS Read Model)
@@ -15,6 +18,7 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "order_view")
+@Audited // Envers 감사 기능 활성화
 @Data
 @NoArgsConstructor
 public class OrderView {
@@ -25,6 +29,9 @@ public class OrderView {
 
     @Column(name = "user_id", nullable = false)
     private String userId;
+    
+    @Column(name = "portfolio_id", nullable = false)
+    private String portfolioId;
 
     @Column(name = "symbol", nullable = false, length = 20)
     private String symbol;
@@ -39,9 +46,18 @@ public class OrderView {
 
     @Column(name = "price", precision = 19, scale = 2)
     private BigDecimal price;
+    
+    @Column(name = "stop_price", precision = 19, scale = 2)
+    private BigDecimal stopPrice;
 
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
+    
+    @Column(name = "remaining_quantity")
+    private Integer remainingQuantity;
+    
+    @Column(name = "average_price", precision = 19, scale = 2)
+    private BigDecimal averagePrice;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
@@ -117,6 +133,32 @@ public class OrderView {
     }
 
     /**
+     * 매수 주문인지 확인
+     */
+    public boolean isBuyOrder() {
+        return side == OrderSide.BUY;
+    }
+    
+    /**
+     * LocalDateTime 어댑터 메서드들
+     */
+    public LocalDateTime getCreatedAt() {
+        return createdAt != null ? LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC) : null;
+    }
+    
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt != null ? LocalDateTime.ofInstant(updatedAt, ZoneOffset.UTC) : null;
+    }
+    
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt != null ? LocalDateTime.ofInstant(submittedAt, ZoneOffset.UTC) : null;
+    }
+    
+    public LocalDateTime getFilledAt() {
+        return filledAt != null ? LocalDateTime.ofInstant(filledAt, ZoneOffset.UTC) : null;
+    }
+    
+    /**
      * 주문 상태 업데이트
      */
     public void updateStatus(OrderStatus newStatus, String reason, Instant timestamp) {
@@ -174,13 +216,6 @@ public class OrderView {
         return status == OrderStatus.FILLED ||
                status == OrderStatus.CANCELLED ||
                status == OrderStatus.REJECTED;
-    }
-
-    /**
-     * 매수 주문인지 확인
-     */
-    public boolean isBuyOrder() {
-        return side == OrderSide.BUY;
     }
 
     /**

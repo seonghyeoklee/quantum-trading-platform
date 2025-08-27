@@ -79,4 +79,42 @@ public record LogoutUserCommand(
     public static LogoutUserCommand create(UserId userId, String sessionId, LogoutReason reason, String ipAddress) {
         return new LogoutUserCommand(userId, sessionId, reason.name(), ipAddress);
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private UserId userId;
+        private String sessionId;
+        private String reason;
+        private String ipAddress;
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder sessionId(String sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
+        
+        public Builder reason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+        
+        public Builder ipAddress(String ipAddress) {
+            this.ipAddress = ipAddress;
+            return this;
+        }
+        
+        public LogoutUserCommand build() {
+            return new LogoutUserCommand(userId, sessionId, reason, ipAddress);
+        }
+    }
 }

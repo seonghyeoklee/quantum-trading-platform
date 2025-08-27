@@ -96,4 +96,17 @@ public class Position {
     public boolean isEmpty() {
         return quantity.value() == 0;
     }
+    
+    // Record-style getters for test compatibility
+    public Symbol symbol() {
+        return symbol;
+    }
+    
+    public Quantity quantity() {
+        return quantity;
+    }
+    
+    public Money averagePrice() {
+        return averagePrice;
+    }
 }

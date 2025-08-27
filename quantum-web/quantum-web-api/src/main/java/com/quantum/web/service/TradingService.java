@@ -1,212 +1,430 @@
 package com.quantum.web.service;
 
+import com.quantum.trading.platform.query.service.OrderQueryService;
+import com.quantum.trading.platform.query.service.PortfolioQueryService;
+import com.quantum.trading.platform.shared.command.CancelOrderCommand;
+import com.quantum.trading.platform.shared.command.CreateOrderCommand;
+import com.quantum.trading.platform.shared.value.*;
 import com.quantum.web.controller.TradingController.CreateOrderRequest;
+import com.quantum.web.service.RiskManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.axonframework.commandhandling.gateway.CommandGateway;
+import org.axonframework.messaging.responsetypes.ResponseTypes;
+import org.axonframework.queryhandling.QueryGateway;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Trading Service
  * 
- * 거래 관련 비즈니스 로직을 처리하는 서비스
- * - 실제 환경에서는 CQRS Command/Query 모델과 연동
- * - Event Sourcing을 통한 주문 상태 관리
+ * CQRS/Event Sourcing 기반 거래 관련 비즈니스 로직 처리 서비스
+ * - CommandGateway를 통한 도메인 Command 발행
+ * - QueryGateway를 통한 Read Model 조회
+ * - Event Sourcing 기반 주문 상태 관리
+ * - 키움 API와의 실시간 연동
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TradingService {
 
-    public Object createOrder(CreateOrderRequest request) {
+    private final CommandGateway commandGateway;
+    private final QueryGateway queryGateway;
+    private final OrderQueryService orderQueryService;
+    private final PortfolioQueryService portfolioQueryService;
+    private final RiskManagementService riskManagementService;
+
+    /**
+     * 주문 생성 - CQRS Command 패턴 사용
+     * 
+     * @param request 주문 생성 요청
+     * @return CompletableFuture<OrderResponse> 비동기 주문 생성 결과
+     */
+    public CompletableFuture<OrderResponse> createOrder(CreateOrderRequest request) {
         log.info("Creating order - portfolio: {}, symbol: {}, side: {}, quantity: {}", 
                 request.portfolioId(), request.symbol(), request.side(), request.quantity());
         
-        // 주문 유효성 검증
-        validateOrderRequest(request);
-        
-        // Mock 주문 응답 생성 (실제로는 CreateOrderCommand 발행)
-        String orderId = "ORDER-" + UUID.randomUUID().toString().substring(0, 8);
-        
-        OrderResponse orderResponse = OrderResponse.builder()
-                .orderId(orderId)
-                .portfolioId(request.portfolioId())
-                .symbol(request.symbol())
-                .side(request.side())
-                .type(request.type())
-                .quantity(request.quantity())
-                .price(request.price())
-                .stopPrice(request.stopPrice())
-                .status("PENDING")
-                .filledQuantity(0)
-                .remainingQuantity(request.quantity())
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        // TODO: 실제 환경에서는 CreateOrderCommand를 CommandGateway로 전송
-        // commandGateway.send(CreateOrderCommand.builder()...);
-        
-        log.info("Order created successfully - orderId: {}", orderId);
-        return orderResponse;
+        try {
+            // 1. 주문 유효성 검증
+            validateOrderRequest(request);
+            
+            // 1.1 도메인 Value Objects 생성 (리스크 검증용)
+            UserId userId = extractUserIdFromContext();
+            Symbol symbol = Symbol.of(request.symbol());
+            OrderType orderType = OrderType.valueOf(request.type());
+            OrderSide side = OrderSide.valueOf(request.side());
+            Money price = request.price() != null ? Money.of(request.price()) : null;
+            Quantity quantity = Quantity.of(request.quantity());
+            PortfolioId portfolioId = PortfolioId.of(request.portfolioId());
+            
+            // 1.2 리스크 관리 검증
+            RiskManagementService.RiskValidationResult riskResult = 
+                    riskManagementService.validateOrder(userId, portfolioId, symbol, side, quantity, price, orderType);
+            
+            if (!riskResult.isValid()) {
+                throw new TradingException("Risk validation failed: " + riskResult.getMessage());
+            }
+            
+            log.info("✅ Risk validation passed: {} (level: {})", 
+                    riskResult.getMessage(), riskResult.getRiskLevel());
+            
+            // 2. 주문 생성 준비
+            OrderId orderId = OrderId.generate();
+            
+            // 3. CreateOrderCommand 생성 및 발행
+            CreateOrderCommand command = new CreateOrderCommand(
+                    orderId,
+                    userId,
+                    symbol,
+                    orderType,
+                    side,
+                    price,
+                    quantity
+            );
+            
+            log.info("Sending CreateOrderCommand - orderId: {}", orderId.value());
+            
+            // 4. CommandGateway로 명령 전송 (Event Sourcing)
+            return commandGateway.send(command)
+                    .thenApply(result -> {
+                        log.info("Order command processed successfully - orderId: {}", orderId.value());
+                        
+                        // 5. 응답 DTO 생성
+                        return new OrderResponse(
+                                orderId.value(),
+                                request.portfolioId(),
+                                request.symbol(),
+                                request.side(),
+                                request.type(),
+                                request.quantity(),
+                                request.price(),
+                                request.stopPrice(),
+                                OrderStatus.PENDING.name(),
+                                0,
+                                request.quantity(),
+                                null, // averagePrice
+                                null, // brokerOrderId
+                                LocalDateTime.now(),
+                                LocalDateTime.now()
+                        );
+                    })
+                    .exceptionally(throwable -> {
+                        log.error("Failed to create order - orderId: {}", orderId.value(), throwable);
+                        throw new RuntimeException(new TradingException("주문 생성에 실패했습니다: " + throwable.getMessage(), throwable));
+                    });
+            
+        } catch (Exception e) {
+            log.error("Order validation failed", e);
+            CompletableFuture<OrderResponse> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
+        }
     }
 
-    public Object cancelOrder(String orderId) {
+    /**
+     * 주문 취소 - CQRS Command 패턴 사용
+     * 
+     * @param orderId 취소할 주문 ID
+     * @return CompletableFuture<CancelOrderResponse> 비동기 주문 취소 결과
+     */
+    public CompletableFuture<CancelOrderResponse> cancelOrder(String orderId) {
         log.info("Cancelling order - orderId: {}", orderId);
         
-        // 주문 존재 여부 확인 (실제로는 Query Side에서 조회)
-        if (!orderExists(orderId)) {
-            throw new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId);
+        try {
+            // 1. 주문 존재 여부 및 취소 가능 여부 확인 (Query Side)
+            var orderOpt = orderQueryService.getOrderById(orderId);
+            if (orderOpt.isEmpty()) {
+                throw new IllegalArgumentException("주문을 찾을 수 없습니다: " + orderId);
+            }
+            
+            var order = orderOpt.get();
+            if (!order.getStatus().isCancellable()) {
+                throw new IllegalStateException("현재 상태에서는 주문을 취소할 수 없습니다: " + order.getStatus());
+            }
+            
+            // 2. CancelOrderCommand 생성 및 발행
+            CancelOrderCommand command = new CancelOrderCommand(
+                    OrderId.of(orderId),
+                    "사용자 요청에 의한 주문 취소"
+            );
+            
+            log.info("Sending CancelOrderCommand - orderId: {}", orderId);
+            
+            // 3. CommandGateway로 명령 전송
+            return commandGateway.send(command)
+                    .thenApply(result -> {
+                        log.info("Order cancel command processed successfully - orderId: {}", orderId);
+                        
+                        return new CancelOrderResponse(
+                                orderId,
+                                OrderStatus.CANCELLED.name(),
+                                LocalDateTime.now(),
+                                "주문이 성공적으로 취소되었습니다"
+                        );
+                    })
+                    .exceptionally(throwable -> {
+                        log.error("Failed to cancel order - orderId: {}", orderId, throwable);
+                        throw new TradingException("주문 취소에 실패했습니다: " + throwable.getMessage(), throwable);
+                    });
+            
+        } catch (Exception e) {
+            log.error("Order cancellation failed for orderId: {}", orderId, e);
+            CompletableFuture<CancelOrderResponse> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
         }
-        
-        // Mock 취소 응답 (실제로는 CancelOrderCommand 발행)
-        CancelOrderResponse cancelResponse = CancelOrderResponse.builder()
-                .orderId(orderId)
-                .status("CANCELLED")
-                .cancelledAt(LocalDateTime.now())
-                .message("주문이 성공적으로 취소되었습니다")
-                .build();
-        
-        // TODO: 실제 환경에서는 CancelOrderCommand를 CommandGateway로 전송
-        
-        log.info("Order cancelled successfully - orderId: {}", orderId);
-        return cancelResponse;
     }
 
-    public Object getOrders(String portfolioId, String status, int page, int size) {
+    /**
+     * 주문 목록 조회 - Query Side 사용
+     * 
+     * @param portfolioId 포트폴리오 ID
+     * @param status 주문 상태 필터
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @return 주문 목록과 페이징 정보
+     */
+    public PageResponse<OrderResponse> getOrders(String portfolioId, String status, int page, int size) {
         log.debug("Getting orders - portfolio: {}, status: {}, page: {}, size: {}", 
                  portfolioId, status, page, size);
         
-        // Mock 주문 목록 생성 (실제로는 OrderViewRepository에서 조회)
-        List<OrderResponse> orders = generateMockOrders(portfolioId, status, page, size);
-        
-        return PageResponse.<OrderResponse>builder()
-                .content(orders)
-                .page(page)
-                .size(size)
-                .totalElements((long) (orders.size() * 3)) // Mock total count
-                .totalPages((orders.size() * 3) / size + 1)
-                .build();
+        try {
+            // 1. 페이징 정보 생성
+            Pageable pageable = PageRequest.of(page, size);
+            
+            // 2. Query Service를 통한 주문 목록 조회
+            var orderPage = orderQueryService.getOrdersByPortfolioId(
+                    portfolioId, 
+                    status != null ? OrderStatus.valueOf(status) : null, 
+                    pageable);
+            
+            // 3. DTO 변환
+            var orderResponses = orderPage.getContent().stream()
+                    .map(order -> new OrderResponse(
+                            order.getOrderId(),
+                            order.getPortfolioId(),
+                            order.getSymbol(),
+                            order.getSide().name(),
+                            order.getOrderType().name(),
+                            order.getQuantity(),
+                            order.getPrice(),
+                            order.getStopPrice(),
+                            order.getStatus().name(),
+                            order.getFilledQuantity(),
+                            order.getRemainingQuantity(),
+                            order.getAveragePrice(),
+                            order.getBrokerOrderId(),
+                            order.getCreatedAt(),
+                            order.getUpdatedAt()
+                    ))
+                    .toList();
+            
+            return PageResponse.<OrderResponse>builder()
+                    .content(orderResponses)
+                    .page(page)
+                    .size(size)
+                    .totalElements(orderPage.getTotalElements())
+                    .totalPages(orderPage.getTotalPages())
+                    .build();
+            
+        } catch (Exception e) {
+            log.error("Failed to get orders for portfolio: {}", portfolioId, e);
+            throw new TradingException("주문 목록 조회에 실패했습니다: " + e.getMessage(), e);
+        }
     }
 
-    public Object getOrder(String orderId) {
+    /**
+     * 주문 상세 조회 - Query Side 사용
+     * 
+     * @param orderId 조회할 주문 ID
+     * @return 주문 상세 정보 또는 null
+     */
+    public OrderResponse getOrder(String orderId) {
         log.debug("Getting order detail - orderId: {}", orderId);
         
-        if (!orderExists(orderId)) {
-            return null;
+        try {
+            // Query Service를 통한 주문 상세 조회
+            var orderOpt = orderQueryService.getOrderById(orderId);
+            
+            if (orderOpt.isEmpty()) {
+                log.warn("Order not found - orderId: {}", orderId);
+                return null;
+            }
+            
+            var order = orderOpt.get();
+            
+            // DTO 변환
+            return new OrderResponse(
+                    order.getOrderId(),
+                    order.getPortfolioId(),
+                    order.getSymbol(),
+                    order.getSide().name(),
+                    order.getOrderType().name(),
+                    order.getQuantity(),
+                    order.getPrice(),
+                    order.getStopPrice(),
+                    order.getStatus().name(),
+                    order.getFilledQuantity(),
+                    order.getRemainingQuantity(),
+                    order.getAveragePrice(),
+                    order.getBrokerOrderId(),
+                    order.getCreatedAt(),
+                    order.getUpdatedAt()
+            );
+            
+        } catch (Exception e) {
+            log.error("Failed to get order - orderId: {}", orderId, e);
+            throw new TradingException("주문 상세 조회에 실패했습니다: " + e.getMessage(), e);
         }
-        
-        // Mock 주문 상세 정보 (실제로는 OrderViewRepository에서 조회)
-        return OrderResponse.builder()
-                .orderId(orderId)
-                .portfolioId("PORTFOLIO-123")
-                .symbol("005930")
-                .side("BUY")
-                .type("LIMIT")
-                .quantity(100)
-                .price(BigDecimal.valueOf(75000))
-                .status("FILLED")
-                .filledQuantity(100)
-                .remainingQuantity(0)
-                .averagePrice(BigDecimal.valueOf(74500))
-                .createdAt(LocalDateTime.now().minusHours(2))
-                .updatedAt(LocalDateTime.now().minusHours(1))
-                .build();
     }
 
-    public Object getTrades(String portfolioId, String symbol, String fromDate, String toDate, int page, int size) {
+    /**
+     * 거래 내역 조회 - Query Side 사용
+     * 
+     * @param portfolioId 포트폴리오 ID
+     * @param symbol 종목 코드 필터
+     * @param fromDate 시작 날짜
+     * @param toDate 종료 날짜
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @return 거래 내역 목록과 페이징 정보
+     */
+    public PageResponse<TradeResponse> getTrades(String portfolioId, String symbol, 
+                                               String fromDate, String toDate, int page, int size) {
         log.debug("Getting trades - portfolio: {}, symbol: {}, from: {}, to: {}", 
                  portfolioId, symbol, fromDate, toDate);
         
-        // Mock 거래 내역 생성 (실제로는 TradeViewRepository에서 조회)
-        List<TradeResponse> trades = generateMockTrades(portfolioId, symbol, fromDate, toDate, page, size);
-        
-        return PageResponse.<TradeResponse>builder()
-                .content(trades)
-                .page(page)
-                .size(size)
-                .totalElements((long) trades.size())
-                .totalPages(1)
-                .build();
+        try {
+            // 1. 페이징 정보 생성
+            Pageable pageable = PageRequest.of(page, size);
+            
+            // 2. Query Service를 통한 거래 내역 조회
+            var tradePage = orderQueryService.getTradesByPortfolioId(
+                    portfolioId, symbol, fromDate, toDate, pageable);
+            
+            // 3. DTO 변환
+            var tradeResponses = tradePage.getContent().stream()
+                    .map(trade -> TradeResponse.builder()
+                            .tradeId(trade.getTradeId())
+                            .orderId(trade.getOrderId())
+                            .portfolioId(trade.getPortfolioId())
+                            .symbol(trade.getSymbol())
+                            .side(trade.getSide().name())
+                            .quantity(trade.getQuantity())
+                            .price(trade.getPrice())
+                            .amount(trade.getAmount())
+                            .executedAt(trade.getExecutedAt())
+                            .build())
+                    .toList();
+            
+            return PageResponse.<TradeResponse>builder()
+                    .content(tradeResponses)
+                    .page(page)
+                    .size(size)
+                    .totalElements(tradePage.getTotalElements())
+                    .totalPages(tradePage.getTotalPages())
+                    .build();
+            
+        } catch (Exception e) {
+            log.error("Failed to get trades for portfolio: {}", portfolioId, e);
+            throw new TradingException("거래 내역 조회에 실패했습니다: " + e.getMessage(), e);
+        }
     }
 
+    /**
+     * 주문 요청 유효성 검증
+     */
     private void validateOrderRequest(CreateOrderRequest request) {
-        // 주문 유형별 필수 필드 검증
-        if ("LIMIT".equals(request.type()) || "STOP_LIMIT".equals(request.type())) {
+        // 1. 기본 필드 검증
+        if (request.portfolioId() == null || request.portfolioId().trim().isEmpty()) {
+            throw new IllegalArgumentException("포트폴리오 ID는 필수입니다");
+        }
+        
+        if (request.symbol() == null || !request.symbol().matches("^[A-Z0-9]{6}$")) {
+            throw new IllegalArgumentException("유효하지 않은 종목 코드입니다");
+        }
+        
+        if (request.quantity() <= 0) {
+            throw new IllegalArgumentException("주문 수량은 0보다 커야 합니다");
+        }
+        
+        // 2. 주문 유형별 필수 필드 검증
+        OrderType orderType = OrderType.valueOf(request.type());
+        
+        if (orderType.requiresPrice()) {
             if (request.price() == null || request.price().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("지정가 주문은 유효한 가격이 필요합니다");
             }
         }
         
-        if ("STOP".equals(request.type()) || "STOP_LIMIT".equals(request.type())) {
-            if (request.stopPrice() == null || request.stopPrice().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("손절 주문은 유효한 손절가가 필요합니다");
-            }
+        // 한국 주식시장에서는 일반적으로 STOP 주문을 지원하지 않으므로 해당 검증 로직 제거
+        
+        // 3. 포트폴리오 존재 여부 확인
+        if (!portfolioQueryService.portfolioExists(request.portfolioId())) {
+            throw new IllegalArgumentException("존재하지 않는 포트폴리오입니다: " + request.portfolioId());
         }
         
-        // 수량 검증
-        if (request.quantity() <= 0) {
-            throw new IllegalArgumentException("주문 수량은 0보다 커야 합니다");
+        // 4. 매도 주문 시 보유 수량 확인
+        if ("SELL".equals(request.side())) {
+            validateSellOrderQuantity(request);
         }
         
-        // TODO: 추가 비즈니스 검증 (포트폴리오 잔고, 보유수량 등)
+        log.debug("Order request validation passed - symbol: {}, type: {}, quantity: {}", 
+                 request.symbol(), request.type(), request.quantity());
     }
 
-    private boolean orderExists(String orderId) {
-        // Mock implementation (실제로는 OrderViewRepository 조회)
-        return orderId != null && orderId.startsWith("ORDER-");
-    }
-
-    private List<OrderResponse> generateMockOrders(String portfolioId, String status, int page, int size) {
-        List<OrderResponse> orders = new ArrayList<>();
-        
-        String[] symbols = {"005930", "000660", "035420", "207940", "051910"};
-        String[] sides = {"BUY", "SELL"};
-        String[] statuses = {"PENDING", "SUBMITTED", "FILLED", "CANCELLED"};
-        
-        for (int i = 0; i < size; i++) {
-            String orderStatus = status != null ? status : statuses[i % statuses.length];
+    /**
+     * 매도 주문 수량 검증
+     */
+    private void validateSellOrderQuantity(CreateOrderRequest request) {
+        try {
+            var positionOpt = portfolioQueryService.getPosition(request.portfolioId(), request.symbol());
             
-            orders.add(OrderResponse.builder()
-                    .orderId("ORDER-" + UUID.randomUUID().toString().substring(0, 8))
-                    .portfolioId(portfolioId)
-                    .symbol(symbols[i % symbols.length])
-                    .side(sides[i % sides.length])
-                    .type("LIMIT")
-                    .quantity(100 * (i + 1))
-                    .price(BigDecimal.valueOf(50000 + i * 1000))
-                    .status(orderStatus)
-                    .filledQuantity("FILLED".equals(orderStatus) ? 100 * (i + 1) : 0)
-                    .remainingQuantity("FILLED".equals(orderStatus) ? 0 : 100 * (i + 1))
-                    .createdAt(LocalDateTime.now().minusHours(i + 1))
-                    .build());
+            if (positionOpt.isEmpty()) {
+                throw new IllegalArgumentException("보유하지 않은 종목입니다: " + request.symbol());
+            }
+            
+            var position = positionOpt.get();
+            if (position.getQuantity() < request.quantity()) {
+                throw new IllegalArgumentException(
+                        String.format("보유 수량(%d)이 매도 요청 수량(%d)보다 적습니다", 
+                                position.getQuantity(), request.quantity()));
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to validate sell order quantity", e);
+            throw new IllegalArgumentException("매도 주문 수량 검증에 실패했습니다: " + e.getMessage());
         }
-        
-        return orders;
     }
 
-    private List<TradeResponse> generateMockTrades(String portfolioId, String symbol, String fromDate, String toDate, int page, int size) {
-        List<TradeResponse> trades = new ArrayList<>();
-        
-        for (int i = 0; i < size; i++) {
-            trades.add(TradeResponse.builder()
-                    .tradeId("TRADE-" + UUID.randomUUID().toString().substring(0, 8))
-                    .orderId("ORDER-" + UUID.randomUUID().toString().substring(0, 8))
-                    .portfolioId(portfolioId)
-                    .symbol(symbol != null ? symbol : "005930")
-                    .side(i % 2 == 0 ? "BUY" : "SELL")
-                    .quantity(100 + i * 10)
-                    .price(BigDecimal.valueOf(75000 + i * 100))
-                    .amount(BigDecimal.valueOf((100 + i * 10) * (75000 + i * 100)))
-                    .executedAt(LocalDateTime.now().minusHours(i))
-                    .build());
+    /**
+     * JWT 토큰에서 사용자 ID 추출
+     */
+    private UserId extractUserIdFromContext() {
+        // TODO: Spring Security Context에서 사용자 ID 추출
+        // 현재는 임시로 하드코딩
+        return UserId.of("USER-CURRENT");
+    }
+
+    /**
+     * 거래 관련 예외 클래스
+     */
+    public static class TradingException extends RuntimeException {
+        public TradingException(String message) {
+            super(message);
         }
         
-        return trades;
+        public TradingException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     // Response DTOs
@@ -224,6 +442,7 @@ public class TradingService {
             Integer filledQuantity,
             Integer remainingQuantity,
             BigDecimal averagePrice,
+            String brokerOrderId,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {}

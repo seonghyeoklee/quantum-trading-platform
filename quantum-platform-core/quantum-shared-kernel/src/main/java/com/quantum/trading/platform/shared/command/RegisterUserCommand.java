@@ -120,6 +120,68 @@ public record RegisterUserCommand(
     }
     
     /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private UserId userId;
+        private String username;
+        private String password;
+        private String name;
+        private String email;
+        private String phone;
+        private Set<String> initialRoles;
+        private UserId registeredBy;
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder username(String username) {
+            this.username = username;
+            return this;
+        }
+        
+        public Builder password(String password) {
+            this.password = password;
+            return this;
+        }
+        
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+        
+        public Builder email(String email) {
+            this.email = email;
+            return this;
+        }
+        
+        public Builder phone(String phone) {
+            this.phone = phone;
+            return this;
+        }
+        
+        public Builder initialRoles(Set<String> initialRoles) {
+            this.initialRoles = initialRoles;
+            return this;
+        }
+        
+        public Builder registeredBy(UserId registeredBy) {
+            this.registeredBy = registeredBy;
+            return this;
+        }
+        
+        public RegisterUserCommand build() {
+            return new RegisterUserCommand(userId, username, password, name, email, phone, initialRoles, registeredBy);
+        }
+    }
+
+    /**
      * Enum for standardizing user roles
      */
     public enum UserRole {

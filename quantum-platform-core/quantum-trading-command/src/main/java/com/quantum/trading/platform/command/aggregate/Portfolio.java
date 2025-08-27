@@ -220,6 +220,15 @@ public class Portfolio {
         return positions.get(symbol);
     }
     
+    // Record-style getters for test compatibility
+    public PortfolioId portfolioId() {
+        return portfolioId;
+    }
+    
+    public UserId userId() {
+        return userId;
+    }
+    
     /**
      * 총 포트폴리오 가치 계산 (현금 + 주식 평가액)
      */

@@ -53,4 +53,60 @@ public record CreateOrderCommand(
             throw new IllegalArgumentException("Price should not be specified for market order");
         }
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private OrderId orderId;
+        private UserId userId;
+        private Symbol symbol;
+        private OrderType orderType;
+        private OrderSide side;
+        private Money price;
+        private Quantity quantity;
+        
+        public Builder orderId(OrderId orderId) {
+            this.orderId = orderId;
+            return this;
+        }
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder symbol(Symbol symbol) {
+            this.symbol = symbol;
+            return this;
+        }
+        
+        public Builder orderType(OrderType orderType) {
+            this.orderType = orderType;
+            return this;
+        }
+        
+        public Builder side(OrderSide side) {
+            this.side = side;
+            return this;
+        }
+        
+        public Builder price(Money price) {
+            this.price = price;
+            return this;
+        }
+        
+        public Builder quantity(Quantity quantity) {
+            this.quantity = quantity;
+            return this;
+        }
+        
+        public CreateOrderCommand build() {
+            return new CreateOrderCommand(orderId, userId, symbol, orderType, side, price, quantity);
+        }
+    }
 }

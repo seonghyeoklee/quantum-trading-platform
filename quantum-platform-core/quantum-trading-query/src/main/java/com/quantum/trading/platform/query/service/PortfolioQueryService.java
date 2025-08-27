@@ -33,6 +33,20 @@ public class PortfolioQueryService {
     }
     
     /**
+     * 포트폴리오 조회 by PortfolioId (RiskManagementService용)
+     */
+    public PortfolioView findByPortfolioId(com.quantum.trading.platform.shared.value.PortfolioId portfolioId) {
+        return portfolioViewRepository.findById(portfolioId.id()).orElse(null);
+    }
+    
+    /**
+     * 포트폴리오 존재 여부 확인 (TradingService용)
+     */
+    public boolean portfolioExists(String portfolioId) {
+        return portfolioViewRepository.existsById(portfolioId);
+    }
+    
+    /**
      * 사용자별 포트폴리오 조회
      */
     public Optional<PortfolioView> getUserPortfolio(String userId) {
@@ -100,6 +114,14 @@ public class PortfolioQueryService {
      */
     public Optional<PositionView> getUserPosition(String userId, String symbol) {
         return getUserPortfolio(userId)
+                .map(portfolio -> portfolio.getPosition(symbol));
+    }
+    
+    /**
+     * 포트폴리오별 특정 종목 포지션 조회 (TradingService용)
+     */
+    public Optional<PositionView> getPosition(String portfolioId, String symbol) {
+        return getPortfolio(portfolioId)
                 .map(portfolio -> portfolio.getPosition(symbol));
     }
     

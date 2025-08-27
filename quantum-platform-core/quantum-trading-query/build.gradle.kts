@@ -15,6 +15,10 @@ dependencies {
     // Spring Data JPA for Query Side Persistence
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     
+    // Hibernate Envers for Audit Functionality
+    implementation("org.springframework.data:spring-data-envers")
+    implementation("org.hibernate:hibernate-envers:6.4.1.Final")
+    
     // PostgreSQL Driver
     runtimeOnly("org.postgresql:postgresql")
     

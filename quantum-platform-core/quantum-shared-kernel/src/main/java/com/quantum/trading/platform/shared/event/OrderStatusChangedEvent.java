@@ -30,4 +30,51 @@ public record OrderStatusChangedEvent(
                 reason,
                 Instant.now());
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private OrderId orderId;
+        private OrderStatus previousStatus;
+        private OrderStatus newStatus;
+        private String reason;
+        private Instant timestamp;
+        
+        public Builder orderId(OrderId orderId) {
+            this.orderId = orderId;
+            return this;
+        }
+        
+        public Builder previousStatus(OrderStatus previousStatus) {
+            this.previousStatus = previousStatus;
+            return this;
+        }
+        
+        public Builder newStatus(OrderStatus newStatus) {
+            this.newStatus = newStatus;
+            return this;
+        }
+        
+        public Builder reason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+        
+        public Builder timestamp(Instant timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+        
+        public OrderStatusChangedEvent build() {
+            if (timestamp == null) {
+                timestamp = Instant.now();
+            }
+            return new OrderStatusChangedEvent(orderId, previousStatus, newStatus, reason, timestamp);
+        }
+    }
 }

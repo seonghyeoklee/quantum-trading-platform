@@ -90,8 +90,9 @@ public class TradingOrder {
         // 증권사 제출 이벤트 발행
         AggregateLifecycle.apply(OrderSubmittedToBrokerEvent.create(
                 this.orderId,
+                this.userId, // userId 추가
                 command.brokerType(),
-                null)); // 실제 제출 후 업데이트
+                command.brokerOrderId())); // brokerOrderId 사용
     }
     
     /**
@@ -241,4 +242,7 @@ public class TradingOrder {
     public OrderSide getSide() { return side; }
     public Money getPrice() { return price; }
     public Quantity getQuantity() { return quantity; }
+    
+    // Record-style getters for test compatibility
+    public OrderId orderId() { return orderId; }
 }

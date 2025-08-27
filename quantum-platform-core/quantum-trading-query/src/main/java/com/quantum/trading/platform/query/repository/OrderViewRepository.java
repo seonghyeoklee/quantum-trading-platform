@@ -27,9 +27,24 @@ public interface OrderViewRepository extends JpaRepository<OrderView, String> {
     Page<OrderView> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
     
     /**
+     * 포트폴리오별 주문 목록 조회 (페이징)
+     */
+    Page<OrderView> findByPortfolioIdOrderByCreatedAtDesc(String portfolioId, Pageable pageable);
+    
+    /**
+     * 포트폴리오별 상태별 주문 목록 조회 (페이징)
+     */
+    Page<OrderView> findByPortfolioIdAndStatusOrderByCreatedAtDesc(String portfolioId, OrderStatus status, Pageable pageable);
+    
+    /**
      * 사용자별 특정 상태 주문 목록 조회
      */
     List<OrderView> findByUserIdAndStatusOrderByCreatedAtDesc(String userId, OrderStatus status);
+    
+    /**
+     * 포트폴리오별 특정 상태 주문 목록 조회
+     */
+    List<OrderView> findByPortfolioIdAndStatusOrderByCreatedAtDesc(String portfolioId, OrderStatus status);
     
     /**
      * 사용자별 활성 주문 조회 (미완료 주문)
@@ -68,6 +83,27 @@ public interface OrderViewRepository extends JpaRepository<OrderView, String> {
            "AND o.filledAt IS NOT NULL " +
            "ORDER BY o.filledAt DESC")
     List<OrderView> findFilledOrdersByUserId(@Param("userId") String userId);
+    
+    /**
+     * 포트폴리오별 체결된 주문 조회 (거래 내역용)
+     */
+    @Query("SELECT o FROM OrderView o WHERE o.portfolioId = :portfolioId " +
+           "AND o.status = 'FILLED' " +
+           "AND o.filledAt IS NOT NULL " +
+           "ORDER BY o.filledAt DESC")
+    Page<OrderView> findFilledOrdersByPortfolioId(@Param("portfolioId") String portfolioId, Pageable pageable);
+    
+    /**
+     * 포트폴리오별 체결된 주문 조회 (종목 필터)
+     */
+    @Query("SELECT o FROM OrderView o WHERE o.portfolioId = :portfolioId " +
+           "AND o.symbol = :symbol " +
+           "AND o.status = 'FILLED' " +
+           "AND o.filledAt IS NOT NULL " +
+           "ORDER BY o.filledAt DESC")
+    Page<OrderView> findFilledOrdersByPortfolioIdAndSymbol(@Param("portfolioId") String portfolioId, 
+                                                          @Param("symbol") String symbol, 
+                                                          Pageable pageable);
     
     /**
      * 특정 브로커의 주문 조회

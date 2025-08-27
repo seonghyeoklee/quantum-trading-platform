@@ -53,6 +53,13 @@ public record Money(BigDecimal amount, Currency currency) {
     }
     
     /**
+     * 기본 통화(KRW)로 Money 생성 (편의 메서드)
+     */
+    public static Money of(BigDecimal amount) {
+        return ofKrw(amount);
+    }
+    
+    /**
      * 0원 생성
      */
     public static Money zeroKrw() {
@@ -122,6 +129,13 @@ public record Money(BigDecimal amount, Currency currency) {
     
     public boolean isPositive() {
         return this.amount.compareTo(BigDecimal.ZERO) > 0;
+    }
+    
+    /**
+     * 음수인지 확인 (현재 구현에서는 항상 false이지만 API 일관성을 위해 제공)
+     */
+    public boolean isNegative() {
+        return this.amount.compareTo(BigDecimal.ZERO) < 0;
     }
     
     @Override

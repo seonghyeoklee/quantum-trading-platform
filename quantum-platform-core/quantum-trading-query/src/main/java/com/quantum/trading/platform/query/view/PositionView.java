@@ -4,6 +4,7 @@ import com.quantum.trading.platform.shared.value.Position;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.envers.Audited;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,6 +16,7 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "position_view")
+@Audited // Envers 감사 기능 활성화
 @Data
 @NoArgsConstructor
 public class PositionView {

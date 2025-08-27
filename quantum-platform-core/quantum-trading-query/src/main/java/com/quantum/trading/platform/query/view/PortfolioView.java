@@ -6,6 +6,7 @@ import com.quantum.trading.platform.shared.value.UserId;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.envers.Audited;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,6 +20,7 @@ import java.util.List;
  */
 @Entity
 @Table(name = "portfolio_view")
+@Audited // Envers 감사 기능 활성화
 @Data
 @NoArgsConstructor
 public class PortfolioView {
@@ -85,6 +87,20 @@ public class PortfolioView {
     public void updateCashBalance(BigDecimal newBalance, Instant timestamp) {
         this.cashBalance = newBalance;
         this.updatedAt = timestamp;
+    }
+    
+    /**
+     * 이용 가능한 현금 (RiskManagementService용)
+     */
+    public Money getAvailableCash() {
+        return Money.of(cashBalance);
+    }
+    
+    /**
+     * 총 포트폴리오 가치 (RiskManagementService용)
+     */
+    public Money getTotalValue() {
+        return Money.of(cashBalance.add(totalMarketValue));
     }
     
     /**
