@@ -12,6 +12,46 @@ export default function EnvironmentDebugPage() {
   const [environmentData, setEnvironmentData] = useState<EnvironmentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [userAgent, setUserAgent] = useState<string>('');
+  const [consoleLogs, setConsoleLogs] = useState<Array<{type: string, message: string, timestamp: string}>>([]);
+
+  // 콘솔 로그 캡처
+  useEffect(() => {
+    const addLog = (type: string, message: string) => {
+      setConsoleLogs(prev => [...prev.slice(-49), {
+        type,
+        message,
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    };
+
+    // 원본 console 메서드 저장
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    // console 메서드 오버라이드
+    console.log = (...args) => {
+      originalLog(...args);
+      addLog('log', args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
+    };
+
+    console.error = (...args) => {
+      originalError(...args);
+      addLog('error', args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
+    };
+
+    console.warn = (...args) => {
+      originalWarn(...args);
+      addLog('warn', args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
+    };
+
+    return () => {
+      // 컴포넌트 언마운트 시 원본 메서드 복원
+      console.log = originalLog;
+      console.error = originalError;
+      console.warn = originalWarn;
+    };
+  }, []);
 
   useEffect(() => {
     const loadEnvironmentData = async () => {
@@ -160,6 +200,37 @@ export default function EnvironmentDebugPage() {
               )}
             </div>
           </div>
+
+          {/* 실시간 콘솔 로그 */}
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+              실시간 콘솔 로그 (모바일 디버깅용)
+              <button 
+                onClick={() => setConsoleLogs([])}
+                className="ml-auto text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+              >
+                지우기
+              </button>
+            </h2>
+            <div className="bg-black text-green-400 p-3 rounded-lg h-64 overflow-y-auto font-mono text-xs">
+              {consoleLogs.length === 0 ? (
+                <div className="text-gray-500">
+                  콘솔 로그가 여기에 표시됩니다... API 테스트 버튼을 눌러보세요!
+                </div>
+              ) : (
+                consoleLogs.map((log, index) => (
+                  <div key={index} className={`mb-1 ${
+                    log.type === 'error' ? 'text-red-400' : 
+                    log.type === 'warn' ? 'text-yellow-400' : 
+                    'text-green-400'
+                  }`}>
+                    <span className="text-gray-400">[{log.timestamp}]</span> {log.message}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -172,14 +243,46 @@ function APITestButton({ name, url }: { name: string; url: string }) {
 
   const testAPI = async () => {
     setStatus('loading');
+    console.log(`🔍 API 테스트 시작: ${url}`);
+    
     try {
+      const startTime = Date.now();
       const response = await fetch(url);
+      const endTime = Date.now();
+      
+      console.log(`📊 응답 시간: ${endTime - startTime}ms, 상태: ${response.status}`);
+      
       const data = await response.json();
-      setResult({ status: response.status, data });
+      setResult({ 
+        status: response.status, 
+        responseTime: `${endTime - startTime}ms`,
+        headers: Object.fromEntries(response.headers.entries()),
+        data 
+      });
       setStatus('success');
+      
+      console.log(`✅ API 성공: ${url}`);
     } catch (error) {
-      setResult({ error: error instanceof Error ? error.message : String(error) });
+      const errorDetails = {
+        error: error instanceof Error ? error.message : String(error),
+        type: error instanceof Error ? error.constructor.name : 'Unknown',
+        stack: error instanceof Error ? error.stack : undefined,
+        url: url,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+      };
+      
+      setResult(errorDetails);
       setStatus('error');
+      
+      console.error(`❌ API 실패: ${url}`, errorDetails);
+      
+      // Mixed Content 정책 위반 체크
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('🚨 Mixed Content Policy 위반 가능성');
+        console.warn('💡 해결책: HTTPS 사용하거나 브라우저 설정 변경');
+      }
     }
   };
 
