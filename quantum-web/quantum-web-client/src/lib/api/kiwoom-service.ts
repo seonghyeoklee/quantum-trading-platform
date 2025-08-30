@@ -21,7 +21,7 @@ import {
 } from './kiwoom-types';
 import { ChartTimeframe, ChartType, CandlestickData } from '@/components/chart/ChartTypes';
 
-const KIWOOM_API_BASE_URL = 'http://localhost:8100';
+const KIWOOM_API_BASE_URL = process.env.KIWOOM_ADAPTER_URL || 'http://localhost:10201';
 
 class KiwoomApiService {
 
@@ -121,7 +121,7 @@ class KiwoomApiService {
         const chartData = this.extractChartDataFromResponse(response, chartType);
         allData = [...allData, ...chartData];
         nextKey = response.Header["next-key"];
-        hasMore = nextKey && nextKey.trim() !== "";
+        hasMore = !!(nextKey && nextKey.trim() !== "");
 
         console.log(`🔍 [${chartType}] 데이터 수집: ${chartData.length}개 추가, 총 ${allData.length}개`);
 
@@ -183,7 +183,7 @@ class KiwoomApiService {
         const chartData = this.extractChartDataFromResponse(response, chartType);
         allData = [...allData, ...chartData];
         nextKey = response.Header["next-key"];
-        hasMore = nextKey && nextKey.trim() !== "";
+        hasMore = !!(nextKey && nextKey.trim() !== "");
 
         console.log(`🔍 [단계 ${allData.length <= chartData.length ? '1' : '2+'}] 데이터 수집: ${chartData.length}개 추가, 총 ${allData.length}개`);
         
@@ -469,7 +469,7 @@ class KiwoomApiService {
 
       console.log(`🔗 API 요청:`, requestData);
 
-      const response = await fetch(`/api/kiwoom/fn_ka10099?cont_yn=N`, {
+      const response = await fetch(`${KIWOOM_API_BASE_URL}/api/fn_ka10099?cont_yn=N`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

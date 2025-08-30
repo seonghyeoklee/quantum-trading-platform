@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/v1/auth/2fa")
-@CrossOrigin(origins = {"http://localhost:3001"})
+@CrossOrigin(origins = {"http://localhost:10301"})
 public class TwoFactorController {
     
     private static final Logger logger = LoggerFactory.getLogger(TwoFactorController.class);

@@ -24,7 +24,7 @@ class KiwoomSettings(BaseSettings):
     
     # FastAPI 서버 설정
     FASTAPI_HOST: str = Field("0.0.0.0", description="FastAPI 호스트")
-    FASTAPI_PORT: int = Field(8100, description="FastAPI 포트")
+    FASTAPI_PORT: int = Field(10201, description="FastAPI 포트")
     
     # 로깅 설정
     LOG_LEVEL: str = Field("INFO", description="로깅 레벨")

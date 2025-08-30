@@ -163,7 +163,7 @@ export function useConnectionHealth() {
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
   const [latency, setLatency] = useState<number>(0);
   
-  const activityTimeoutRef = useRef<NodeJS.Timeout>();
+  const activityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const pingTimeRef = useRef<number>(0);
   
   const recordActivity = useCallback(() => {

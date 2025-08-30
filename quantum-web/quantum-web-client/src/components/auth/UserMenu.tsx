@@ -53,7 +53,6 @@ export default function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="flex items-center space-x-3 px-3 py-2 h-auto">
           <Avatar className="w-8 h-8">
-            <AvatarImage src={user.avatar} alt={user.username} />
             <AvatarFallback className="bg-primary text-primary-foreground text-xs">
               {getUserInitials(user.username)}
             </AvatarFallback>

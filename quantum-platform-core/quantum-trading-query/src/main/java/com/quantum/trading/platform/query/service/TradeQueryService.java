@@ -114,7 +114,8 @@ public class TradeQueryService {
      * 오늘 거래 이력 조회
      */
     public List<TradeView> getTodayTrades(String userId) {
-        return tradeViewRepository.findTodayTradesByUserId(userId);
+        LocalDateTime todayStart = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
+        return tradeViewRepository.findTodayTradesByUserId(userId, todayStart);
     }
     
     /**

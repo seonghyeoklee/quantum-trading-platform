@@ -23,6 +23,13 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import TwoFactorSetup from '@/components/auth/TwoFactorSetup';
 
+interface TwoFactorStatus {
+  enabled: boolean;
+  setupAt?: string;
+  lastUsedAt?: string;
+  remainingBackupCodes?: number;
+}
+
 function SettingsPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -43,7 +50,7 @@ function SettingsPage() {
 
   // 2FA 관련 상태
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [twoFactorStatus, setTwoFactorStatus] = useState(null);
+  const [twoFactorStatus, setTwoFactorStatus] = useState<TwoFactorStatus | null>(null);
   const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +61,7 @@ function SettingsPage() {
         const token = localStorage.getItem('accessToken');
         if (!token) return;
 
-        const response = await fetch('http://localhost:8080/api/v1/auth/2fa/status', {
+        const response = await fetch('http://localhost:10101/api/v1/auth/2fa/status', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -86,7 +93,7 @@ function SettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:8080/api/v1/auth/2fa/disable', {
+      const response = await fetch('http://localhost:10101/api/v1/auth/2fa/disable', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -137,13 +144,15 @@ function SettingsPage() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
               <div className="w-full max-w-md mx-4">
                 <TwoFactorSetup
-                  onComplete={() => {
+                  isEnabled={twoFactorEnabled}
+                  onStatusChange={(enabled) => {
                     setShowTwoFactorSetup(false);
-                    setTwoFactorEnabled(true);
-                    // 상태 새로고침
-                    window.location.reload();
+                    setTwoFactorEnabled(enabled);
+                    if (enabled) {
+                      // 상태 새로고침
+                      window.location.reload();
+                    }
                   }}
-                  onCancel={() => setShowTwoFactorSetup(false)}
                 />
               </div>
             </div>

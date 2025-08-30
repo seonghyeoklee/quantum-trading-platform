@@ -7,13 +7,15 @@ import {
   ProgramTradingItem
 } from './program-trading-types';
 
-// API 호출 함수 (연속조회 지원)
+const KIWOOM_ADAPTER_URL = process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL || 'http://localhost:10201';
+
+// API 호출 함수 (연속조회 지원) - 직접 호출 방식
 export async function getProgramTradingRanking(
   request: ProgramTradingRequest,
   contYn: 'Y' | 'N' = 'N',
   nextKey?: string
 ): Promise<ProgramTradingResponse> {
-  const url = `/api/fn_ka90003?cont_yn=${contYn}`;
+  const url = `${KIWOOM_ADAPTER_URL}/api/fn_ka90003?cont_yn=${contYn}`;
   
   // 연속조회를 위한 헤더 구성
   const headers: Record<string, string> = {

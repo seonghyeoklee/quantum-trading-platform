@@ -38,7 +38,7 @@ public class OrderExecutionService {
     private final KiwoomApiService kiwoomApiService;
     private final RestTemplate restTemplate = new RestTemplate();
     
-    @Value("${kiwoom.adapter.base-url:http://localhost:8100}")
+    @Value("${kiwoom.adapter.base-url:http://localhost:10201}")
     private String kiwoomAdapterBaseUrl;
     
     @Value("${trading.execution.enabled:true}")

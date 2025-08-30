@@ -31,7 +31,7 @@ trading:
 # Kiwoom Adapter Test Configuration  
 kiwoom:
   adapter:
-    base-url: http://localhost:8100  # 실제 어댑터 또는 Mock 서버
+    base-url: http://localhost:10201  # 실제 어댑터 또는 Mock 서버
 
 # Axon Server 테스트 설정
 axon:

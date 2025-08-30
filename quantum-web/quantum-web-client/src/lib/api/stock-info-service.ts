@@ -14,7 +14,7 @@ class StockInfoService {
   private cache: StockInfoCache = {};
   private readonly cacheTTL: number = 5 * 60 * 1000; // 5분 캐시
 
-  constructor(baseUrl: string = 'http://localhost:8100') {
+  constructor(baseUrl: string = 'http://localhost:10201') {
     this.baseUrl = baseUrl;
   }
 

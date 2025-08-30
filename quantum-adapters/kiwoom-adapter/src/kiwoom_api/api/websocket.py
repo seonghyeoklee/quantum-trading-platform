@@ -696,7 +696,7 @@ async def websocket_test_page():
                     socket.close();
                 }
                 
-                socket = new WebSocket('ws://localhost:8100/ws/realtime');
+                socket = new WebSocket('ws://localhost:10201/ws/realtime');
                 
                 socket.onopen = function(event) {
                     updateStatus(true, '웹소켓 연결됨');

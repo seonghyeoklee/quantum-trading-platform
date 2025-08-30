@@ -36,7 +36,7 @@ export default function ProtectedRoute({ children, requiredRoles = [] }: Protect
       }
 
       // 백엔드에서 사용자 정보 조회
-      const response = await fetch('http://localhost:8080/api/v1/auth/me', {
+      const response = await fetch('http://localhost:10101/api/v1/auth/me', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,7 +85,7 @@ export default function ProtectedRoute({ children, requiredRoles = [] }: Protect
         return;
       }
 
-      const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+      const response = await fetch('http://localhost:10101/api/v1/auth/refresh', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

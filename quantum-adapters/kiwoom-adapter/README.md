@@ -21,15 +21,15 @@ cp .env.example .env
 ### 2. 서버 실행
 ```bash
 # 개발 서버 실행
-uvicorn src.kiwoom_api.main:app --reload --port 8100
+uvicorn src.kiwoom_api.main:app --reload --port 10201
 
 # 프로덕션 서버 실행
-uvicorn src.kiwoom_api.main:app --host 0.0.0.0 --port 8100
+uvicorn src.kiwoom_api.main:app --host 0.0.0.0 --port 10201
 ```
 
 ### 3. API 문서 확인
-- Swagger UI: http://localhost:8100/docs
-- ReDoc: http://localhost:8100/redoc
+- Swagger UI: http://localhost:10201/docs
+- ReDoc: http://localhost:10201/redoc
 
 ## 📡 API 엔드포인트
 

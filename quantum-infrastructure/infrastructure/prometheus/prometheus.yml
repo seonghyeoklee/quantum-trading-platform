@@ -29,14 +29,14 @@ scrape_configs:
   # Quantum Web API metrics
   - job_name: 'quantum-web-api'
     static_configs:
-      - targets: ['quantum-web-api:8080']
+      - targets: ['quantum-web-api:10101']
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
 
   # Kiwoom Adapter metrics
   - job_name: 'quantum-kiwoom-adapter'
     static_configs:
-      - targets: ['quantum-kiwoom-adapter:8100']
+      - targets: ['quantum-kiwoom-adapter:10201']
     metrics_path: '/metrics'
     scrape_interval: 30s
 
@@ -54,9 +54,9 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
-  # Zipkin metrics
-  - job_name: 'zipkin'
+  # Tempo metrics
+  - job_name: 'tempo'
     static_configs:
-      - targets: ['quantum-zipkin:9411']
-    metrics_path: '/prometheus'
+      - targets: ['quantum-tempo:3200']
+    metrics_path: '/metrics'
     scrape_interval: 30s

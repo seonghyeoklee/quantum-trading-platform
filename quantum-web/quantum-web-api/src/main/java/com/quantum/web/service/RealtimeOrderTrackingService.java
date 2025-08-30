@@ -49,7 +49,7 @@ public class RealtimeOrderTrackingService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     
-    @Value("${kiwoom.adapter.base-url:http://localhost:8100}")
+    @Value("${kiwoom.adapter.base-url:http://localhost:10201}")
     private String kiwoomAdapterBaseUrl;
     
     @Value("${realtime.tracking.enabled:true}")

@@ -29,10 +29,13 @@ RUN if [ -f "requirements.txt" ]; then \
 COPY src/ ./src/
 
 # 포트 노출
-EXPOSE 8100
+EXPOSE 10201
 
 # 헬스체크용 엔드포인트를 위한 curl 설치 확인
 RUN curl --version
 
+# 환경변수 기본값 설정
+ENV FASTAPI_PORT=10201
+
 # 애플리케이션 실행
-CMD ["python", "-m", "uvicorn", "src.kiwoom_api.main:app", "--host", "0.0.0.0", "--port", "8100", "--reload"]
+CMD ["python", "-m", "uvicorn", "src.kiwoom_api.main:app", "--host", "0.0.0.0", "--port", "10201", "--reload"]

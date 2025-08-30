@@ -247,7 +247,7 @@ export function parseKiwoomCandleData(
     low: lowPrice || currentPrice,
     close: currentPrice,
     volume,
-    isNew: isNew  // 서버에서 제공하거나 클라이언트가 추론
+    isNew: isNew ?? false  // 서버에서 제공하거나 클라이언트가 추론, 기본값 false
   };
 
   console.log('✅ 키움 실시간 캔들 데이터 파싱 완료:', result);

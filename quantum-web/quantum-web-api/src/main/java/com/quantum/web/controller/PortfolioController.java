@@ -243,7 +243,7 @@ public class PortfolioController {
             new SubscriptionInfo(
                 String.format("/topic/portfolio/%s", portfolioId),
                 String.format("/topic/positions/%s", portfolioId),
-                "ws://localhost:8080/api/v1/ws"
+                "ws://localhost:10101/api/v1/ws"
             ),
             "구독 정보 제공 완료"
         ));

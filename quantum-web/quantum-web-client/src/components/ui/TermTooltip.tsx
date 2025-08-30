@@ -28,7 +28,7 @@ export default function TermTooltip({
   const [isPinned, setIsPinned] = useState(false);  // 클릭으로 고정된 상태
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // 용어 정보 가져오기
   const term = findTermById(termId);

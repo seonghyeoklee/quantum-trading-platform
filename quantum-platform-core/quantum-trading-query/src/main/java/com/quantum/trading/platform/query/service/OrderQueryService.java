@@ -197,7 +197,7 @@ public class OrderQueryService {
         
         return results.stream()
                 .collect(Collectors.toMap(
-                        result -> ((java.sql.Date) result[0]).toLocalDate(),
+                        result -> (LocalDate) result[0],
                         result -> (Long) result[1]
                 ));
     }

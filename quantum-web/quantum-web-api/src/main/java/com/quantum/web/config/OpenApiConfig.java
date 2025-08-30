@@ -26,7 +26,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(apiInfo())
                 .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local Development Server"),
+                        new Server().url("http://localhost:10101").description("Local Development Server"),
                         new Server().url("https://api.quantum-trading.local").description("Local Production Server")
                 ))
                 .components(new Components()

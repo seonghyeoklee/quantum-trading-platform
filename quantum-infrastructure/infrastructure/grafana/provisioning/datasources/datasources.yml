@@ -17,18 +17,34 @@ datasources:
     jsonData:
       maxLines: 1000
       derivedFields:
-        - datasourceUid: zipkin
+        - datasourceUid: tempo
           matcherRegex: "traceId=(\\w+)"
           name: "TraceID"
           url: "$${__value.raw}"
 
-  - name: Zipkin
-    type: zipkin
+  - name: Tempo
+    type: tempo
     access: proxy
-    url: http://quantum-zipkin:9411
-    uid: zipkin
+    url: http://quantum-tempo:3200
+    uid: tempo
     isDefault: false
     editable: true
+    jsonData:
+      tracesToLogs:
+        datasourceUid: 'loki'
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: false
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: false
+        filterBySpanID: false
+      serviceMap:
+        datasourceUid: 'prometheus'
+      search:
+        hide: false
+      nodeGraph:
+        enabled: true
 
   - name: InfluxDB
     type: influxdb

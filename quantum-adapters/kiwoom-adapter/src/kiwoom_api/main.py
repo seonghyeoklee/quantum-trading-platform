@@ -19,11 +19,14 @@ from fastapi.staticfiles import StaticFiles
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.zipkin.json import ZipkinExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # Structured Logging
 import structlog
+
+# Prometheus Metrics
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Handle both relative and absolute imports for different execution contexts
 try:
@@ -46,33 +49,32 @@ except ImportError:
 
 # OpenTelemetry 설정
 def setup_tracing():
-    """분산 추적 설정 (Zipkin 서버가 없으면 비활성화)"""
+    """분산 추적 설정 (Tempo 서버로 OTLP 전송)"""
     try:
-        # Zipkin 서버 연결 테스트
+        # Tempo 서버 연결 테스트
         import requests
-        zipkin_endpoint = "http://quantum-zipkin:9411/api/v2/spans"
-        requests.get("http://quantum-zipkin:9411/health", timeout=1)
+        tempo_endpoint = "http://quantum-tempo:4318/v1/traces"
+        requests.get("http://quantum-tempo:3200/ready", timeout=1)
 
         # Tracer Provider 설정
         trace.set_tracer_provider(TracerProvider())
         tracer = trace.get_tracer(__name__)
 
-        # Zipkin Exporter 설정
-        zipkin_exporter = ZipkinExporter(
-            endpoint=zipkin_endpoint,
-            local_node_ipv4="127.0.0.1",
-            local_node_port=8100,
+        # OTLP Exporter 설정 (Tempo용)
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=tempo_endpoint,
+            headers={}
         )
 
         # Span Processor 추가
-        span_processor = BatchSpanProcessor(zipkin_exporter)
+        span_processor = BatchSpanProcessor(otlp_exporter)
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         return tracer
     except (requests.exceptions.RequestException, requests.exceptions.ConnectTimeout,
             requests.exceptions.ConnectionError) as e:
-        # Zipkin 서버 연결 실패 시 기본 tracer 반환 (트레이싱 비활성화)
-        print(f"⚠️ Zipkin 서버 연결 실패 - 트레이싱 비활성화: {str(e)}")
+        # Tempo 서버 연결 실패 시 기본 tracer 반환 (트레이싱 비활성화)
+        print(f"⚠️ Tempo 서버 연결 실패 - 트레이싱 비활성화: {str(e)}")
         trace.set_tracer_provider(TracerProvider())
         return trace.get_tracer(__name__)
     except Exception as e:
@@ -149,8 +151,12 @@ enable_kafka = False  # 임시로 비활성화
 # enable_kafka = os.getenv('ENABLE_KAFKA', 'true').lower() == 'true'
 # app.add_middleware(KafkaEventMiddleware, enable_kafka=enable_kafka)
 
-# FastAPI 자동 계측 설정
+# FastAPI 자동 계측 설정 (OpenTelemetry)
 FastAPIInstrumentor.instrument_app(app, tracer_provider=trace.get_tracer_provider())
+
+# Prometheus 메트릭 계측 설정
+instrumentator = Instrumentator()
+instrumentator.instrument(app).expose(app)
 
 # API 라우터 등록
 app.include_router(auth.router, prefix="")
@@ -237,8 +243,14 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 정적 파일 서빙 (대시보드용)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 정적 파일 서빙 (대시보드용) - static 디렉토리가 있을 때만
+import os
+from pathlib import Path
+
+static_dir = Path("static")
+if static_dir.exists() and static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    logger.info("Static files mounted at /static")
 
 
 @app.get("/", include_in_schema=False)
@@ -249,8 +261,12 @@ async def root():
 
 @app.get("/dashboard", include_in_schema=False)
 async def dashboard():
-    """실시간 WebSocket 대시보드로 리다이렉트"""
-    return RedirectResponse(url="/static/kiwoom_realtime_dashboard.html")
+    """실시간 WebSocket 대시보드로 리다이렉트 또는 메시지"""
+    static_dir = Path("static")
+    if static_dir.exists() and static_dir.is_dir():
+        return RedirectResponse(url="/static/kiwoom_realtime_dashboard.html")
+    else:
+        return {"message": "Dashboard not available - static files not found"}
 
 
 @app.get("/health")

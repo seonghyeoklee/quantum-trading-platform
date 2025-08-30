@@ -630,7 +630,7 @@ export default function TradingChart({
           
           // 차트 타입에 따른 시간 형식 처리 (실시간 데이터와 동일한 규칙 적용)
           const chartData = data.map((item, index) => {
-            let timeValue = item.time;
+            let timeValue: string | number = item.time;
             
             // 문자열 날짜-시간 처리 (예: "2024-08-25 09:30:00")
             if (typeof timeValue === 'string' && timeValue.includes(' ')) {
@@ -687,7 +687,8 @@ export default function TradingChart({
           
           // 초기 데이터의 시간 형식 기억 (중요!)
           if (chartData.length > 0) {
-            initialDataTimeFormatRef.current = typeof chartData[0].time;
+            const timeType = typeof chartData[0].time;
+            initialDataTimeFormatRef.current = (timeType === 'string' || timeType === 'number') ? timeType : null;
             console.log('📌 초기 데이터 시간 형식 기억:', initialDataTimeFormatRef.current);
           }
           
