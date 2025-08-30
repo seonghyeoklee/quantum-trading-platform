@@ -23,28 +23,20 @@ function TradingDashboard() {
         chartContainerRef.current.selectStock(stockOrCode, stockName || stockOrCode);
       }
       
-      const mockStock: KiwoomStockInfo = {
-        stockCode: stockOrCode,
-        stockName: stockName || stockOrCode,
-        currentPrice: 0,
-        changeAmount: 0,
-        changeRate: 0,
-        volume: 0,
-        marketCap: '0',
-        sector: '',
-        description: '',
-        peRatio: 0,
-        pbRatio: 0,
-        eps: 0,
-        bps: 0,
-        dividendYield: 0,
-        roe: 0,
-        debtRatio: 0,
-        quickRatio: 0,
-        currentRatio: 0,
-        evEbitda: 0,
-        priceToSales: 0,
-        priceToBook: 0
+      const mockStock: any = {
+        code: stockOrCode,
+        name: stockName || stockOrCode,
+        listCount: '0',
+        auditInfo: '',
+        regDay: '',
+        lastPrice: '0',
+        state: '',
+        marketCode: '0',
+        marketName: 'KOSPI',
+        upName: '',
+        upSizeName: '',
+        orderWarning: '0',
+        nxtEnable: 'N'
       };
       setSelectedStock(mockStock);
     } else {

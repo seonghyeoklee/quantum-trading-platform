@@ -95,7 +95,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
 
   // WebSocket 연결 설정
   const webSocket = useWebSocket({
-    url: 'ws://127.0.0.1:8100/ws/realtime',
+    url: 'ws://127.0.0.1:10201/ws/realtime',
     reconnectInterval: 3000,
     maxReconnectAttempts: 5,
     heartbeatInterval: 30000,
@@ -146,7 +146,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
           price,
           change,
           changePercent,
-          market: selectedStock.marketName || 'KOSPI',
+          market: (selectedStock.marketName === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI') as 'KOSPI' | 'KOSDAQ',
         };
       }
       
@@ -156,7 +156,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
         price: basePrice,
         change: 0,
         changePercent: 0,
-        market: selectedStock.marketName || 'KOSPI',
+        market: (selectedStock.marketName === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI') as 'KOSPI' | 'KOSDAQ',
       };
     }
     
@@ -402,7 +402,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
   // WebSocket 연결 시작
   useEffect(() => {
     console.log('🚀 WebSocket 연결 시작:', {
-      url: 'ws://127.0.0.1:8100/ws/realtime',
+      url: 'ws://127.0.0.1:10201/ws/realtime',
       currentSymbol: currentSymbol,
       status: webSocket.status
     });
@@ -611,30 +611,18 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
     
     const mockStock: KiwoomStockInfo = {
       code: stockCode,
-      stockCode: stockCode,
-      stockName: stockName,
       name: stockName,
-      currentPrice: stockInfo?.price || 0,
-      price: stockInfo?.price || 0,
-      changeAmount: stockInfo?.change || 0,
-      changeRate: stockInfo?.changePercent || 0,
-      volume: 0,
-      marketCap: '0',
-      market: stockInfo?.market || 'KOSPI',
-      sector: '',
-      description: '',
-      peRatio: 0,
-      pbRatio: 0,
-      eps: 0,
-      bps: 0,
-      dividendYield: 0,
-      roe: 0,
-      debtRatio: 0,
-      quickRatio: 0,
-      currentRatio: 0,
-      evEbitda: 0,
-      priceToSales: 0,
-      priceToBook: 0
+      listCount: '0',
+      auditInfo: '',
+      regDay: '',
+      lastPrice: String(stockInfo?.price || 0),
+      state: '',
+      marketCode: stockInfo?.market === 'KOSDAQ' ? '10' : '0',
+      marketName: stockInfo?.market || 'KOSPI',
+      upName: '',
+      upSizeName: '',
+      orderWarning: '0',
+      nxtEnable: 'N'
     };
     
     handleStockSelect(mockStock);
@@ -726,12 +714,6 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
         )}
 
         <div className="w-full h-full">
-          {console.log('TradingChart에 전달할 데이터:', {
-            데이터수: chartState.data.length,
-            샘플데이터: chartState.data.slice(0, 2),
-            로딩상태: chartState.loading,
-            에러상태: chartState.error
-          })}
           <TradingChart
             data={chartState.data}
             height={400}
@@ -739,7 +721,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
             timeframe={currentTimeframe}
             chartType={currentChartType}
             stockName={currentStockInfo.name}
-            realtimeData={realtimeCandle}
+            realtimeData={realtimeCandle || undefined}
             onRealtimeUpdate={(data) => {
               console.log('📊 차트에서 실시간 업데이트 콜백:', data);
             }}

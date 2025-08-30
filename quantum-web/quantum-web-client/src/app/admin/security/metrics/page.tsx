@@ -723,7 +723,7 @@ function SecurityMetricsPage() {
                 </CardContent>
               </Card>
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </AdminLayout>

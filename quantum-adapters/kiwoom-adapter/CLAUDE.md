@@ -29,16 +29,52 @@ except ImportError:
 
 This pattern is used throughout the codebase and must be maintained when adding new modules.
 
+### Unified Token Authentication Pattern
+All API functions now use a standardized token acquisition pattern:
+
+```python
+async def _get_valid_token() -> str:
+    """유효한 토큰 획득 (캐시 또는 fn_au10001 호출)"""
+    try:
+        from ..auth.token_cache import token_cache
+        from ..functions.auth import fn_au10001
+    except ImportError:
+        from kiwoom_api.auth.token_cache import token_cache
+        from kiwoom_api.functions.auth import fn_au10001
+    
+    # 1. 캐시에서 유효한 토큰 확인
+    cached_token = await token_cache.get_default_token()
+    if cached_token and not cached_token.is_expired():
+        return cached_token.token
+    
+    # 2. 새 토큰 발급
+    auth_result = await fn_au10001()
+    if auth_result['Code'] == 200 and auth_result['Body'].get('token'):
+        return auth_result['Body']['token']
+    
+    # 3. Fallback to environment variables
+    return settings.KIWOOM_APP_KEY
+
+# Usage in API functions:
+async def fn_ka10001(token: Optional[str] = None, ...):
+    if not token:
+        token = await _get_valid_token()
+```
+
+This pattern ensures consistent token management across all Kiwoom API functions.
+
 ### Core Architecture Layers
 
 ```
 src/kiwoom_api/
 ├── main.py                     # FastAPI application with distributed tracing
 ├── config/settings.py          # Environment-based dual-mode configuration
-├── auth/                       # OAuth token management layer
+├── auth/                       # Unified token management layer
 │   ├── oauth_client.py        # OAuth client with automatic token refresh
 │   ├── token_cache.py         # In-memory token caching
-│   └── token_manager.py       # Token lifecycle management
+│   ├── token_manager.py       # Token lifecycle management
+│   ├── flexible_auth.py       # Flexible authentication strategies (read-only vs trading)
+│   └── token_validator.py     # Token validation utilities
 ├── models/                     # Pydantic data models
 │   ├── auth.py               # Authentication models
 │   ├── websocket.py          # WebSocket protocol models
@@ -162,6 +198,16 @@ asyncio.run(test_news())
 # Test analysis endpoints
 curl http://localhost:8100/api/analysis/comprehensive/005930
 curl http://localhost:8100/api/analysis/rsi/005930
+
+# Test unified authentication system
+curl -X POST "http://localhost:8100/api/fn_ka10001" \
+  -H "Content-Type: application/json" \
+  -d '{"stk_cd": "005930"}'
+
+# Test chart endpoints with automatic token management
+curl -X POST "http://localhost:8100/api/fn_ka10081" \
+  -H "Content-Type: application/json" \
+  -d '{"data": {"stk_cd": "005930", "base_dt": "20250820", "upd_stkpc_tp": "1"}, "cont_yn": "N"}'
 ```
 
 ## 🏗️ Architecture Principles
@@ -190,10 +236,11 @@ def KIWOOM_APP_KEY(self) -> str:
 - **Data Type Support**: Multiple real-time data types (0B, 0D, 0E, 0F) with specialized clients
 - **Error Resilience**: Automatic reconnection and graceful error handling
 
-### OAuth Token Management
-- **Automatic Refresh**: Tokens are automatically refreshed before expiration
-- **Caching Strategy**: In-memory caching with configurable TTL
-- **Environment Awareness**: Separate token endpoints for sandbox/production
+### Unified Token Management System
+- **fn_au10001 Integration**: All APIs use tokens from fn_au10001 endpoint with automatic caching
+- **Flexible Authentication**: Separate strategies for read-only (fixed keys) vs trading APIs (bearer tokens)  
+- **Token Lifecycle**: Automatic refresh, caching, and fallback to environment variables
+- **Dual Import Strategy**: Compatible with both development and production execution contexts
 
 ### Distributed Tracing Integration
 - **OpenTelemetry**: Full distributed tracing with Zipkin exporter
@@ -289,7 +336,8 @@ async def endpoint(request: RequestModel):
 
 ### Security Requirements
 - **Environment Variables**: Never hardcode API keys or secrets
-- **Token Rotation**: Implement automatic token refresh before expiration
+- **Token Authentication**: Use fn_au10001-based tokens with automatic caching and refresh
+- **Flexible Authentication**: Apply appropriate auth strategy (fixed keys vs bearer tokens)
 - **Input Validation**: All API inputs must be validated using Pydantic models
 - **Logging Safety**: Never log sensitive information (tokens, secrets)
 - **DART API Keys**: Always use settings.DART_API_KEY from environment configuration
@@ -306,10 +354,13 @@ async def endpoint(request: RequestModel):
 
 ### Adding New API Endpoints
 1. **Define Models**: Create Pydantic models in `models/`
-2. **Business Logic**: Implement core logic in `functions/`
-3. **API Router**: Create FastAPI endpoints in `api/`
-4. **Update Main**: Register router in `main.py`
-5. **Testing**: Add comprehensive tests
+2. **Business Logic**: Implement core logic in `functions/` with `_get_valid_token()` pattern
+3. **Choose Authentication**: Use appropriate auth strategy from `flexible_auth.py`
+   - `get_read_only_auth` for market data, chart, news APIs
+   - `get_trading_auth` for order placement, account balance APIs
+4. **API Router**: Create FastAPI endpoints in `api/`
+5. **Update Main**: Register router in `main.py`
+6. **Testing**: Add comprehensive tests including token management
 
 ### WebSocket Development
 1. **Message Models**: Define WebSocket message models in `models/websocket.py`

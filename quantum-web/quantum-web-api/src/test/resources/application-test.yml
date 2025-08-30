@@ -14,12 +14,48 @@ spring:
     console:
       enabled: true
 
+# Trading Service Test Configuration
+trading:
+  execution:
+    enabled: true
+    simulate: true  # 시뮬레이션 모드 활성화
+  risk:
+    max-order-amount: 1000000000  # 10억원 (테스트용 높은 한도)
+    max-daily-loss: 100000000     # 1억원
+    max-daily-trade-count: 1000   # 1000회
+    max-position-ratio: 0.5       # 50%
+  market:
+    start-time: "00:00"  # 24시간 허용 (테스트용)
+    end-time: "23:59"
+
+# Kiwoom Adapter Test Configuration  
+kiwoom:
+  adapter:
+    base-url: http://localhost:10201  # 실제 어댑터 또는 Mock 서버
+
 # Axon Server 테스트 설정
 axon:
   axonserver:
     enabled: false  # 테스트 시 Axon Server 비활성화
+  eventhandling:
+    processors:
+      order-events:
+        mode: subscribing
 
 logging:
   level:
     com.quantum: DEBUG
     org.springframework.web: DEBUG
+    org.axonframework: INFO
+    org.hibernate.SQL: DEBUG
+
+# Test Data Configuration
+test:
+  data:
+    users:
+      - userId: "TEST-USER-001"
+        username: "testuser1"
+        portfolios:
+          - portfolioId: "PORTFOLIO-TEST-001"
+            name: "Test Portfolio 1"
+            initialCash: 10000000  # 1천만원

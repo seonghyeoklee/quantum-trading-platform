@@ -79,6 +79,44 @@ public record GrantUserRoleCommand(
     }
     
     /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private UserId userId;
+        private String roleName;
+        private UserId grantedBy;
+        private String reason;
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder roleName(String roleName) {
+            this.roleName = roleName;
+            return this;
+        }
+        
+        public Builder grantedBy(UserId grantedBy) {
+            this.grantedBy = grantedBy;
+            return this;
+        }
+        
+        public Builder reason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+        
+        public GrantUserRoleCommand build() {
+            return new GrantUserRoleCommand(userId, roleName, grantedBy, reason);
+        }
+    }
+    
+    /**
      * Enum for standardizing system roles
      */
     public enum SystemRole {

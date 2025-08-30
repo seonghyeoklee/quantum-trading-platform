@@ -31,7 +31,7 @@ export function useStockBasicInfo(
     lastUpdated: null
   });
 
-  const refreshTimerRef = useRef<NodeJS.Timeout>();
+  const refreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const isUnmountedRef = useRef(false);
 
   // 종목 정보 조회 함수

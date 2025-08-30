@@ -22,4 +22,30 @@ public record CancelOrderCommand(
             throw new IllegalArgumentException("Cancellation reason is required");
         }
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private OrderId orderId;
+        private String reason;
+        
+        public Builder orderId(OrderId orderId) {
+            this.orderId = orderId;
+            return this;
+        }
+        
+        public Builder reason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+        
+        public CancelOrderCommand build() {
+            return new CancelOrderCommand(orderId, reason);
+        }
+    }
 }

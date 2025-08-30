@@ -24,7 +24,7 @@ class KiwoomSettings(BaseSettings):
     
     # FastAPI 서버 설정
     FASTAPI_HOST: str = Field("0.0.0.0", description="FastAPI 호스트")
-    FASTAPI_PORT: int = Field(8100, description="FastAPI 포트")
+    FASTAPI_PORT: int = Field(10201, description="FastAPI 포트")
     
     # 로깅 설정
     LOG_LEVEL: str = Field("INFO", description="로깅 레벨")
@@ -40,6 +40,10 @@ class KiwoomSettings(BaseSettings):
     
     # DART API 설정 (한국 금융감독원 전자공시 시스템)
     DART_API_KEY: str = Field("", description="DART API 키 (재무데이터 조회용)")
+    
+    # 네이버 뉴스 검색 API 설정
+    NAVER_CLIENT_ID: str = Field("", env="NAVER_CLIENT_ID", description="네이버 뉴스 검색 API 클라이언트 ID")
+    NAVER_CLIENT_SECRET: str = Field("", env="NAVER_CLIENT_SECRET", description="네이버 뉴스 검색 API 클라이언트 시크릿")
     
     class Config:
         env_file = ".env"

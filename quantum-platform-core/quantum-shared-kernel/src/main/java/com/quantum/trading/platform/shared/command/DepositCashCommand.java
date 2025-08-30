@@ -24,4 +24,36 @@ public record DepositCashCommand(
             throw new IllegalArgumentException("Deposit amount must be positive");
         }
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private PortfolioId portfolioId;
+        private Money amount;
+        private String description;
+        
+        public Builder portfolioId(PortfolioId portfolioId) {
+            this.portfolioId = portfolioId;
+            return this;
+        }
+        
+        public Builder amount(Money amount) {
+            this.amount = amount;
+            return this;
+        }
+        
+        public Builder description(String description) {
+            this.description = description;
+            return this;
+        }
+        
+        public DepositCashCommand build() {
+            return new DepositCashCommand(portfolioId, amount, description);
+        }
+    }
 }

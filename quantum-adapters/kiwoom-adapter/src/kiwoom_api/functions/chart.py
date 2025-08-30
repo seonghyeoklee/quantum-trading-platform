@@ -16,6 +16,7 @@ import httpx
 # Handle both relative and absolute imports for different execution contexts
 try:
     from ..config.settings import settings
+    from ..utils.rate_limiter import get_rate_limiter
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
     src_path = Path(__file__).parent.parent.parent
@@ -23,6 +24,7 @@ except ImportError:
         sys.path.insert(0, str(src_path))
 
     from kiwoom_api.config.settings import settings
+    from kiwoom_api.utils.rate_limiter import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +59,72 @@ async def _get_valid_token() -> str:
         return settings.KIWOOM_APP_KEY
 
 
+async def _ka10081_api_call(data: Dict[str, Any], cont_yn: str, next_key: str, token: str) -> Dict[str, Any]:
+    """실제 ka10081 API 호출 (rate limiter에서 호출)"""
+    # 1. 요청할 API URL 구성
+    host = settings.kiwoom_base_url
+    endpoint = '/api/dostk/chart'
+    url = host + endpoint
+
+    logger.info(f"📡 요청 URL: {url}")
+    logger.info(f"📊 모드: {settings.kiwoom_mode_description}")
+
+    # 2. 요청 데이터 검증
+    required_fields = ['stk_cd', 'base_dt', 'upd_stkpc_tp']
+    for field in required_fields:
+        if not data.get(field):
+            error_msg = f"필수 파라미터 누락: {field}"
+            logger.error(error_msg)
+            return {
+                'Code': 400,
+                'Header': {'api-id': 'ka10081', 'cont-yn': 'N', 'next-key': ''},
+                'Body': {'error': error_msg}
+            }
+
+    logger.info(f"📊 종목코드: {data['stk_cd']}")
+    logger.info(f"📅 기준일자: {data['base_dt']}")
+    logger.info(f"🔧 수정주가구분: {data['upd_stkpc_tp']}")
+    logger.info(f"🔄 연속조회: {cont_yn}")
+    if next_key:
+        logger.info(f"🔑 연속조회키: {next_key[:20]}...")
+
+    # 3. header 데이터 (키움 API 스펙)
+    headers = {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'authorization': f'Bearer {token}',
+        'cont-yn': cont_yn,
+        'next-key': next_key,
+        'api-id': 'ka10081',
+    }
+
+    # 4. HTTP POST 요청 (타임아웃 연장)
+    timeout = 180.0  # 3분으로 연장
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(url, headers=headers, json=data)
+
+    # 5. 키움 API 응답 헤더 추출
+    api_headers = {
+        'next-key': response.headers.get('next-key', ''),
+        'cont-yn': response.headers.get('cont-yn', 'N'),
+        'api-id': response.headers.get('api-id', 'ka10081')
+    }
+
+    # 6. 응답 데이터 구성
+    result = {
+        'Code': response.status_code,
+        'Header': api_headers,
+        'Body': response.json() if response.content else {}
+    }
+
+    return result
+
+
 async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '', token: Optional[str] = None) -> Dict[str, Any]:
     """
-    키움증권 주식일봉차트조회 (ka10081)
+    키움증권 주식일봉차트조회 (ka10081) - Rate Limiting 적용
 
     키움 API 스펙 완전 준수 함수
-    사용자 제공 코드와 동일한 방식으로 구현
+    서버부하방지 제한 대응: 1초당 5회 제한, 429 에러 시 자동 재시도
 
     Args:
         data: 차트조회 요청 데이터
@@ -88,7 +150,7 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
         >>> result = await fn_ka10081(data=params)
         >>> print(f"Code: {result['Code']}")
     """
-    logger.info("📈 키움 주식일봉차트조회 시작 (ka10081)")
+    logger.info("📈 키움 주식일봉차트조회 시작 (ka10081) - Rate Limiting 적용")
 
     try:
         # 0. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
@@ -99,65 +161,25 @@ async def fn_ka10081(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
             logger.info("🔑 제공된 토큰 사용")
         
         logger.info(f"🔑 사용할 토큰: {token[:20]}...")
-        # 1. 요청할 API URL 구성
-        host = settings.kiwoom_base_url
-        endpoint = '/api/dostk/chart'
-        url = host + endpoint
 
-        logger.info(f"📡 요청 URL: {url}")
-        logger.info(f"📊 모드: {settings.kiwoom_mode_description}")
+        # 1. Rate Limiter 적용하여 API 호출
+        rate_limiter = await get_rate_limiter()
+        result = await rate_limiter.execute_with_retry(
+            'ka10081',
+            _ka10081_api_call,
+            data, cont_yn, next_key, token
+        )
 
-        # 2. 요청 데이터 검증
-        required_fields = ['stk_cd', 'base_dt', 'upd_stkpc_tp']
-        for field in required_fields:
-            if not data.get(field):
-                error_msg = f"필수 파라미터 누락: {field}"
-                logger.error(error_msg)
-                return {
-                    'Code': 400,
-                    'Header': {'api-id': 'ka10081', 'cont-yn': 'N', 'next-key': ''},
-                    'Body': {'error': error_msg}
-                }
-
-        logger.info(f"📊 종목코드: {data['stk_cd']}")
-        logger.info(f"📅 기준일자: {data['base_dt']}")
-        logger.info(f"🔧 수정주가구분: {data['upd_stkpc_tp']}")
-        logger.info(f"🔄 연속조회: {cont_yn}")
-        if next_key:
-            logger.info(f"🔑 연속조회키: {next_key[:20]}...")
-
-        # 3. header 데이터 (키움 API 스펙)
-        headers = {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'authorization': f'Bearer {token}',
-            'cont-yn': cont_yn,
-            'next-key': next_key,
-            'api-id': 'ka10081',
-        }
-
-        # 4. HTTP POST 요청 (타임아웃 연장)
-        timeout = 180.0  # 3분으로 연장
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(url, headers=headers, json=data)
-
-        # 5. 키움 API 응답 헤더 추출
-        api_headers = {
-            'next-key': response.headers.get('next-key', ''),
-            'cont-yn': response.headers.get('cont-yn', 'N'),
-            'api-id': response.headers.get('api-id', 'ka10081')
-        }
-
-        # 6. 응답 데이터 구성 (사용자 코드와 동일한 형태)
-        result = {
-            'Code': response.status_code,
-            'Header': api_headers,
-            'Body': response.json() if response.content else {}
-        }
-
-        # 7. 로깅 (사용자 코드와 동일한 형태)
+        # 2. 로깅 (사용자 코드와 동일한 형태)
         logger.info(f"Code: {result['Code']}")
         logger.info(f"Header: {json.dumps(result['Header'], indent=4, ensure_ascii=False)}")
-        logger.info(f"Body: {json.dumps(result['Body'], indent=4, ensure_ascii=False)}")
+        if result['Body']:
+            # Body가 큰 경우 일부만 로그
+            body_str = json.dumps(result['Body'], indent=4, ensure_ascii=False)
+            if len(body_str) > 1000:
+                logger.info(f"Body: {body_str[:1000]}... (truncated)")
+            else:
+                logger.info(f"Body: {body_str}")
 
         return result
 

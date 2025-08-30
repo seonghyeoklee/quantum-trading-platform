@@ -170,98 +170,110 @@ services:
     networks:
       - quantum-network
 
+  # ============== APPLICATION SERVICES ==============
+
   # Quantum Web API (Spring Boot)
-#  quantum-web-api:
-#    image: openjdk:17-jdk-slim
-#    container_name: quantum-web-api
-#    ports:
-#      - "8080:8080"
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=docker
-#      - AXON_SERVER_HOST=quantum-axon-server
-#      - DB_HOST=quantum-postgres
-#      - DB_PORT=5432
-#      - DB_NAME=quantum_trading
-#      - DB_USER=quantum
-#      - DB_PASSWORD=quantum123
-#      - REDIS_HOST=quantum-redis
-#      - KAFKA_BROKERS=quantum-kafka:9092
-#      - KIWOOM_API_URL=http://quantum-kiwoom-adapter:8100
-#    volumes:
-#      - ../quantum-web/quantum-web-api/build/libs:/app
-#      - ./logs/api:/app/logs
-#    working_dir: /app
-#    command: java -jar quantum-web-api-1.0.0.jar
-#    depends_on:
-#      - axon-server
-#      - postgres
-#      - redis
-#      - kafka
-#    networks:
-#      - quantum-network
-#    restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 5
-#
-#  # ============== ADAPTER SERVICES ==============
-#
-#  # Kiwoom Python API Adapter
-#  quantum-kiwoom-adapter:
-#    build:
-#      context: ../quantum-adapters/kiwoom-adapter
-#      dockerfile: ../../quantum-infrastructure/docker/kiwoom-service.Dockerfile
-#    container_name: quantum-kiwoom-adapter
-#    ports:
-#      - "8100:8100"
-#    environment:
-#      - ENVIRONMENT=docker
-#      - HOST=0.0.0.0
-#      - PORT=8100
-#      - LOG_LEVEL=INFO
-#      - KIWOOM_CLIENT_ID=${KIWOOM_CLIENT_ID:-}
-#      - KIWOOM_CLIENT_SECRET=${KIWOOM_CLIENT_SECRET:-}
-#    volumes:
-#      - ./logs/kiwoom:/app/logs
-#    networks:
-#      - quantum-network
-#    restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 5
-#
-#  # ============== WEB SERVICES ==============
-#
-#  # Quantum Web Client (Next.js)
-#  quantum-web-client:
-#    image: node:18-alpine
-#    container_name: quantum-web-client
-#    ports:
-#      - "3001:3000"
-#    environment:
-#      - NODE_ENV=production
-#      - NEXT_PUBLIC_API_URL=http://localhost:8080
-#      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
-#    volumes:
-#      - ../quantum-web/quantum-web-client:/app
-#      - /app/node_modules
-#      - /app/.next
-#    working_dir: /app
-#    command: sh -c "npm ci && npm run build && npm start"
-#    depends_on:
-#      - quantum-web-api
-#    networks:
-#      - quantum-network
-#    restart: unless-stopped
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 5
+  quantum-web-api:
+    build:
+      context: ../quantum-web/quantum-web-api
+      dockerfile: ../../quantum-infrastructure/docker/web-api.Dockerfile
+    container_name: quantum-web-api
+    ports:
+      - "10101:10101"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=10101
+      - AXON_SERVER_HOST=quantum-axon-server
+      - DB_HOST=quantum-postgres
+      - DB_PORT=5432
+      - DB_NAME=quantum_trading
+      - DB_USER=quantum
+      - DB_PASSWORD=quantum123
+      - REDIS_HOST=quantum-redis
+      - REDIS_PORT=6379
+      - KAFKA_BROKERS=quantum-kafka:29092
+      - KIWOOM_API_URL=http://quantum-kiwoom-adapter:10201
+      - TEMPO_ENDPOINT=http://quantum-tempo:4318
+    volumes:
+      - ./logs/api:/app/logs
+    depends_on:
+      - axon-server
+      - postgres
+      - redis
+      - kafka
+      - tempo
+    networks:
+      - quantum-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10101/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============== ADAPTER SERVICES ==============
+
+  # Kiwoom Python API Adapter
+  quantum-kiwoom-adapter:
+    build:
+      context: ../quantum-adapters/kiwoom-adapter
+      dockerfile: ../../quantum-infrastructure/docker/kiwoom-service.Dockerfile
+    container_name: quantum-kiwoom-adapter
+    ports:
+      - "10201:10201"
+    environment:
+      - ENVIRONMENT=docker
+      - HOST=0.0.0.0
+      - FASTAPI_PORT=10201
+      - LOG_LEVEL=INFO
+      - KIWOOM_SANDBOX_MODE=true
+      - KIWOOM_SANDBOX_APP_KEY=${KIWOOM_SANDBOX_APP_KEY:-demo-client-id}
+      - KIWOOM_SANDBOX_APP_SECRET=${KIWOOM_SANDBOX_APP_SECRET:-demo-client-secret}
+      - DART_API_KEY=${DART_API_KEY:-}
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
+      - ENABLE_METRICS=true
+      - TEMPO_ENDPOINT=http://quantum-tempo:4318
+    volumes:
+      - ./logs/kiwoom:/app/logs
+    depends_on:
+      - tempo
+    networks:
+      - quantum-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10201/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============== WEB SERVICES ==============
+
+  # Quantum Web Client (Next.js)
+  quantum-web-client:
+    build:
+      context: ../quantum-web/quantum-web-client
+      dockerfile: ../../quantum-infrastructure/docker/web-client.Dockerfile
+    container_name: quantum-web-client
+    ports:
+      - "10301:10301"
+    environment:
+      - NODE_ENV=production
+      - PORT=10301
+      - NEXT_PUBLIC_API_URL=http://localhost:10101
+      - NEXT_PUBLIC_WS_URL=ws://localhost:10101
+      - KIWOOM_ADAPTER_URL=http://quantum-kiwoom-adapter:10201
+    depends_on:
+      - quantum-web-api
+      - quantum-kiwoom-adapter
+    networks:
+      - quantum-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # ============== MONITORING & MANAGEMENT ==============
 
@@ -291,30 +303,33 @@ services:
       - "9080:9080"
     volumes:
       - ./infrastructure/promtail/promtail.yml:/etc/promtail/config.yml
-      - ./logs:/var/log/quantum
-      - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/config.yml
+    user: root
     depends_on:
       - loki
     networks:
       - quantum-network
+    restart: unless-stopped
 
-  # Zipkin - Distributed Tracing
-  zipkin:
-    image: openzipkin/zipkin:latest
-    container_name: quantum-zipkin
+  # Tempo - Distributed Tracing
+  tempo:
+    image: grafana/tempo:2.2.0
+    container_name: quantum-tempo
     ports:
-      - "9411:9411"
-    environment:
-      - STORAGE_TYPE=mem
-      - JAVA_OPTS=-Xms512m -Xmx1024m
+      - "3200:3200"   # HTTP API
+      - "14268:14268" # Jaeger ingest
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     volumes:
-      - zipkin-data:/zipkin
+      - ./infrastructure/tempo/tempo.yaml:/etc/tempo/tempo.yaml
+      - tempo-data:/tmp/tempo
+    command: [ "-config.file=/etc/tempo/tempo.yaml" ]
     networks:
       - quantum-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3200/ready"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -397,7 +412,7 @@ volumes:
     driver: local
   loki-data:
     driver: local
-  zipkin-data:
+  tempo-data:
     driver: local
   alertmanager-data:
     driver: local

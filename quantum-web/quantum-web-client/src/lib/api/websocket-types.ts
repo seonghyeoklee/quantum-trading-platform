@@ -88,7 +88,7 @@ export interface RealtimeOrderExecutionData {
 export type OrderStatus = 'received' | 'partial' | 'completed' | 'cancelled' | 'rejected';
 
 // WebSocket 메시지 타입 (실제 키움 서버 형식)
-export type WebSocketMessageType = 'quote' | 'candle' | 'orderbook' | 'trade' | 'subscribe' | 'unsubscribe' | 'error' | 'heartbeat';
+export type WebSocketMessageType = 'quote' | 'candle' | 'orderbook' | 'trade' | 'subscribe' | 'unsubscribe' | 'error' | 'heartbeat' | 'kiwoom_realtime' | 'realtime_data';
 
 export interface WebSocketMessage<T = any> {
   // 표준 형식
@@ -171,7 +171,7 @@ export interface WebSocketHookReturn {
   connect: () => void;
   disconnect: () => void;
   sendMessage: (message: SubscribeRequest | UnsubscribeRequest | any) => void;
-  subscribe: (symbols: string[], dataTypes?: ('quote' | 'candle' | 'orderbook' | 'trade')[]) => void;
+  subscribe: (symbols: string[], dataTypes?: ('quote' | 'candle' | 'orderbook' | 'trade')[], refresh?: boolean) => void;
   unsubscribe: (symbols: string[], dataTypes?: ('quote' | 'candle' | 'orderbook' | 'trade')[]) => void;
   reconnectAttempts: number;
 }

@@ -1,6 +1,7 @@
 package com.quantum.trading.platform.shared.command;
 
 import com.quantum.trading.platform.shared.value.*;
+import lombok.Builder;
 import org.axonframework.modelling.command.TargetAggregateIdentifier;
 
 import java.math.BigDecimal;
@@ -8,6 +9,7 @@ import java.math.BigDecimal;
 /**
  * 포지션 업데이트 명령 (주문 체결 후 포트폴리오 반영)
  */
+@Builder
 public record UpdatePositionCommand(
     @TargetAggregateIdentifier
     PortfolioId portfolioId,

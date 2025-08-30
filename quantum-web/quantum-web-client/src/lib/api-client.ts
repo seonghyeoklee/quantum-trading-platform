@@ -6,7 +6,7 @@ interface ApiResponse<T = any> {
 }
 
 class ApiClient {
-  private baseURL = 'http://localhost:8080/api/v1';
+  private baseURL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10101'}/api/v1`;
 
   private async request<T = any>(
     endpoint: string,

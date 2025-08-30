@@ -69,7 +69,7 @@ cd quantum-infrastructure
 | Kafka | localhost:9092 | 메시지 브로커 | - |
 | Prometheus | http://localhost:9090 | 메트릭 수집 | - |
 | Grafana | http://localhost:3000 | 모니터링 대시보드 | admin/quantum123 |
-| Kiwoom API | http://localhost:8100 | 키움증권 API | - |
+| Kiwoom API | http://localhost:10201 | 키움증권 API | - |
 | KIS Mock API | http://localhost:8200 | 한투 Mock API | - |
 | API Gateway | http://localhost:8080 | REST API | - |
 | Kafka UI | http://localhost:8090 | Kafka 관리 | - |

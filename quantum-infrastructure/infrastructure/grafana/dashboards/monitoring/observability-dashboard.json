@@ -200,8 +200,8 @@
     },
     {
       "datasource": {
-        "type": "zipkin",
-        "uid": "zipkin"
+        "type": "tempo",
+        "uid": "tempo"
       },
       "fieldConfig": {
         "defaults": {

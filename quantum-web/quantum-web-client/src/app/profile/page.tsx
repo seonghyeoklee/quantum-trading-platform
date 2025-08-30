@@ -94,7 +94,6 @@ function ProfilePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <Avatar className="w-20 h-20">
-                    <AvatarImage src={user.avatar} alt={user.username} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xl">
                       {getUserInitials(user.username)}
                     </AvatarFallback>

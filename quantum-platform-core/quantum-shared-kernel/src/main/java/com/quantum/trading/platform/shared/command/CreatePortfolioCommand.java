@@ -78,4 +78,36 @@ public record CreatePortfolioCommand(
     public Money getInitialCash() {
         return initialCash;
     }
+    
+    /**
+     * Builder pattern support for test compatibility
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private PortfolioId portfolioId;
+        private UserId userId;
+        private Money initialCash;
+        
+        public Builder portfolioId(PortfolioId portfolioId) {
+            this.portfolioId = portfolioId;
+            return this;
+        }
+        
+        public Builder userId(UserId userId) {
+            this.userId = userId;
+            return this;
+        }
+        
+        public Builder initialCash(Money initialCash) {
+            this.initialCash = initialCash;
+            return this;
+        }
+        
+        public CreatePortfolioCommand build() {
+            return new CreatePortfolioCommand(portfolioId, userId, initialCash);
+        }
+    }
 }

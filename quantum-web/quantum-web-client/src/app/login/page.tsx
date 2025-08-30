@@ -32,7 +32,7 @@ export default function LoginPage() {
 
     try {
       // 먼저 2FA 확인을 위해 직접 API 호출
-      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+      const response = await fetch('http://localhost:10101/api/v1/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/2fa/verify-login', {
+      const response = await fetch('http://localhost:10101/api/v1/auth/2fa/verify-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

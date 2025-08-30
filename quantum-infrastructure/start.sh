@@ -54,6 +54,7 @@ start_infrastructure() {
         redis \
         zookeeper \
         kafka \
+        tempo \
         prometheus \
         grafana
     
@@ -80,7 +81,7 @@ start_monitoring() {
         alertmanager \
         loki \
         promtail \
-        zipkin \
+        tempo \
         kafka-ui \
         redis-commander
 }
@@ -145,10 +146,10 @@ case "$COMMAND" in
         echo "AlertManager:          http://localhost:9093"
         echo "Grafana:               http://localhost:3000"
         echo "Loki:                  http://localhost:3100"
-        echo "Zipkin:                http://localhost:9411"
-        echo "Kiwoom Adapter:        http://localhost:8100"
-        echo "Web API:               http://localhost:8080"
-        echo "Web Client:            http://localhost:3001"
+        echo "Tempo:                 http://localhost:3200"
+        echo "Kiwoom Adapter:        http://localhost:10201"
+        echo "Web API:               http://localhost:10101"
+        echo "Web Client:            http://localhost:10301"
         echo "Kafka UI:              http://localhost:8090"
         echo "Redis Commander:       http://localhost:8091"
         echo "================================================"

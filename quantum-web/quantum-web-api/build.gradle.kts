@@ -60,9 +60,12 @@ dependencies {
     // API Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0")
 
-    // Distributed Tracing (Zipkin)
-    implementation("io.micrometer:micrometer-tracing-bridge-brave")
-    implementation("io.zipkin.reporter2:zipkin-reporter-brave")
+    // Metrics & Monitoring (Prometheus)
+    implementation("io.micrometer:micrometer-registry-prometheus")
+    
+    // Distributed Tracing (OpenTelemetry -> Tempo)
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     
     // Structured Logging (JSON)
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")

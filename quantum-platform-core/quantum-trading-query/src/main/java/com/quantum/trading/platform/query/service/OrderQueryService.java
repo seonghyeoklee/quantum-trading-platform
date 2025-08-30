@@ -2,7 +2,9 @@ package com.quantum.trading.platform.query.service;
 
 import com.quantum.trading.platform.query.repository.OrderViewRepository;
 import com.quantum.trading.platform.query.view.OrderView;
+import com.quantum.trading.platform.shared.value.OrderId;
 import com.quantum.trading.platform.shared.value.OrderStatus;
+import com.quantum.trading.platform.shared.value.UserId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +43,28 @@ public class OrderQueryService {
     }
     
     /**
+     * 주문 상세 조회 (별칭)
+     */
+    public Optional<OrderView> getOrderById(String orderId) {
+        return getOrder(orderId);
+    }
+    
+    /**
      * 사용자별 주문 목록 조회 (페이징)
      */
     public Page<OrderView> getUserOrders(String userId, Pageable pageable) {
         return orderViewRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+    }
+    
+    /**
+     * 포트폴리오별 주문 목록 조회 (TradingService용)
+     */
+    public Page<OrderView> getOrdersByPortfolioId(String portfolioId, OrderStatus status, Pageable pageable) {
+        if (status != null) {
+            return orderViewRepository.findByPortfolioIdAndStatusOrderByCreatedAtDesc(portfolioId, status, pageable);
+        } else {
+            return orderViewRepository.findByPortfolioIdOrderByCreatedAtDesc(portfolioId, pageable);
+        }
     }
     
     /**
@@ -82,6 +103,23 @@ public class OrderQueryService {
         Instant endInstant = endDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
         
         return orderViewRepository.findByUserIdAndDateRange(userId, startInstant, endInstant);
+    }
+    
+    /**
+     * 기간별 주문 조회 (LocalDateTime 버전) - RiskManagementService용
+     */
+    public List<OrderView> findOrdersByUserIdAndDateRange(UserId userId, LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        Instant startInstant = startDateTime.toInstant(ZoneOffset.UTC);
+        Instant endInstant = endDateTime.toInstant(ZoneOffset.UTC);
+        
+        return orderViewRepository.findByUserIdAndDateRange(userId.value(), startInstant, endInstant);
+    }
+    
+    /**
+     * OrderId로 주문 조회 (RiskManagementService용)
+     */
+    public OrderView findOrderById(OrderId orderId) {
+        return orderViewRepository.findById(orderId.value()).orElse(null);
     }
     
     /**
@@ -159,7 +197,7 @@ public class OrderQueryService {
         
         return results.stream()
                 .collect(Collectors.toMap(
-                        result -> ((java.sql.Date) result[0]).toLocalDate(),
+                        result -> (LocalDate) result[0],
                         result -> (Long) result[1]
                 ));
     }
@@ -172,6 +210,66 @@ public class OrderQueryService {
                 symbol, 
                 Pageable.ofSize(limit)
         );
+    }
+    
+    /**
+     * 거래 내역 조회 (TradingService용)
+     */
+    public Page<TradeView> getTradesByPortfolioId(String portfolioId, String symbol, 
+                                                 String fromDate, String toDate, Pageable pageable) {
+        // 실제로는 TradeView가 있어야 하지만, 임시로 OrderView를 활용
+        // TODO: TradeView 구현 후 변경 필요
+        
+        if (symbol != null) {
+            return orderViewRepository.findFilledOrdersByPortfolioIdAndSymbol(portfolioId, symbol, pageable)
+                    .map(this::convertToTradeView);
+        } else {
+            return orderViewRepository.findFilledOrdersByPortfolioId(portfolioId, pageable)
+                    .map(this::convertToTradeView);
+        }
+    }
+    
+    /**
+     * OrderView를 TradeView로 임시 변환
+     */
+    private TradeView convertToTradeView(OrderView order) {
+        return TradeView.builder()
+                .tradeId("TRADE-" + order.getOrderId())
+                .orderId(order.getOrderId())
+                .portfolioId(order.getPortfolioId())
+                .symbol(order.getSymbol())
+                .side(order.getSide())
+                .quantity(order.getFilledQuantity())
+                .price(order.getAveragePrice())
+                .amount(order.getTotalAmount())
+                .executedAt(order.getUpdatedAt())
+                .build();
+    }
+    
+    /**
+     * 임시 TradeView 클래스
+     */
+    @lombok.Builder
+    public static class TradeView {
+        private final String tradeId;
+        private final String orderId;
+        private final String portfolioId;
+        private final String symbol;
+        private final com.quantum.trading.platform.shared.value.OrderSide side;
+        private final Integer quantity;
+        private final java.math.BigDecimal price;
+        private final java.math.BigDecimal amount;
+        private final java.time.LocalDateTime executedAt;
+        
+        public String getTradeId() { return tradeId; }
+        public String getOrderId() { return orderId; }
+        public String getPortfolioId() { return portfolioId; }
+        public String getSymbol() { return symbol; }
+        public com.quantum.trading.platform.shared.value.OrderSide getSide() { return side; }
+        public Integer getQuantity() { return quantity; }
+        public java.math.BigDecimal getPrice() { return price; }
+        public java.math.BigDecimal getAmount() { return amount; }
+        public java.time.LocalDateTime getExecutedAt() { return executedAt; }
     }
     
     /**

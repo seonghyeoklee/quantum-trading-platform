@@ -6,7 +6,7 @@ Google Sheets VLOOKUP 기반 주식 종합 분석 API를 제공합니다.
 """
 
 import sys
-from pathlib import Path
+from pathlib import Path as FilePath
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -25,7 +25,7 @@ try:
     from ..indicators.financial_indicators import FinancialDataCollector
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
-    src_path = Path(__file__).parent.parent.parent
+    src_path = FilePath(__file__).parent.parent.parent
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
     from kiwoom_api.analysis.core.area_scorers import AreaScorer
