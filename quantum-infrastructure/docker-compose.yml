@@ -221,19 +221,24 @@ services:
     container_name: quantum-kiwoom-adapter
     ports:
       - "10201:10201"
+    env_file:
+      - .env.docker
     environment:
       - ENVIRONMENT=docker
-      - HOST=0.0.0.0
+      - FASTAPI_HOST=0.0.0.0
       - FASTAPI_PORT=10201
       - LOG_LEVEL=INFO
       - KIWOOM_SANDBOX_MODE=true
-      - KIWOOM_SANDBOX_APP_KEY=${KIWOOM_SANDBOX_APP_KEY:-demo-client-id}
-      - KIWOOM_SANDBOX_APP_SECRET=${KIWOOM_SANDBOX_APP_SECRET:-demo-client-secret}
-      - DART_API_KEY=${DART_API_KEY:-}
-      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
-      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
       - ENABLE_METRICS=true
       - TEMPO_ENDPOINT=http://quantum-tempo:4318
+      # 환경변수는 .env.docker에서 로드됨:
+      # - KIWOOM_SANDBOX_APP_KEY
+      # - KIWOOM_SANDBOX_APP_SECRET  
+      # - KIWOOM_PRODUCTION_APP_KEY
+      # - KIWOOM_PRODUCTION_APP_SECRET
+      # - DART_API_KEY
+      # - NAVER_CLIENT_ID
+      # - NAVER_CLIENT_SECRET
     volumes:
       - ./logs/kiwoom:/app/logs
     depends_on:
