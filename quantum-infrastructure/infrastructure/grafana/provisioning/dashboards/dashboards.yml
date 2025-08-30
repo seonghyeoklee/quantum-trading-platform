@@ -1,16 +1,6 @@
 apiVersion: 1
 
 providers:
-  - name: 'default'
-    orgId: 1
-    folder: ''
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards
-  
   - name: 'monitoring'
     orgId: 1
     folder: 'Monitoring'
@@ -20,13 +10,3 @@ providers:
     allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards/monitoring
-
-  - name: 'timeseries'
-    orgId: 1
-    folder: 'Time Series'
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards
