@@ -30,4 +30,9 @@ aiokafka = "^0.8.11"
 # Prometheus Metrics
 prometheus-client = "^0.19.0"
 prometheus-fastapi-instrumentator = "^6.1.0"
+# Trading Strategy Dependencies
+pandas = "^2.0.0"
+numpy = "^1.24.0"
+ta = "^0.10.2"
+apscheduler = "^3.10.4"
 
