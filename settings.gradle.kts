@@ -6,8 +6,6 @@ include("quantum-platform-core:quantum-shared-kernel")
 include("quantum-platform-core:quantum-trading-command")
 include("quantum-platform-core:quantum-trading-query")
 
-include("quantum-adapters:kiwoom-adapter")
-
 include("quantum-web:quantum-web-api")
 include("quantum-web:quantum-web-client")
 

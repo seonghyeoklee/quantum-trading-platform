@@ -6,10 +6,12 @@ import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button"
 import ChartContainer, { ChartContainerRef } from "@/components/chart/ChartContainer"
 import ProgramTradingRanking from "@/components/trading/ProgramTradingRanking"
+import TradingSignalsDashboard from "@/components/trading/TradingSignalsDashboard"
 import { KiwoomStockInfo } from "@/lib/api/kiwoom-types";
 
 function TradingDashboard() {
   const [selectedStock, setSelectedStock] = useState<KiwoomStockInfo | null>(null);
+  const [activeTab, setActiveTab] = useState<'chart' | 'signals'>('chart');
   const chartContainerRef = useRef<ChartContainerRef>(null);
 
   // 차트 컨테이너에서 종목 선택 이벤트를 받기 위한 핸들러
@@ -111,15 +113,43 @@ function TradingDashboard() {
           </div>
         </div>
 
-        {/* Central Area - Chart Only */}
+        {/* Central Area - Chart & Trading Signals */}
         <div className="flex-1 flex flex-col bg-background overflow-hidden">
-          {/* 차트 영역 - 완전한 기능 */}
-          <div className="flex-1 h-full">
-            <ChartContainer 
-              ref={chartContainerRef}
-              className="h-full" 
-              onStockSelect={handleStockSelection}
-            />
+          {/* Tab Navigation */}
+          <div className="border-b border-border bg-background">
+            <div className="flex">
+              <Button
+                variant={activeTab === 'chart' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                onClick={() => setActiveTab('chart')}
+              >
+                차트 분석
+              </Button>
+              <Button
+                variant={activeTab === 'signals' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                onClick={() => setActiveTab('signals')}
+              >
+                실시간 매매신호
+              </Button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 h-full overflow-hidden">
+            {activeTab === 'chart' ? (
+              <ChartContainer 
+                ref={chartContainerRef}
+                className="h-full" 
+                onStockSelect={handleStockSelection}
+              />
+            ) : (
+              <div className="h-full overflow-y-auto p-6">
+                <TradingSignalsDashboard />
+              </div>
+            )}
           </div>
         </div>
 

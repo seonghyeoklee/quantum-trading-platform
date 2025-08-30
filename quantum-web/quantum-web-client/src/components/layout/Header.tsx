@@ -15,7 +15,8 @@ import {
   Home,
   Building,
   BookOpen,
-  Bot
+  Bot,
+  Activity
 } from "lucide-react";
 
 interface HeaderProps {
@@ -30,6 +31,7 @@ export default function Header({ className }: HeaderProps) {
   const isStockPage = pathname === '/stock';
   const isGlossaryPage = pathname === '/glossary';
   const isStrategiesPage = pathname === '/strategies' || pathname?.startsWith('/strategies/');
+  const isTradingTestPage = pathname === '/trading-test';
 
   return (
     <header className={`border-b border-border bg-card sticky top-0 z-50 ${className || ''}`}>
@@ -78,6 +80,16 @@ export default function Header({ className }: HeaderProps) {
                 <Bot className="w-4 h-4" />
                 <span className="text-sm">전략</span>
                 <ChevronDown className="w-3 h-3" />
+              </a>
+
+              <a 
+                href="/trading-test" 
+                className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
+                  isTradingTestPage ? 'text-primary font-medium' : ''
+                }`}
+              >
+                <Activity className="w-4 h-4" />
+                <span className="text-sm">통합테스트</span>
               </a>
               
               <div className="flex items-center space-x-1 cursor-pointer hover:text-primary">
@@ -182,6 +194,12 @@ export default function Header({ className }: HeaderProps) {
                 <span className="text-primary font-medium">자동매매 전략</span>
               </>
             )}
+            {isTradingTestPage && (
+              <>
+                <span>•</span>
+                <span className="text-primary font-medium">통합 테스트</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -225,6 +243,15 @@ export default function Header({ className }: HeaderProps) {
             >
               <BookOpen className="w-3 h-3" />
               <span className="text-xs">용어사전</span>
+            </a>
+            <a 
+              href="/trading-test" 
+              className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
+                isTradingTestPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+              }`}
+            >
+              <Activity className="w-3 h-3" />
+              <span className="text-xs">통합테스트</span>
             </a>
           </div>
           
