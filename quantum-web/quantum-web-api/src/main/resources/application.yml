@@ -1,17 +1,21 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:10101}
 
 spring:
   profiles:
     active: development
+  
+  # Bean Definition Override
+  main:
+    allow-bean-definition-overriding: true
 
   # PostgreSQL Configuration
   datasource:
-    url: jdbc:postgresql://localhost:5433/quantum_trading
-    username: quantum
-    password: quantum123
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:quantum_trading}
+    username: ${DB_USER:quantum}
+    password: ${DB_PASSWORD:quantum123}
     driver-class-name: org.postgresql.Driver
-    
+
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -23,7 +27,7 @@ spring:
         hbm2ddl:
           auto: create-drop
     defer-datasource-initialization: false
-    
+
   sql:
     init:
       mode: never
@@ -37,13 +41,13 @@ spring:
       fail-on-unknown-properties: false
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       timeout: 2000
-  
+
   # Kafka Configuration
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     consumer:
       group-id: quantum-web-api
       auto-offset-reset: latest
@@ -65,7 +69,7 @@ influxdb:
 # Axon Framework Configuration
 axon:
   axonserver:
-    servers: localhost:8124
+    servers: ${AXON_SERVER_HOST:localhost}:8124
   serializer:
     general: jackson
     events: jackson
@@ -75,10 +79,7 @@ axon:
 springdoc:
   api-docs:
     enabled: true
-    path: /docs
-  swagger-ui:
-    enabled: true
-    path: /swagger-ui.html
+    path: /v3/api-docs
 
 # Logging Configuration
 logging:
@@ -95,21 +96,29 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus,tracing
+      base-path: /actuator
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
   tracing:
     sampling:
       probability: 1.0  # 개발 환경에서는 100% 샘플링
-  zipkin:
-    tracing:
-      endpoint: http://quantum-zipkin:9411/api/v2/spans
+  otel:
+    exporter:
+      otlp:
+        endpoint: http://quantum-tempo:4318  # OTLP HTTP endpoint for Tempo
 
 # CORS Configuration
 cors:
   allowed-origins:
-    - "http://localhost:3000"  # Next.js 개발 서버
-    - "http://localhost:3001"  # React 개발 서버
+    - "http://localhost:3000"  # Next.js 개발 서버 (개발용)
+    - "http://localhost:10301"  # Next.js 프로덕션 서버
   allowed-methods:
     - GET
     - POST
@@ -125,7 +134,7 @@ quantum:
     master-key: ${QUANTUM_MASTER_KEY:DEFAULT_MASTER_KEY_CHANGE_IN_PRODUCTION_12345678901234567890123456789012}
   kiwoom:
     api:
-      base-url: ${KIWOOM_API_BASE_URL:http://localhost:8100}
+      base-url: ${KIWOOM_API_BASE_URL:http://localhost:10201}
       timeout: 30000
     token:
       default-ttl: 14400  # 4시간 (초)

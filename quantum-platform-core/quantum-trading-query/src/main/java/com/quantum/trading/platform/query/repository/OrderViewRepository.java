@@ -124,11 +124,11 @@ public interface OrderViewRepository extends JpaRepository<OrderView, String> {
     /**
      * 일별 주문 수 통계
      */
-    @Query("SELECT DATE(o.createdAt), COUNT(o) FROM OrderView o " +
+    @Query("SELECT CAST(o.createdAt as LocalDate), COUNT(o) FROM OrderView o " +
            "WHERE o.userId = :userId " +
            "AND o.createdAt >= :startDate " +
-           "GROUP BY DATE(o.createdAt) " +
-           "ORDER BY DATE(o.createdAt)")
+           "GROUP BY CAST(o.createdAt as LocalDate) " +
+           "ORDER BY CAST(o.createdAt as LocalDate)")
     List<Object[]> getDailyOrderStats(
             @Param("userId") String userId,
             @Param("startDate") Instant startDate);

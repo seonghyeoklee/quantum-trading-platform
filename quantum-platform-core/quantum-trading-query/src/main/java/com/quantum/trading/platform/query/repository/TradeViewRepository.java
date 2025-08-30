@@ -63,8 +63,8 @@ public interface TradeViewRepository extends JpaRepository<TradeView, String> {
     BigDecimal sumRealizedPnLByUserId(@Param("userId") String userId);
     
     // 오늘의 거래
-    @Query("SELECT t FROM TradeView t WHERE t.userId = :userId AND DATE(t.executedAt) = CURRENT_DATE ORDER BY t.executedAt DESC")
-    List<TradeView> findTodayTradesByUserId(@Param("userId") String userId);
+    @Query("SELECT t FROM TradeView t WHERE t.userId = :userId AND t.executedAt >= :todayStart ORDER BY t.executedAt DESC")
+    List<TradeView> findTodayTradesByUserId(@Param("userId") String userId, @Param("todayStart") LocalDateTime todayStart);
     
     // 종목별 거래 요약
     @Query("SELECT t.symbol, COUNT(t), SUM(t.executedQuantity), AVG(t.executedPrice) " +

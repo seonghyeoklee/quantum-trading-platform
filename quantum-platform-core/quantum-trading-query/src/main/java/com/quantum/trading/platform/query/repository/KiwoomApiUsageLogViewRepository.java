@@ -74,7 +74,7 @@ public interface KiwoomApiUsageLogViewRepository extends JpaRepository<KiwoomApi
     /**
      * 전체 API 사용량 통계 (일별)
      */
-    @Query("SELECT DATE(log.usageTimestamp) as date, COUNT(log) as count FROM KiwoomApiUsageLogView log WHERE log.usageTimestamp >= :fromDate GROUP BY DATE(log.usageTimestamp) ORDER BY date DESC")
+    @Query("SELECT CAST(log.usageTimestamp as LocalDate) as date, COUNT(log) as count FROM KiwoomApiUsageLogView log WHERE log.usageTimestamp >= :fromDate GROUP BY CAST(log.usageTimestamp as LocalDate) ORDER BY date DESC")
     List<Object[]> getDailyApiUsageStats(@Param("fromDate") Instant fromDate);
 
     /**
