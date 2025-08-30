@@ -13,12 +13,27 @@ const DEFAULT_PORTS = {
 const TAILSCALE_IP = process.env.NEXT_PUBLIC_TAILSCALE_IP || '100.68.90.21';
 
 /**
+ * 모바일 브라우저 감지
+ */
+function isMobileBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+/**
  * 현재 호스트 감지 (클라이언트/서버 환경 모두 지원)
  */
 function getCurrentHost(request?: Request): string {
   // 클라이언트 사이드: window.location 사용
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+    const mobile = isMobileBrowser();
+    
+    // 모바일에서 localhost 접근 시 특별 처리
+    if (mobile && hostname === 'localhost') {
+      // 모바일에서는 localhost 대신 실제 Tailscale IP 사용을 권장
+      console.warn('⚠️ Mobile browser detected accessing localhost. Consider using Tailscale IP for better compatibility.');
+    }
     
     // Tailscale IP로 접근하고 있는 경우
     if (hostname === TAILSCALE_IP) {

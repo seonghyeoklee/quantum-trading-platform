@@ -11,12 +11,36 @@ interface EnvironmentData {
 export default function EnvironmentDebugPage() {
   const [environmentData, setEnvironmentData] = useState<EnvironmentData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userAgent, setUserAgent] = useState<string>('');
 
   useEffect(() => {
     const loadEnvironmentData = async () => {
       try {
         // 클라이언트 사이드 환경 정보
         const clientSideInfo = getEnvironmentInfo();
+        
+        // 추가 브라우저 정보
+        const browserInfo = {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          onLine: navigator.onLine,
+          screen: {
+            width: window.screen.width,
+            height: window.screen.height,
+            availWidth: window.screen.availWidth,
+            availHeight: window.screen.availHeight,
+          },
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+          },
+          isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+          isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+          isAndroid: /Android/.test(navigator.userAgent),
+        };
+
+        setUserAgent(navigator.userAgent);
         
         // 서버 사이드 환경 정보 (API 호출)
         const response = await fetch('/api/debug/environment');
@@ -25,6 +49,7 @@ export default function EnvironmentDebugPage() {
         setEnvironmentData({
           clientSide: {
             ...clientSideInfo,
+            ...browserInfo,
             currentURL: window.location.href,
             timestamp: new Date().toISOString(),
           },
@@ -36,7 +61,10 @@ export default function EnvironmentDebugPage() {
           clientSide: {
             ...getEnvironmentInfo(),
             error: 'Failed to load environment data',
+            errorDetails: error instanceof Error ? error.message : String(error),
             currentURL: window.location.href,
+            userAgent: navigator.userAgent,
+            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
           },
           serverSide: { error: 'Failed to fetch server-side data' },
         });
@@ -61,13 +89,22 @@ export default function EnvironmentDebugPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-100 py-4 px-2 md:py-8 md:px-4">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Environment Debug Info</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Environment Debug Info</h1>
+          <p className="text-gray-600 mt-2 text-sm md:text-base">
             API configuration and host detection debugging information
           </p>
+          {userAgent && (
+            <div className="mt-2 p-2 bg-blue-100 rounded-lg">
+              <p className="text-xs md:text-sm text-blue-800">
+                <strong>Device:</strong> {environmentData?.clientSide?.isMobile ? '📱 Mobile' : '💻 Desktop'}
+                {environmentData?.clientSide?.isIOS && ' (iOS)'}
+                {environmentData?.clientSide?.isAndroid && ' (Android)'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -94,8 +131,8 @@ export default function EnvironmentDebugPage() {
           </div>
 
           {/* API Test Buttons */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+          <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-4 flex items-center">
               <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
               API Connection Tests
             </h2>
@@ -108,6 +145,19 @@ export default function EnvironmentDebugPage() {
                 name="Kiwoom Adapter Health Check"
                 url={`${environmentData?.clientSide?.kiwoomAdapterUrl}/health`}
               />
+              {/* 모바일 전용 추가 테스트 */}
+              {environmentData?.clientSide?.isMobile && (
+                <>
+                  <APITestButton
+                    name="Direct Localhost Test (Mobile)"
+                    url="http://localhost:10101/actuator/health"
+                  />
+                  <APITestButton
+                    name="Direct Tailscale Test (Mobile)"
+                    url="http://100.68.90.21:10101/actuator/health"
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>

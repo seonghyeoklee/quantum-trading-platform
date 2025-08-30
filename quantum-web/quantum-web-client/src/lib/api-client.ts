@@ -12,6 +12,12 @@ class ApiClient {
     return `${getApiBaseUrl()}/api/v1`;
   }
 
+  // 모바일 브라우저 감지
+  private isMobile(): boolean {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+
   private async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
@@ -62,7 +68,29 @@ class ApiClient {
 
       return await response.json();
     } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
+      const isMobile = this.isMobile();
+      const errorMessage = `API request failed: ${endpoint}`;
+      
+      if (isMobile) {
+        console.error(`${errorMessage} [MOBILE]`, {
+          error,
+          url,
+          isMobile,
+          userAgent: navigator.userAgent,
+          onLine: navigator.onLine,
+          protocol: window.location.protocol,
+          hostname: window.location.hostname
+        });
+        
+        // 모바일에서 Mixed Content 오류가 발생했을 가능성 체크
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          console.warn('🚨 Mobile Mixed Content Policy: HTTPS page trying to access HTTP API');
+          console.warn('💡 Solution: Use HTTPS APIs or access via Tailscale IP');
+        }
+      } else {
+        console.error(errorMessage, error);
+      }
+      
       throw error;
     }
   }
