@@ -252,9 +252,16 @@ class NaverNewsClient:
 # 테스트 함수
 async def test_naver_news_client():
     """네이버 뉴스 API 클라이언트 테스트"""
+    # 환경변수에서 API 키 가져오기
+    from ..config.settings import settings
+    
+    if not settings.NAVER_CLIENT_ID or not settings.NAVER_CLIENT_SECRET:
+        print("❌ 네이버 API 키가 설정되지 않았습니다. .env 파일을 확인하세요.")
+        return None
+    
     client = NaverNewsClient(
-        client_id="oarxsFogkVekumlQyzJW",
-        client_secret="SlqG6Cl4h2"
+        client_id=settings.NAVER_CLIENT_ID,
+        client_secret=settings.NAVER_CLIENT_SECRET
     )
     
     # 삼성전자 뉴스 검색 테스트

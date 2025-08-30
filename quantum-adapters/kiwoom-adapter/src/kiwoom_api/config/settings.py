@@ -42,8 +42,8 @@ class KiwoomSettings(BaseSettings):
     DART_API_KEY: str = Field("", description="DART API 키 (재무데이터 조회용)")
     
     # 네이버 뉴스 검색 API 설정
-    NAVER_CLIENT_ID: str = Field("oarxsFogkVekumlQyzJW", description="네이버 뉴스 검색 API 클라이언트 ID")
-    NAVER_CLIENT_SECRET: str = Field("SlqG6Cl4h2", description="네이버 뉴스 검색 API 클라이언트 시크릿")
+    NAVER_CLIENT_ID: str = Field("", env="NAVER_CLIENT_ID", description="네이버 뉴스 검색 API 클라이언트 ID")
+    NAVER_CLIENT_SECRET: str = Field("", env="NAVER_CLIENT_SECRET", description="네이버 뉴스 검색 API 클라이언트 시크릿")
     
     class Config:
         env_file = ".env"

@@ -229,6 +229,9 @@ services:
       - KIWOOM_SANDBOX_MODE=true
       - KIWOOM_SANDBOX_APP_KEY=${KIWOOM_SANDBOX_APP_KEY:-demo-client-id}
       - KIWOOM_SANDBOX_APP_SECRET=${KIWOOM_SANDBOX_APP_SECRET:-demo-client-secret}
+      - DART_API_KEY=${DART_API_KEY:-}
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
       - ENABLE_METRICS=true
       - TEMPO_ENDPOINT=http://quantum-tempo:4318
     volumes:
