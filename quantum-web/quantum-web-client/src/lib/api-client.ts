@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './api-config';
+
 interface ApiResponse<T = any> {
   success: boolean;
   message: string;
@@ -6,7 +8,9 @@ interface ApiResponse<T = any> {
 }
 
 class ApiClient {
-  private baseURL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10101'}/api/v1`;
+  private get baseURL() {
+    return `${getApiBaseUrl()}/api/v1`;
+  }
 
   private async request<T = any>(
     endpoint: string,

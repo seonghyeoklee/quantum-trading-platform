@@ -3,7 +3,9 @@
  * 프록시 없이 키움 어댑터로 직접 요청
  */
 
-const KIWOOM_ADAPTER_URL = process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL || 'http://localhost:10201';
+import { getKiwoomAdapterUrl } from '../api-config';
+
+const KIWOOM_ADAPTER_URL = getKiwoomAdapterUrl();
 
 export interface KiwoomApiResponse<T = any> {
   Code: number;

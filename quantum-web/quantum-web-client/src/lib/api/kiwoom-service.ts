@@ -20,8 +20,7 @@ import {
   MARKET_TYPES
 } from './kiwoom-types';
 import { ChartTimeframe, ChartType, CandlestickData } from '@/components/chart/ChartTypes';
-
-const KIWOOM_API_BASE_URL = process.env.KIWOOM_ADAPTER_URL || 'http://localhost:10201';
+import { getKiwoomAdapterUrl } from '../api-config';
 
 class KiwoomApiService {
 
@@ -37,7 +36,7 @@ class KiwoomApiService {
   ): Promise<KiwoomApiResponse> {
 
     const endpoint = CHART_API_ENDPOINTS[chartType];
-    const url = `${KIWOOM_API_BASE_URL}${endpoint}`;
+    const url = `${getKiwoomAdapterUrl()}${endpoint}`;
 
     // 요청 데이터 구성
     const requestData: KiwoomApiRequest = {
@@ -469,7 +468,7 @@ class KiwoomApiService {
 
       console.log(`🔗 API 요청:`, requestData);
 
-      const response = await fetch(`${KIWOOM_API_BASE_URL}/api/fn_ka10099?cont_yn=N`, {
+      const response = await fetch(`${getKiwoomAdapterUrl()}/api/fn_ka10099?cont_yn=N`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

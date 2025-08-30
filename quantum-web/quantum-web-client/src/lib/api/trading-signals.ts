@@ -3,7 +3,9 @@
  * Java 백엔드의 TradingSignalController와 연동
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:10101';
+import { getApiBaseUrl } from '../api-config';
+
+const API_BASE_URL = getApiBaseUrl();
 
 // 토큰 관리
 const getAuthToken = (): string | null => {

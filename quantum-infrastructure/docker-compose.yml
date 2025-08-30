@@ -260,9 +260,15 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=10301
-      - NEXT_PUBLIC_API_URL=http://localhost:10101
-      - NEXT_PUBLIC_WS_URL=ws://localhost:10101
-      - KIWOOM_ADAPTER_URL=http://quantum-kiwoom-adapter:10201
+      # Dynamic URLs - will auto-detect when not set
+      # For Tailscale external access, uncomment and set:
+      # - NEXT_PUBLIC_API_URL=http://100.68.90.21:10101
+      # - NEXT_PUBLIC_KIWOOM_ADAPTER_URL=http://100.68.90.21:10201
+      # - NEXT_PUBLIC_TAILSCALE_IP=100.68.90.21
+      # Internal container networking (default)
+      - NEXT_PUBLIC_API_URL=http://quantum-web-api:10101
+      - NEXT_PUBLIC_WS_URL=ws://quantum-web-api:10101
+      - NEXT_PUBLIC_KIWOOM_ADAPTER_URL=http://quantum-kiwoom-adapter:10201
     depends_on:
       - quantum-web-api
       - quantum-kiwoom-adapter

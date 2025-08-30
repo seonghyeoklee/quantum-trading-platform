@@ -8,14 +8,15 @@ import {
   StockInfoCache,
   StockInfoApiError 
 } from './stock-info-types';
+import { getKiwoomAdapterUrl } from '../api-config';
 
 class StockInfoService {
   private readonly baseUrl: string;
   private cache: StockInfoCache = {};
   private readonly cacheTTL: number = 5 * 60 * 1000; // 5분 캐시
 
-  constructor(baseUrl: string = 'http://localhost:10201') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl || getKiwoomAdapterUrl();
   }
 
   /**
