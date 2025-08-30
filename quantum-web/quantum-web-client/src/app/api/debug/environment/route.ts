@@ -1,17 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getEnvironmentInfo } from '@/lib/api-config';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const environmentInfo = getEnvironmentInfo();
+    const environmentInfo = getEnvironmentInfo(request);
     
     return NextResponse.json({
       success: true,
       data: {
         ...environmentInfo,
         headers: {
-          // Add server-side header information if needed
-          userAgent: process.env.HTTP_USER_AGENT || 'server-side',
+          host: request.headers.get('host'),
+          userAgent: request.headers.get('user-agent') || 'server-side',
+          xForwardedFor: request.headers.get('x-forwarded-for'),
         },
         serverSide: true,
         timestamp: new Date().toISOString(),

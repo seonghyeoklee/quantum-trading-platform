@@ -13,24 +13,40 @@ const DEFAULT_PORTS = {
 const TAILSCALE_IP = process.env.NEXT_PUBLIC_TAILSCALE_IP || '100.68.90.21';
 
 /**
- * 브라우저에서 현재 호스트 감지
+ * 현재 호스트 감지 (클라이언트/서버 환경 모두 지원)
  */
-function getCurrentHost(): string {
-  // 서버사이드 렌더링 중일 때는 기본값 반환
-  if (typeof window === 'undefined') {
+function getCurrentHost(request?: Request): string {
+  // 클라이언트 사이드: window.location 사용
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // Tailscale IP로 접근하고 있는 경우
+    if (hostname === TAILSCALE_IP) {
+      return TAILSCALE_IP;
+    }
+    
+    // localhost나 127.0.0.1이 아닌 경우 (예: 다른 네트워크 IP)
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return hostname;
+    }
+    
     return 'localhost';
   }
 
-  const hostname = window.location.hostname;
-  
-  // Tailscale IP로 접근하고 있는 경우
-  if (hostname === TAILSCALE_IP) {
-    return TAILSCALE_IP;
-  }
-  
-  // localhost나 127.0.0.1이 아닌 경우 (예: 다른 네트워크 IP)
-  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return hostname;
+  // 서버 사이드: Request 헤더에서 호스트 추출
+  if (request) {
+    const host = request.headers.get('host');
+    if (host) {
+      const hostname = host.split(':')[0]; // 포트 번호 제거
+      
+      if (hostname === TAILSCALE_IP) {
+        return TAILSCALE_IP;
+      }
+      
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return hostname;
+      }
+    }
   }
   
   return 'localhost';
@@ -39,13 +55,13 @@ function getCurrentHost(): string {
 /**
  * API 베이스 URL 생성
  */
-export function getApiBaseUrl(): string {
+export function getApiBaseUrl(request?: Request): string {
   // 환경변수 우선 사용
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  const host = getCurrentHost();
+  const host = getCurrentHost(request);
   const port = DEFAULT_PORTS.WEB_API;
   const protocol = host === 'localhost' || host === '127.0.0.1' ? 'http' : 'http';
   
@@ -55,13 +71,13 @@ export function getApiBaseUrl(): string {
 /**
  * Kiwoom Adapter URL 생성
  */
-export function getKiwoomAdapterUrl(): string {
+export function getKiwoomAdapterUrl(request?: Request): string {
   // 환경변수 우선 사용
   if (process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL) {
     return process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL;
   }
 
-  const host = getCurrentHost();
+  const host = getCurrentHost(request);
   const port = DEFAULT_PORTS.KIWOOM_ADAPTER;
   const protocol = host === 'localhost' || host === '127.0.0.1' ? 'http' : 'http';
   
@@ -81,12 +97,13 @@ export function getWebSocketUrl(port: number): string {
 /**
  * 현재 환경 정보 반환 (디버깅용)
  */
-export function getEnvironmentInfo() {
+export function getEnvironmentInfo(request?: Request) {
+  const host = getCurrentHost(request);
   return {
-    host: getCurrentHost(),
-    apiBaseUrl: getApiBaseUrl(),
-    kiwoomAdapterUrl: getKiwoomAdapterUrl(),
-    isTailscale: getCurrentHost() === TAILSCALE_IP,
+    host,
+    apiBaseUrl: getApiBaseUrl(request),
+    kiwoomAdapterUrl: getKiwoomAdapterUrl(request),
+    isTailscale: host === TAILSCALE_IP,
     isSSR: typeof window === 'undefined',
   };
 }

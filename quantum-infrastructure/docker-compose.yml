@@ -265,15 +265,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=10301
-      # Dynamic URLs - will auto-detect when not set
-      # For Tailscale external access, uncomment and set:
-      # - NEXT_PUBLIC_API_URL=http://100.68.90.21:10101
-      # - NEXT_PUBLIC_KIWOOM_ADAPTER_URL=http://100.68.90.21:10201
-      # - NEXT_PUBLIC_TAILSCALE_IP=100.68.90.21
-      # Internal container networking (default)
-      - NEXT_PUBLIC_API_URL=http://quantum-web-api:10101
-      - NEXT_PUBLIC_WS_URL=ws://quantum-web-api:10101
-      - NEXT_PUBLIC_KIWOOM_ADAPTER_URL=http://quantum-kiwoom-adapter:10201
+      # Tailscale IP 설정 (동적 호스트 감지에서 사용)
+      - NEXT_PUBLIC_TAILSCALE_IP=100.68.90.21
+      # API URL 환경변수를 제거하여 동적 감지 활성화
+      # NEXT_PUBLIC_API_URL과 NEXT_PUBLIC_KIWOOM_ADAPTER_URL을 설정하지 않으면
+      # api-config.ts의 동적 호스트 감지가 작동함
     depends_on:
       - quantum-web-api
       - quantum-kiwoom-adapter
