@@ -35,8 +35,3 @@ export interface ChartConfig {
   symbol: string;
 }
 
-// Mock 데이터를 위한 타입
-export interface MockChartData {
-  candlestickData: CandlestickData[];
-  stockInfo: StockInfo;
-}

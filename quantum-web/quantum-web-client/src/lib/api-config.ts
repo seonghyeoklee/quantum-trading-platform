@@ -29,23 +29,25 @@ function getCurrentHost(request?: Request): string {
     const hostname = window.location.hostname;
     const mobile = isMobileBrowser();
     
-    // 모바일에서 localhost 접근 시 특별 처리
-    if (mobile && hostname === 'localhost') {
-      // 모바일에서는 localhost 대신 실제 Tailscale IP 사용을 권장
-      console.warn('⚠️ Mobile browser detected accessing localhost. Consider using Tailscale IP for better compatibility.');
-    }
+    console.log('🔍 [API Config] Current hostname detected:', hostname);
     
-    // Tailscale IP로 접근하고 있는 경우
-    if (hostname === TAILSCALE_IP) {
+    // localhost나 127.0.0.1로 접속한 경우에만 Docker 환경을 위한 특별 처리
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      // 모바일에서 localhost 접근 시 경고
+      if (mobile) {
+        console.warn('⚠️ Mobile browser detected accessing localhost. Using Tailscale IP for backend connectivity.');
+      }
+      
+      console.log('🐳 [API Config] Localhost detected, using Tailscale IP:', TAILSCALE_IP);
+      // Docker 환경에서는 컨테이너가 localhost로 백엔드에 접근할 수 없으므로
+      // 실제 호스트의 Tailscale IP를 사용
       return TAILSCALE_IP;
     }
     
-    // localhost나 127.0.0.1이 아닌 경우 (예: 다른 네트워크 IP)
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      return hostname;
-    }
-    
-    return 'localhost';
+    console.log('🌐 [API Config] External IP detected, using same hostname for backend:', hostname);
+    // 외부 IP로 접근하는 경우 (100.68.90.21, 192.168.200.195 등)
+    // 동일한 호스트 IP를 사용하여 백엔드에 접근
+    return hostname;
   }
 
   // 서버 사이드: Request 헤더에서 호스트 추출
@@ -54,17 +56,18 @@ function getCurrentHost(request?: Request): string {
     if (host) {
       const hostname = host.split(':')[0]; // 포트 번호 제거
       
-      if (hostname === TAILSCALE_IP) {
+      // localhost나 127.0.0.1인 경우에만 Docker 환경을 위한 특별 처리
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return TAILSCALE_IP;
       }
       
-      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        return hostname;
-      }
+      // 외부 IP인 경우 동일한 호스트 IP를 사용
+      return hostname;
     }
   }
   
-  return 'localhost';
+  // 기본값은 Tailscale IP 사용
+  return TAILSCALE_IP;
 }
 
 /**
@@ -73,14 +76,17 @@ function getCurrentHost(request?: Request): string {
 export function getApiBaseUrl(request?: Request): string {
   // 환경변수 우선 사용
   if (process.env.NEXT_PUBLIC_API_URL) {
+    console.log('🔧 [API Config] Using environment variable API_URL:', process.env.NEXT_PUBLIC_API_URL);
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
   const host = getCurrentHost(request);
   const port = DEFAULT_PORTS.WEB_API;
   const protocol = host === 'localhost' || host === '127.0.0.1' ? 'http' : 'http';
+  const url = `${protocol}://${host}:${port}`;
   
-  return `${protocol}://${host}:${port}`;
+  console.log('🔧 [API Config] Generated Web API URL:', url);
+  return url;
 }
 
 /**
@@ -89,14 +95,17 @@ export function getApiBaseUrl(request?: Request): string {
 export function getKiwoomAdapterUrl(request?: Request): string {
   // 환경변수 우선 사용
   if (process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL) {
+    console.log('🔧 [API Config] Using environment variable KIWOOM_ADAPTER_URL:', process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL);
     return process.env.NEXT_PUBLIC_KIWOOM_ADAPTER_URL;
   }
 
   const host = getCurrentHost(request);
   const port = DEFAULT_PORTS.KIWOOM_ADAPTER;
   const protocol = host === 'localhost' || host === '127.0.0.1' ? 'http' : 'http';
+  const url = `${protocol}://${host}:${port}`;
   
-  return `${protocol}://${host}:${port}`;
+  console.log('🔧 [API Config] Generated Kiwoom Adapter URL:', url);
+  return url;
 }
 
 /**

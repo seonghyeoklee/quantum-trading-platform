@@ -49,9 +49,8 @@ async def _get_valid_token() -> str:
         return token
     else:
         logger.error(f"❌ 토큰 발급 실패: {auth_result}")
-        # 실패 시 환경변수 고정키 사용 (fallback)
-        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
-        return settings.KIWOOM_APP_KEY
+        # 실패 시 예외 발생 (실제 데이터만 사용)
+        raise Exception(f"토큰 발급 실패: {auth_result}")
 
 
 async def fn_ka10006(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '') -> Dict[str, Any]:

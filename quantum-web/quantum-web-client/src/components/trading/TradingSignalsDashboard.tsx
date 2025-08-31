@@ -26,6 +26,7 @@ export default function TradingSignalsDashboard() {
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Initial data load
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function TradingSignalsDashboard() {
 
   const loadInitialData = async () => {
     setLoading(true);
+    setError(null);
     try {
       await Promise.all([
         loadSignals(),
@@ -43,8 +45,7 @@ export default function TradingSignalsDashboard() {
       ]);
     } catch (error) {
       console.error('Failed to load initial data:', error);
-      // Fall back to mock data on error for development
-      loadMockData();
+      setError('데이터를 불러올 수 없습니다. 서버 연결을 확인해주세요.');
     } finally {
       setLoading(false);
     }
@@ -121,72 +122,6 @@ export default function TradingSignalsDashboard() {
     }
   };
 
-  const loadMockData = () => {
-    // Fallback mock data for development
-    const mockSignals: TradingSignalDto[] = [
-      {
-        strategyName: 'RSI_STRATEGY',
-        symbol: '005930',
-        signalType: 'BUY',
-        strength: 'STRONG',
-        currentPrice: 71500,
-        targetPrice: 75000,
-        stopLoss: 68000,
-        quantity: 10,
-        confidence: 0.87,
-        reason: 'RSI 과매도 구간 (RSI: 28.5) 진입, 반등 신호 감지',
-        timestamp: new Date(Date.now() - 5000).toISOString(),
-        dryRun: false,
-        priority: 1,
-        technicalIndicators: '{"rsi": 28.5, "sma_5": 71200, "sma_20": 72800}'
-      },
-      {
-        strategyName: 'MOVING_AVERAGE_CROSSOVER',
-        symbol: '000660',
-        signalType: 'SELL',
-        strength: 'MODERATE',
-        currentPrice: 145000,
-        stopLoss: 148000,
-        confidence: 0.72,
-        reason: '5일선이 20일선 아래로 데드크로스, 매도 신호',
-        timestamp: new Date(Date.now() - 15000).toISOString(),
-        dryRun: true,
-        priority: 2,
-        technicalIndicators: '{"sma_5": 144500, "sma_20": 146200, "rsi": 58.3}'
-      }
-    ];
-
-    const mockStrategies: StrategyStats[] = [
-      {
-        strategyName: 'RSI_STRATEGY',
-        enabled: true,
-        totalSignals: 24,
-        successfulSignals: 18,
-        failedSignals: 6,
-        successRate: 0.75,
-        averageProcessingTime: 1250,
-        lastSignalTime: new Date(Date.now() - 5000).toISOString(),
-        activePositions: 3,
-        totalProfitLoss: 125000
-      }
-    ];
-
-    const mockSystemStatus: SystemStatus = {
-      executionMode: 'DRY_RUN',
-      isKiwoomConnected: true,
-      connectedStrategies: ['RSI_STRATEGY', 'MOVING_AVERAGE_CROSSOVER'],
-      enabledStrategies: ['RSI_STRATEGY'],
-      processingSignals: 1,
-      totalProcessedToday: 42,
-      successRateToday: 0.71,
-      lastHeartbeat: new Date().toISOString(),
-      uptime: 3600000
-    };
-
-    setSignals(mockSignals);
-    setStrategies(mockStrategies);
-    setSystemStatus(mockSystemStatus);
-  };
 
   // Auto refresh functionality
   useEffect(() => {
@@ -332,7 +267,13 @@ export default function TradingSignalsDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {signals.length === 0 ? (
+            {error ? (
+              <div className="text-center py-8 text-red-600">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4" />
+                <div className="font-medium">매매신호 로드 실패</div>
+                <div className="text-sm text-muted-foreground mt-2">{error}</div>
+              </div>
+            ) : signals.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <div>현재 활성화된 매매신호가 없습니다</div>
@@ -419,7 +360,13 @@ export default function TradingSignalsDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {executionResults.length === 0 ? (
+            {error ? (
+              <div className="text-center py-8 text-red-600">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4" />
+                <div className="font-medium">주문 결과 로드 실패</div>
+                <div className="text-sm text-muted-foreground mt-2">{error}</div>
+              </div>
+            ) : executionResults.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <div>최근 주문 처리 결과가 없습니다</div>

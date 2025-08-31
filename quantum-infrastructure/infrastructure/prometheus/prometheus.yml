@@ -2,13 +2,16 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: 'quantum-trading'
+    environment: 'production'
 
 # AlertManager 연동 설정
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          - quantum-alertmanager:9093
+          - alertmanager:9093
 
 rule_files:
   - "/etc/prometheus/alert_rules.yml"
@@ -19,6 +22,8 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
+  # ============== APPLICATION SERVICES ==============
+  
   # Axon Server metrics
   - job_name: 'axon-server'
     static_configs:
@@ -40,6 +45,35 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
+  # ============== INFRASTRUCTURE SERVICES ==============
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['quantum-postgres-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis Exporter  
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['quantum-redis-exporter:9121']
+    scrape_interval: 30s
+
+  # Kafka Exporter
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: ['quantum-kafka-exporter:9308']
+    scrape_interval: 30s
+
+  # InfluxDB metrics
+  - job_name: 'influxdb'
+    static_configs:
+      - targets: ['quantum-influxdb:8086']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # ============== MONITORING SERVICES ==============
+
   # Loki metrics
   - job_name: 'loki'
     static_configs:
@@ -58,5 +92,28 @@ scrape_configs:
   - job_name: 'tempo'
     static_configs:
       - targets: ['quantum-tempo:3200']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['quantum-grafana:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # AlertManager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['quantum-alertmanager:9093']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # ============== CONTAINER METRICS ==============
+
+  # cAdvisor for container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['quantum-cadvisor:8080']
     metrics_path: '/metrics'
     scrape_interval: 30s

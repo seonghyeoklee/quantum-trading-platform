@@ -85,6 +85,10 @@ public class SecurityConfig {
                 // Swagger/OpenAPI 문서 (개발환경에서만)
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/docs/**").permitAll()
 
+                // 개발용 테스트 엔드포인트 (인증 우회)
+                .requestMatchers("/api/v1/dev/**").permitAll()
+                .requestMatchers("/api/v1/trading/test/**").permitAll()
+
                 // 관리자 전용 엔드포인트
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 
@@ -105,7 +109,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
-            // JWT 필터 추가
+            // JWT 필터 추가 - actuator 경로 제외
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

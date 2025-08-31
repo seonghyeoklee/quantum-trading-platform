@@ -545,10 +545,10 @@ async def example_news_crawling():
     
     crawler = NewsCrawler()
     
-    # 삼성전자 뉴스 수집
+    # 예시: 뉴스 수집
     result = await crawler.get_comprehensive_news(
-        stock_code="005930",
-        stock_name="삼성전자",
+        stock_code="{종목코드}",
+        stock_name="{종목명}",
         use_api=False  # API 키가 있으면 True
     )
     

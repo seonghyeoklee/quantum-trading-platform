@@ -297,19 +297,8 @@ public class KiwoomAccountManagementService {
             ApiCredentials credentials = encryptionService.decryptApiCredentials(encryptedCredentials);
 
             // 2. 키움증권 API 호출하여 새 토큰 발급 (실제 구현 필요)
-            // 여기서는 Mock 토큰 생성
-            KiwoomTokenService.KiwoomToken newToken = KiwoomTokenService.KiwoomToken.builder()
-                    .accessToken("mock_access_token_" + System.currentTimeMillis())
-                    .tokenType("Bearer")
-                    .expiresIn(14400L) // 4시간
-                    .scope("trading")
-                    .build();
-
-            // 3. 새 토큰 저장
-            tokenService.storeToken(userId, account.getKiwoomAccountId(), newToken);
-
-            log.info("Successfully refreshed Kiwoom API token for user {}", userId);
-            return Optional.of(newToken.getAccessToken());
+            // Mock token generation removed - must use real Kiwoom API
+            throw new UnsupportedOperationException("Token refresh must use real Kiwoom API. Mock token generation is disabled.");
 
         } catch (Exception e) {
             log.error("Failed to refresh Kiwoom API token for user {}", userId, e);

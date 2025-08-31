@@ -6,12 +6,10 @@
 
 from .models import TradingSignal, SignalType, StrategyConfig
 from .engines import BaseStrategy
-from .runners import StrategyRunner
 
 __all__ = [
     "TradingSignal",
     "SignalType", 
     "StrategyConfig",
-    "BaseStrategy",
-    "StrategyRunner"
+    "BaseStrategy"
 ]

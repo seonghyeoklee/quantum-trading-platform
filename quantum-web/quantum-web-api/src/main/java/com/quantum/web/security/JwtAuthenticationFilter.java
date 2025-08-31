@@ -81,10 +81,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Authorization 헤더에서 토큰 추출
         String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
         
-        // 디버깅용 로그 추가
-        log.info("[JWT Filter] Request URI: {}, Authorization header: {}", 
-                 request.getRequestURI(), 
-                 bearerToken != null ? bearerToken.substring(0, Math.min(20, bearerToken.length())) + "..." : "NULL");
+        // 디버깅용 로그 추가 (actuator 경로 완전 제외)
+        String requestURI = request.getRequestURI();
+        if (!requestURI.startsWith("/actuator/") && !requestURI.equals("/api/health") && requestURI.startsWith("/api/")) {
+            log.debug("[JWT Filter] Request URI: {}, Authorization header: {}", 
+                     requestURI, 
+                     bearerToken != null ? bearerToken.substring(0, Math.min(20, bearerToken.length())) + "..." : "NULL");
+        }
         
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
             String token = bearerToken.substring(BEARER_PREFIX.length());
@@ -127,17 +130,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
         
+        // actuator 경로는 완전히 건너뛰기 (로그 없이)
+        if (path.startsWith("/actuator/")) {
+            return true;
+        }
+        
         boolean shouldSkip = path.equals("/api/v1/auth/login") ||
                path.equals("/api/v1/auth/refresh") ||
                path.equals("/api/v1/auth/logout") ||
                path.startsWith("/swagger-ui/") ||
                path.startsWith("/v3/api-docs/") ||
                path.equals("/api/health") ||
-               path.startsWith("/ws/") ||  // WebSocket handshake
-               path.startsWith("/actuator/health"); // Health check
+               path.startsWith("/ws/"); // WebSocket handshake
         
-        // 디버깅용 로그 추가
-        log.info("[JWT Filter] shouldNotFilter - path: {}, shouldSkip: {}", path, shouldSkip);
+        // 디버깅용 로그 완전히 비활성화 (반복적인 로그 방지)
         
         return shouldSkip;
     }

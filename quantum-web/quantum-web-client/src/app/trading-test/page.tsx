@@ -16,6 +16,7 @@ import {
   OrderExecutionResultDto,
   TradingSignalUtils
 } from '@/lib/api/trading-signals';
+import { getApiBaseUrl, getKiwoomAdapterUrl } from '@/lib/api-config';
 import { 
   Play, 
   Square, 
@@ -27,6 +28,14 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
+
+const API_BASE_URL = getApiBaseUrl();
+
+// 토큰 가져오기 함수
+const getAuthToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('accessToken');
+};
 
 interface TestResult {
   step: string;
@@ -83,8 +92,11 @@ function TradingTestPage() {
           return;
         }
       } catch (error) {
-        addTestResult('1', 'error', `Python 전략 분석 실패: ${error}`);
-        // Continue with mock signal for testing
+        console.error('Python 전략 분석 오류:', error);
+        addTestResult('1', 'error', `Python 전략 분석 실패: ${error instanceof Error ? error.message : String(error)}`);
+        
+        // Mock 신호로 계속 진행
+        console.log('Mock 데이터를 사용하여 테스트 계속 진행');
         const mockSignal: TradingSignalDto = {
           strategyName: selectedStrategy,
           symbol: selectedSymbol,
@@ -94,13 +106,13 @@ function TradingTestPage() {
           targetPrice: 75000,
           stopLoss: 68000,
           confidence: 0.78,
-          reason: '테스트 신호: RSI 과매도 구간 진입',
+          reason: `테스트 신호: ${selectedStrategy} 전략 분석 (Mock 데이터)`,
           timestamp: new Date().toISOString(),
           dryRun: true,
           priority: 2,
         };
         setLastSignal(mockSignal);
-        addTestResult('1', 'success', '테스트용 모의 신호 생성 완료', mockSignal);
+        addTestResult('1', 'success', '⚠️ 실제 API 미구현, 테스트용 Mock 신호 생성 완료', mockSignal);
       }
 
       // Small delay for better UX
@@ -114,13 +126,25 @@ function TradingTestPage() {
           const executionResult = await TradingSignalsApi.receiveSignal(lastSignal);
           if (executionResult.success && executionResult.data) {
             setLastExecution(executionResult.data);
-            addTestResult('2', 'success', `신호 처리 완료: ${executionResult.data.status} - ${executionResult.data.message}`, executionResult.data);
+            addTestResult('2', 'success', `✅ Java 백엔드 신호 처리 완료: ${executionResult.data.status} - ${executionResult.data.message}`, executionResult.data);
           } else {
-            addTestResult('2', 'error', `신호 처리 실패: ${executionResult.message}`);
+            addTestResult('2', 'error', `❌ Java 백엔드 처리 실패: ${executionResult.message || '알 수 없는 오류'}`);
           }
         }
       } catch (error) {
-        addTestResult('2', 'error', `Java 백엔드 통신 실패: ${error}`);
+        console.error('Java 백엔드 통신 오류:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // 인증 관련 오류인지 확인
+        if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+          addTestResult('2', 'error', `❌ 인증 실패: 로그인이 필요하거나 권한이 부족합니다.\n${errorMessage}`);
+        } else if (errorMessage.includes('404')) {
+          addTestResult('2', 'error', `❌ API 엔드포인트 없음: ${errorMessage}`);
+        } else if (errorMessage.includes('Failed to fetch')) {
+          addTestResult('2', 'error', `❌ 네트워크 연결 실패: Java 백엔드 서버(${API_BASE_URL})에 연결할 수 없습니다.\n${errorMessage}`);
+        } else {
+          addTestResult('2', 'error', `❌ Java 백엔드 통신 실패: ${errorMessage}`);
+        }
       }
 
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -184,12 +208,23 @@ function TradingTestPage() {
       if (result.success && result.data) {
         setLastSignal(testSignal);
         setLastExecution(result.data);
-        addTestResult('test', 'success', `테스트 신호 처리 완료: ${result.data.status}`, result.data);
+        addTestResult('test', 'success', `✅ 테스트 신호 처리 완료: ${result.data.status}`, result.data);
       } else {
-        addTestResult('test', 'error', `테스트 신호 실패: ${result.message}`);
+        addTestResult('test', 'error', `❌ 테스트 신호 처리 실패: ${result.message || '알 수 없는 오류'}`);
       }
     } catch (error) {
-      addTestResult('test', 'error', `테스트 신호 전송 실패: ${error}`);
+      console.error('테스트 신호 전송 오류:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        addTestResult('test', 'error', `❌ 인증 실패: 로그인이 필요하거나 권한이 부족합니다.\n관리자 권한이 필요한 기능입니다.\n${errorMessage}`);
+      } else if (errorMessage.includes('404')) {
+        addTestResult('test', 'error', `❌ 테스트 API 엔드포인트 없음: /api/v1/trading/signals/test\n${errorMessage}`);
+      } else if (errorMessage.includes('Failed to fetch')) {
+        addTestResult('test', 'error', `❌ 네트워크 연결 실패: Java 백엔드 서버(${API_BASE_URL})에 연결할 수 없습니다.\n${errorMessage}`);
+      } else {
+        addTestResult('test', 'error', `❌ 테스트 신호 전송 실패: ${errorMessage}`);
+      }
     }
 
     setIsRunning(false);
@@ -445,8 +480,48 @@ function TradingTestPage() {
           </div>
         )}
 
-        {/* Help Section */}
+        {/* Debug Information */}
         <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              시스템 디버깅 정보
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <h4 className="font-medium mb-2">API 연결 정보</h4>
+                <div className="space-y-1 text-muted-foreground">
+                  <div>• Java Backend: <code className="bg-muted px-1 py-0.5 rounded">{API_BASE_URL}</code></div>
+                  <div>• Kiwoom Adapter: <code className="bg-muted px-1 py-0.5 rounded">{getKiwoomAdapterUrl()}</code></div>
+                  <div>• 현재 토큰: {getAuthToken() ? '✅ 있음' : '❌ 없음'}</div>
+                  <div>• 현재 사용자: {localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').username || '알 수 없음' : '로그인 안됨'}</div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">테스트 환경</h4>
+                <div className="space-y-1 text-muted-foreground">
+                  <div>• 호스트: <code className="bg-muted px-1 py-0.5 rounded">{window.location.hostname}</code></div>
+                  <div>• 프로토콜: <code className="bg-muted px-1 py-0.5 rounded">{window.location.protocol}</code></div>
+                  <div>• 네트워크: {navigator.onLine ? '✅ 온라인' : '❌ 오프라인'}</div>
+                  <div>• 브라우저: {navigator.userAgent.includes('Mobile') ? '📱 모바일' : '💻 데스크톱'}</div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h5 className="font-medium text-yellow-800 mb-1">⚠️ 주의사항</h5>
+              <div className="text-sm text-yellow-700">
+                <div>• Python 전략 분석 API는 현재 Mock 데이터를 사용합니다.</div>
+                <div>• Java Backend API 테스트는 로그인과 적절한 권한이 필요합니다.</div>
+                <div>• 실제 거래는 모의투자 모드로 처리됩니다.</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Help Section */}
+        <Card className="mt-6">
           <CardHeader>
             <CardTitle>테스트 플로우 설명</CardTitle>
           </CardHeader>

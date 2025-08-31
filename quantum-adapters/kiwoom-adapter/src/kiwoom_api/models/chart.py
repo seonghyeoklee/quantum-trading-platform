@@ -36,23 +36,23 @@ class ChartResponse(BaseModel):
             "example": {
                 "stk_ddwkmm": [
                     {
-                        "date": "20241225",
-                        "open_pric": "75000",
-                        "high_pric": "75500",
-                        "low_pric": "74500",
-                        "close_pric": "75200",
-                        "pre": "200",
-                        "flu_rt": "0.27",
-                        "trde_qty": "12345678",
-                        "trde_prica": "928750000000",
-                        "for_poss": "3200000000",
-                        "for_wght": "51.2",
-                        "for_netprps": "50000",
-                        "orgn_netprps": "-30000",
-                        "ind_netprps": "-20000",
-                        "crd_remn_rt": "2.5",
-                        "frgn": "10000",
-                        "prm": "5000"
+                        "date": "{날짜}",
+                        "open_pric": "{시가}",
+                        "high_pric": "{고가}",
+                        "low_pric": "{저가}",
+                        "close_pric": "{종가}",
+                        "pre": "{대비}",
+                        "flu_rt": "{등락률}",
+                        "trde_qty": "{거래량}",
+                        "trde_prica": "{거래대금}",
+                        "for_poss": "{외인보유}",
+                        "for_wght": "{외인비중}",
+                        "for_netprps": "{외인순매수}",
+                        "orgn_netprps": "{기관순매수}",
+                        "ind_netprps": "{개인순매수}",
+                        "crd_remn_rt": "{신용잔고율}",
+                        "frgn": "{외국계}",
+                        "prm": "{프로그램}"
                     }
                 ]
             }
@@ -70,29 +70,29 @@ class StructuredChartData(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "timestamp": "20241225",
+                "timestamp": "{날짜시간}",
                 "ohlcv": {
-                    "open": "75000",
-                    "high": "75500", 
-                    "low": "74500",
-                    "close": "75200",
-                    "volume": "12345678",
-                    "change": "200",
-                    "change_rate": "0.27"
+                    "open": "{시가}",
+                    "high": "{고가}", 
+                    "low": "{저가}",
+                    "close": "{종가}",
+                    "volume": "{거래량}",
+                    "change": "{대비}",
+                    "change_rate": "{등락률}"
                 },
                 "trading_info": {
-                    "volume": "12345678",
-                    "value": "928750000000",
-                    "credit_balance_rate": "2.5"
+                    "volume": "{거래량}",
+                    "value": "{거래대금}",
+                    "credit_balance_rate": "{신용잔고율}"
                 },
                 "institutional_data": {
-                    "foreign_holding": "3200000000",
-                    "foreign_weight": "51.2",
-                    "foreign_net": "50000",
-                    "institution_net": "-30000",
-                    "individual_net": "-20000",
-                    "foreign_system": "10000",
-                    "program": "5000"
+                    "foreign_holding": "{외인보유}",
+                    "foreign_weight": "{외인비중}",
+                    "foreign_net": "{외인순매수}",
+                    "institution_net": "{기관순매수}",
+                    "individual_net": "{개인순매수}",
+                    "foreign_system": "{외국계}",
+                    "program": "{프로그램}"
                 }
             }
         }
@@ -118,15 +118,15 @@ class ChartApiResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "raw_data": {
                     "stk_ddwkmm": []
                 },
                 "chart_data": [],
                 "data_count": 0,
-                "request_time": "20241225143000",
-                "response_time": "20241225143001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }
 
@@ -156,16 +156,16 @@ class MinuteChartResponse(BaseModel):
             "example": {
                 "minute_data": [
                     {
-                        "date": "20241225143000",
-                        "open_pric": "75000",
-                        "high_pric": "75100",
-                        "low_pric": "74950",
-                        "close_pric": "75050",
-                        "pre": "50",
-                        "flu_rt": "0.07",
-                        "trde_qty": "125000",
-                        "trde_prica": "9380000000",
-                        "cntr_str": "120.5"
+                        "date": "{날짜시간}",
+                        "open_pric": "{시가}",
+                        "high_pric": "{고가}",
+                        "low_pric": "{저가}",
+                        "close_pric": "{종가}",
+                        "pre": "{대비}",
+                        "flu_rt": "{등락률}",
+                        "trde_qty": "{거래량}",
+                        "trde_prica": "{거래대금}",
+                        "cntr_str": "{체결강도}"
                     }
                 ]
             }
@@ -183,20 +183,20 @@ class StructuredMinuteData(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "timestamp": "20241225143000",
+                "timestamp": "{날짜시간}",
                 "price_data": {
-                    "open": "75000",
-                    "high": "75100",
-                    "low": "74950", 
-                    "close": "75050",
-                    "change": "50",
-                    "change_rate": "0.07"
+                    "open": "{시가}",
+                    "high": "{고가}",
+                    "low": "{저가}", 
+                    "close": "{종가}",
+                    "change": "{대비}",
+                    "change_rate": "{등락률}"
                 },
                 "volume_data": {
-                    "volume": "125000",
-                    "value": "9380000000"
+                    "volume": "{거래량}",
+                    "value": "{거래대금}"
                 },
-                "strength": "120.5"
+                "strength": "{체결강도}"
             }
         }
 
@@ -221,15 +221,15 @@ class MinuteChartApiResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "raw_data": {
                     "minute_data": []
                 },
                 "minute_data": [],
                 "data_count": 0,
-                "request_time": "20241225143000",
-                "response_time": "20241225143001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }
 
@@ -331,20 +331,20 @@ class MarketInfoResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "market_info": {
-                    "date": "20241225",
-                    "time": "153000",
-                    "open_pric": "75000",
-                    "high_pric": "75500",
-                    "low_pric": "74500",
-                    "close_pric": "75200",
-                    "pre": "200",
-                    "flu_rt": "0.27",
-                    "trde_qty": "12345678",
-                    "trde_prica": "928750000000",
-                    "sale_pric1": "75300",
-                    "sale_qty1": "1000",
-                    "buy_pric1": "75200",
-                    "buy_qty1": "1500"
+                    "date": "{날짜}",
+                    "time": "{시간}",
+                    "open_pric": "{시가}",
+                    "high_pric": "{고가}",
+                    "low_pric": "{저가}",
+                    "close_pric": "{종가}",
+                    "pre": "{대비}",
+                    "flu_rt": "{등락률}",
+                    "trde_qty": "{거래량}",
+                    "trde_prica": "{거래대금}",
+                    "sale_pric1": "{매도1호가}",
+                    "sale_qty1": "{매도1잔량}",
+                    "buy_pric1": "{매수1호가}",
+                    "buy_qty1": "{매수1잔량}"
                 }
             }
         }
@@ -362,36 +362,36 @@ class StructuredMarketInfo(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "timestamp": "20241225153000",
+                "timestamp": "{날짜시간}",
                 "basic_info": {
-                    "open": "75000",
-                    "high": "75500",
-                    "low": "74500",
-                    "close": "75200",
-                    "change": "200",
-                    "change_rate": "0.27",
-                    "volume": "12345678",
-                    "value": "928750000000"
+                    "open": "{시가}",
+                    "high": "{고가}",
+                    "low": "{저가}",
+                    "close": "{종가}",
+                    "change": "{대비}",
+                    "change_rate": "{등락률}",
+                    "volume": "{거래량}",
+                    "value": "{거래대금}"
                 },
                 "orderbook": {
                     "ask": [
-                        {"price": "75300", "quantity": "1000"},
-                        {"price": "75400", "quantity": "800"}
+                        {"price": "{매도1호가}", "quantity": "{매도1잔량}"},
+                        {"price": "{매도2호가}", "quantity": "{매도2잔량}"}
                     ],
                     "bid": [
-                        {"price": "75200", "quantity": "1500"},
-                        {"price": "75100", "quantity": "1200"}
+                        {"price": "{매수1호가}", "quantity": "{매수1잔량}"},
+                        {"price": "{매수2호가}", "quantity": "{매수2잔량}"}
                     ]
                 },
                 "lp_info": {
-                    "lp_ask": [{"price": "75350", "quantity": "500"}],
-                    "lp_bid": [{"price": "75150", "quantity": "600"}]
+                    "lp_ask": [{"price": "{LP매도호가}", "quantity": "{LP매도잔량}"}],
+                    "lp_bid": [{"price": "{LP매수호가}", "quantity": "{LP매수잔량}"}]
                 },
                 "market_data": {
-                    "market_cap": "450000000000000",
-                    "foreign_rate": "51.5",
-                    "short_selling_rate": "2.8",
-                    "strength": "120.5"
+                    "market_cap": "{시가총액}",
+                    "foreign_rate": "{외국인비율}",
+                    "short_selling_rate": "{공매도비율}",
+                    "strength": "{체결강도}"
                 }
             }
         }
@@ -416,8 +416,8 @@ class MarketInfoApiResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "raw_data": {
                     "market_info": {}
                 },
@@ -428,8 +428,8 @@ class MarketInfoApiResponse(BaseModel):
                     "lp_info": {},
                     "market_data": {}
                 },
-                "request_time": "20241225153000",
-                "response_time": "20241225153001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }
 
@@ -461,18 +461,18 @@ class NewStockRightsResponse(BaseModel):
             "example": {
                 "newstk_recvrht_mrpr": [
                     {
-                        "stk_cd": "900001",
-                        "stk_nm": "신주인수권증권",
-                        "cur_prc": "5000",
-                        "pred_pre_sig": "+",
-                        "pred_pre": "100",
-                        "flu_rt": "2.04",
-                        "fpr_sel_bid": "5100",
-                        "fpr_buy_bid": "4900",
-                        "acc_trde_qty": "123456",
-                        "open_pric": "4950",
-                        "high_pric": "5200",
-                        "low_pric": "4800"
+                        "stk_cd": "{종목코드}",
+                        "stk_nm": "{종목명}",
+                        "cur_prc": "{현재가}",
+                        "pred_pre_sig": "{대비부호}",
+                        "pred_pre": "{전일대비}",
+                        "flu_rt": "{등락률}",
+                        "fpr_sel_bid": "{최우선매도호가}",
+                        "fpr_buy_bid": "{최우선매수호가}",
+                        "acc_trde_qty": "{누적거래량}",
+                        "open_pric": "{시가}",
+                        "high_pric": "{고가}",
+                        "low_pric": "{저가}"
                     }
                 ]
             }
@@ -491,23 +491,23 @@ class StructuredNewStockRightsData(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "code": "900001",
-                "name": "신주인수권증권",
+                "code": "{종목코드}",
+                "name": "{종목명}",
                 "price_info": {
-                    "current": "5000",
-                    "open": "4950",
-                    "high": "5200",
-                    "low": "4800",
-                    "change": "100",
-                    "change_rate": "2.04",
-                    "change_sign": "+"
+                    "current": "{현재가}",
+                    "open": "{시가}",
+                    "high": "{고가}",
+                    "low": "{저가}",
+                    "change": "{전일대비}",
+                    "change_rate": "{등락률}",
+                    "change_sign": "{대비부호}"
                 },
                 "bid_info": {
-                    "best_ask": "5100",
-                    "best_bid": "4900"
+                    "best_ask": "{최우선매도호가}",
+                    "best_bid": "{최우선매수호가}"
                 },
                 "volume_info": {
-                    "volume": "123456"
+                    "volume": "{누적거래량}"
                 }
             }
         }
@@ -540,8 +540,8 @@ class NewStockRightsApiResponse(BaseModel):
                 },
                 "rights_data": [],
                 "data_count": 0,
-                "request_time": "20241225153000",
-                "response_time": "20241225153001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }
 
@@ -565,10 +565,10 @@ class DailyInstitutionalTradeResponse(BaseModel):
             "example": {
                 "daly_orgn_trde_stk": [
                     {
-                        "stk_cd": "005930",
-                        "stk_nm": "삼성전자",
-                        "netprps_qty": "1000000",
-                        "netprps_amt": "75000000000"
+                        "stk_cd": "{종목코드}",
+                        "stk_nm": "{종목명}",
+                        "netprps_qty": "{순매수수량}",
+                        "netprps_amt": "{순매수금액}"
                     }
                 ]
             }
@@ -585,11 +585,11 @@ class StructuredDailyInstitutionalTradeData(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "code": "005930",
-                "name": "삼성전자",
+                "code": "{종목코드}",
+                "name": "{종목명}",
                 "trade_info": {
-                    "net_quantity": "1000000",
-                    "net_amount": "75000000000"
+                    "net_quantity": "{순매수수량}",
+                    "net_amount": "{순매수금액}"
                 }
             }
         }
@@ -621,21 +621,21 @@ class DailyInstitutionalTradeApiResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "start_date": "20241106",
-                "end_date": "20241107",
-                "trade_type": "1",
-                "trade_type_name": "순매도",
-                "market_type": "001",
-                "market_type_name": "코스피",
-                "exchange_type": "3",
-                "exchange_type_name": "통합",
+                "start_date": "{시작일자}",
+                "end_date": "{종료일자}",
+                "trade_type": "{매매구분}",
+                "trade_type_name": "{매매구분명}",
+                "market_type": "{시장구분}",
+                "market_type_name": "{시장구분명}",
+                "exchange_type": "{거래소구분}",
+                "exchange_type_name": "{거래소구분명}",
                 "raw_data": {
                     "daly_orgn_trde_stk": []
                 },
                 "trade_data": [],
                 "data_count": 0,
-                "request_time": "20241225153000",
-                "response_time": "20241225153001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }
 
@@ -709,31 +709,31 @@ class StockInstitutionalTrendResponse(BaseModel):
             "example": {
                 "stk_orgn_trde_trd": [
                     {
-                        "trd_dd": "20241225",
-                        "stk_cd": "005930",
-                        "stk_nm": "삼성전자",
-                        "orgn_whld_shqty": "3200000000",
-                        "orgn_wght": "51.2",
-                        "orgn_esti_avrg_pric": "75000",
-                        "orgn_netprps_qty": "1000000",
-                        "orgn_netprps_amt": "75000000000",
-                        "orgn_buy_qty": "2000000",
-                        "orgn_sel_qty": "1000000",
-                        "for_whld_shqty": "2500000000",
-                        "for_wght": "40.0",
-                        "for_esti_avrg_pric": "74500",
-                        "for_netprps_qty": "-500000",
-                        "for_netprps_amt": "-37250000000",
-                        "for_buy_qty": "800000",
-                        "for_sel_qty": "1300000",
-                        "ind_netprps_qty": "-500000",
-                        "ind_netprps_amt": "-37750000000",
-                        "ind_buy_qty": "1200000",
-                        "ind_sel_qty": "1700000",
-                        "cur_pric": "75200",
-                        "prdy_ctrt": "200",
-                        "prdy_ctrt_sign": "5",
-                        "prdy_vrss_vol_rt": "85.2"
+                        "trd_dd": "{거래일자}",
+                        "stk_cd": "{종목코드}",
+                        "stk_nm": "{종목명}",
+                        "orgn_whld_shqty": "{기관보유수량}",
+                        "orgn_wght": "{기관비중}",
+                        "orgn_esti_avrg_pric": "{기관추정평균가}",
+                        "orgn_netprps_qty": "{기관순매수수량}",
+                        "orgn_netprps_amt": "{기관순매수금액}",
+                        "orgn_buy_qty": "{기관매수수량}",
+                        "orgn_sel_qty": "{기관매도수량}",
+                        "for_whld_shqty": "{외국인보유수량}",
+                        "for_wght": "{외국인비중}",
+                        "for_esti_avrg_pric": "{외국인추정평균가}",
+                        "for_netprps_qty": "{외국인순매수수량}",
+                        "for_netprps_amt": "{외국인순매수금액}",
+                        "for_buy_qty": "{외국인매수수량}",
+                        "for_sel_qty": "{외국인매도수량}",
+                        "ind_netprps_qty": "{개인순매수수량}",
+                        "ind_netprps_amt": "{개인순매수금액}",
+                        "ind_buy_qty": "{개인매수수량}",
+                        "ind_sel_qty": "{개인매도수량}",
+                        "cur_pric": "{현재가}",
+                        "prdy_ctrt": "{전일대비}",
+                        "prdy_ctrt_sign": "{전일대비부호}",
+                        "prdy_vrss_vol_rt": "{전일대비거래량비율}"
                     }
                 ]
             }
@@ -762,14 +762,14 @@ class StockInstitutionalTrendApiResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "stock_code": "005930",
-                "start_date": "20241201",
-                "end_date": "20241225",
+                "start_date": "{시작일자}",
+                "end_date": "{종료일자}",
                 "raw_data": {
                     "stk_orgn_trde_trd": []
                 },
                 "trend_data": [],
                 "data_count": 0,
-                "request_time": "20241225153000",
-                "response_time": "20241225153001"
+                "request_time": "{요청시간}",
+                "response_time": "{응답시간}"
             }
         }

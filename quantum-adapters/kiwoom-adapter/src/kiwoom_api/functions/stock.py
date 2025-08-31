@@ -56,9 +56,8 @@ async def _get_valid_token() -> str:
         return token
     else:
         logger.error(f"❌ 토큰 발급 실패: {auth_result}")
-        # 실패 시 환경변수 고정키 사용 (fallback)
-        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
-        return settings.KIWOOM_APP_KEY
+        # 실패 시 예외 발생 (실제 데이터만 사용)
+        raise Exception(f"토큰 발급 실패: {auth_result}")
 
 
 async def fn_ka10001(
@@ -87,7 +86,7 @@ async def fn_ka10001(
         - Body: 키움 API 응답 바디
 
     Example:
-        >>> result = await fn_ka10001(data={"stk_cd": "005930"})
+        >>> result = await fn_ka10001(data={"stk_cd": "{종목코드}"})
         >>> print(f"Code: {result['Code']}")
         >>> print(f"Body: {result['Body']['stk_nm']}")
     """
@@ -307,7 +306,7 @@ async def fn_ka10100(
         - Body: 키움 API 응답 바디
 
     Example:
-        >>> result = await fn_ka10100(data={"stk_cd": "005930"})
+        >>> result = await fn_ka10100(data={"stk_cd": "{종목코드}"})
         >>> print(f"Code: {result['Code']}")
         >>> print(f"Body: {result['Body']['name']}")
     """
@@ -527,7 +526,7 @@ async def fn_ka10095(
         - Body: 키움 API 응답 바디
 
     Example:
-        >>> result = await fn_ka10095(data={"stk_cd": "005930|000660|035420"})
+        >>> result = await fn_ka10095(data={"stk_cd": "{종목코드1}|{종목코드2}|{종목코드3}"})
         >>> print(f"Code: {result['Code']}")
         >>> print(f"Body: {result['Body']['list']}")
     """
@@ -772,7 +771,7 @@ async def fn_kt10000(
     Example:
         >>> result = await fn_kt10000(data={
         ...     "dmst_stex_tp": "KRX",
-        ...     "stk_cd": "005930", 
+        ...     "stk_cd": "{종목코드}", 
         ...     "ord_qty": "1",
         ...     "ord_uv": "",
         ...     "trde_tp": "3",
@@ -918,7 +917,7 @@ async def fn_kt10001(
     Example:
         >>> result = await fn_kt10001(data={
         ...     "dmst_stex_tp": "KRX",
-        ...     "stk_cd": "005930", 
+        ...     "stk_cd": "{종목코드}", 
         ...     "ord_qty": "1",
         ...     "ord_uv": "",
         ...     "trde_tp": "3",
@@ -1067,7 +1066,7 @@ async def fn_kt10002(
         >>> result = await fn_kt10002(data={
         ...     "dmst_stex_tp": "KRX",
         ...     "orig_ord_no": "0000139",
-        ...     "stk_cd": "005930", 
+        ...     "stk_cd": "{종목코드}", 
         ...     "mdfy_qty": "1",
         ...     "mdfy_uv": "199700",
         ...     "mdfy_cond_uv": ""
@@ -1214,7 +1213,7 @@ async def fn_kt10003(
         >>> result = await fn_kt10003(data={
         ...     "dmst_stex_tp": "KRX",
         ...     "orig_ord_no": "0000140",
-        ...     "stk_cd": "005930", 
+        ...     "stk_cd": "{종목코드}", 
         ...     "cncl_qty": "1"
         ... })
         >>> print(f"Code: {result['Code']}")

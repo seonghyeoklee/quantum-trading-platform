@@ -609,23 +609,24 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
     // stocksInfo에서 해당 종목 찾기
     const stockInfo = stocksInfo[stockCode];
     
-    const mockStock: KiwoomStockInfo = {
+    // Create minimal stock info structure with only available real data
+    const stockInfoData: KiwoomStockInfo = {
       code: stockCode,
       name: stockName,
-      listCount: '0',
+      listCount: '',
       auditInfo: '',
       regDay: '',
-      lastPrice: String(stockInfo?.price || 0),
+      lastPrice: String(stockInfo?.price || ''),
       state: '',
-      marketCode: stockInfo?.market === 'KOSDAQ' ? '10' : '0',
-      marketName: stockInfo?.market || 'KOSPI',
+      marketCode: '',
+      marketName: stockInfo?.market || '',
       upName: '',
       upSizeName: '',
-      orderWarning: '0',
-      nxtEnable: 'N'
+      orderWarning: '',
+      nxtEnable: ''
     };
     
-    handleStockSelect(mockStock);
+    handleStockSelect(stockInfoData);
   }, [handleStockSelect]);
 
   // ref로 외부에 노출할 메서드들

@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { getEnvironmentInfo } from '@/lib/api-config';
 
+// 이 페이지를 동적으로 렌더링하도록 강제
+export const dynamic = 'force-dynamic';
+
 interface EnvironmentData {
   clientSide: any;
   serverSide: any;
@@ -136,6 +139,9 @@ export default function EnvironmentDebugPage() {
           <p className="text-gray-600 mt-2 text-sm md:text-base">
             API configuration and host detection debugging information
           </p>
+          <p className="text-xs text-gray-500 mt-1">
+            빌드 버전: v2.1 - 향상된 디버깅 메시지 (2024-08-30)
+          </p>
           {userAgent && (
             <div className="mt-2 p-2 bg-blue-100 rounded-lg">
               <p className="text-xs md:text-sm text-blue-800">
@@ -143,6 +149,21 @@ export default function EnvironmentDebugPage() {
                 {environmentData?.clientSide?.isIOS && ' (iOS)'}
                 {environmentData?.clientSide?.isAndroid && ' (Android)'}
               </p>
+              {environmentData?.clientSide?.isMobile && (
+                <div className="mt-2 text-xs">
+                  <div className="text-green-700">
+                    ✅ 현재 API URL: <code>{environmentData?.clientSide?.apiBaseUrl}</code>
+                  </div>
+                  <div className="text-green-700">
+                    ✅ 현재 Kiwoom URL: <code>{environmentData?.clientSide?.kiwoomAdapterUrl}</code>
+                  </div>
+                  {environmentData?.clientSide?.host === '100.68.90.21' ? (
+                    <div className="text-green-700 font-semibold">🎯 올바른 Tailscale IP 접근!</div>
+                  ) : (
+                    <div className="text-orange-700 font-semibold">⚠️ localhost 접근 - 모바일에서는 API 호출 실패 가능</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -185,18 +206,19 @@ export default function EnvironmentDebugPage() {
                 name="Kiwoom Adapter Health Check"
                 url={`${environmentData?.clientSide?.kiwoomAdapterUrl}/health`}
               />
-              {/* 모바일 전용 추가 테스트 */}
+              {/* 모바일 전용 네트워크 진단 */}
               {environmentData?.clientSide?.isMobile && (
-                <>
-                  <APITestButton
-                    name="Direct Localhost Test (Mobile)"
-                    url="http://localhost:10101/actuator/health"
-                  />
-                  <APITestButton
-                    name="Direct Tailscale Test (Mobile)"
-                    url="http://100.68.90.21:10101/actuator/health"
-                  />
-                </>
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <h4 className="text-sm font-semibold text-blue-800 mb-2">📱 모바일 네트워크 진단</h4>
+                  <p className="text-xs text-blue-700 mb-2">
+                    모바일에서는 localhost 접근이 불가능합니다. 
+                    Tailscale VPN을 통해 외부 IP로만 접근할 수 있습니다.
+                  </p>
+                  <div className="text-xs text-blue-600">
+                    <div>✅ 정상: <code>http://100.68.90.21:XXXX</code></div>
+                    <div>❌ 불가능: <code>http://localhost:XXXX</code></div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -263,6 +285,27 @@ function APITestButton({ name, url }: { name: string; url: string }) {
       
       console.log(`✅ API 성공: ${url}`);
     } catch (error) {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const hostname = window.location.hostname;
+      
+      // 모바일 디버깅 상세 정보
+      let debugInfo = '';
+      if (isMobile) {
+        debugInfo = `📱 모바일 디버깅 정보:
+- 현재 접근 URL: ${window.location.href}
+- API 호출 URL: ${url}
+- 현재 호스트: ${hostname}
+- 프로토콜: ${window.location.protocol}
+- 네트워크 상태: ${navigator.onLine ? '온라인' : '오프라인'}
+- Tailscale IP 접근: ${hostname === '100.68.90.21' ? '✅ 정상' : '❌ localhost 접근'}
+
+💡 모바일 해결책:
+${hostname === 'localhost' || hostname === '127.0.0.1' ? 
+  '- Tailscale VPN으로 http://100.68.90.21:10301 접속하세요\n- localhost는 모바일에서 접근 불가능합니다' :
+  '- Mixed Content Policy 확인 필요\n- HTTPS를 사용하거나 브라우저 설정을 변경하세요'
+}`;
+      }
+      
       const errorDetails = {
         error: error instanceof Error ? error.message : String(error),
         type: error instanceof Error ? error.constructor.name : 'Unknown',
@@ -270,7 +313,11 @@ function APITestButton({ name, url }: { name: string; url: string }) {
         url: url,
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent,
-        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+        isMobile,
+        hostname,
+        protocol: window.location.protocol,
+        isOnline: navigator.onLine,
+        debugInfo: isMobile ? debugInfo : '데스크톱 환경에서는 일반적으로 localhost 접근이 가능합니다.',
       };
       
       setResult(errorDetails);
@@ -282,6 +329,9 @@ function APITestButton({ name, url }: { name: string; url: string }) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.warn('🚨 Mixed Content Policy 위반 가능성');
         console.warn('💡 해결책: HTTPS 사용하거나 브라우저 설정 변경');
+        if (isMobile) {
+          console.warn(debugInfo);
+        }
       }
     }
   };
@@ -312,7 +362,26 @@ function APITestButton({ name, url }: { name: string; url: string }) {
             <span className={`w-2 h-2 rounded-full ${statusColors[status]} mr-2`}></span>
             <span className="font-medium">{status.toUpperCase()}</span>
           </div>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
+          
+          {status === 'error' && (
+            <div className="mb-3 p-3 bg-red-100 border-2 border-red-300 rounded-lg text-red-900">
+              <div className="font-bold text-red-900 mb-2 text-sm">🚨 API 로드 실패!</div>
+              {result.debugInfo ? (
+                <pre className="whitespace-pre-wrap text-xs bg-red-50 p-2 rounded border">{result.debugInfo}</pre>
+              ) : (
+                <div className="text-xs">
+                  <div>에러: {result.error}</div>
+                  <div>URL: {result.url}</div>
+                  <div>시간: {result.timestamp}</div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <details className="cursor-pointer">
+            <summary className="font-medium mb-2">기술적 세부 정보 보기</summary>
+            <pre>{JSON.stringify(result, null, 2)}</pre>
+          </details>
         </div>
       )}
     </div>

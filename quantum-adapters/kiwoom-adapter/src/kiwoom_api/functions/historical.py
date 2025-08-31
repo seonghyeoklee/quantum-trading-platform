@@ -49,9 +49,8 @@ async def _get_valid_token() -> str:
         return token
     else:
         logger.error(f"❌ 토큰 발급 실패: {auth_result}")
-        # 실패 시 환경변수 고정키 사용 (fallback)
-        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
-        return settings.KIWOOM_APP_KEY
+        # 실패 시 예외 발생 (실제 데이터만 사용)
+        raise Exception(f"토큰 발급 실패: {auth_result}")
 
 
 async def fn_ka10005(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '') -> Dict[str, Any]:
@@ -59,7 +58,7 @@ async def fn_ka10005(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
     키움 주식일주월시분요청 API (ka10005) 호출
     
     Args:
-        data: 요청 데이터 {'stk_cd': '005930'}
+        data: 요청 데이터 {'stk_cd': '{종목코드}'}
         cont_yn: 연속조회여부 ('N' or 'Y')
         next_key: 연속조회키
     
@@ -185,7 +184,7 @@ def get_stock_name_from_code(stock_code: str) -> str:
     종목코드에서 종목명 추출 (간단한 매핑)
     """
     stock_names = {
-        "005930": "삼성전자",
+        # TODO: 실제 API에서 종목명 조회
         "000660": "SK하이닉스",
         "373220": "LG에너지솔루션",
         "207940": "삼성바이오로직스",
@@ -200,38 +199,4 @@ def get_stock_name_from_code(stock_code: str) -> str:
     return stock_names.get(stock_code, f"종목{stock_code}")
 
 
-# 테스트용 함수
-async def test_ka10005():
-    """ka10005 API 테스트"""
-    try:
-        # 삼성전자 일주월시분 조회
-        test_data = {"stk_cd": "005930"}
-        
-        result = await fn_ka10005(test_data)
-        
-        print("=== ka10005 주식일주월시분요청 테스트 ===")
-        print(f"응답코드: {result.get('Code')}")
-        print(f"헤더: {result.get('Header')}")
-        
-        if result.get('Code') == 200:
-            body = result.get('Body', {})
-            chart_data = body.get('stk_ddwkmm', [])
-            print(f"차트 데이터 개수: {len(chart_data)}")
-            
-            if chart_data:
-                first_item = chart_data[0]
-                print(f"첫 번째 데이터:")
-                print(f"  날짜: {first_item.get('date')}")
-                print(f"  종가: {first_item.get('close_pric')}")
-                print(f"  거래량: {first_item.get('trde_qty')}")
-                print(f"  외인순매수: {first_item.get('for_netprps')}")
-        else:
-            print(f"오류: {result.get('Error')}")
-            
-    except Exception as e:
-        print(f"테스트 오류: {e}")
-
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(test_ka10005())
+# 테스트용 함수는 제거됨 (실제 데이터만 사용)

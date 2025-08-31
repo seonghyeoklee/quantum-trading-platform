@@ -102,7 +102,7 @@ class BaseStrategy(ABC):
     
     async def get_chart_data(self, symbol: str, days: int = 30) -> Optional[Dict]:
         """
-        키움 API를 통한 차트 데이터 조회
+        키움 API를 통한 실제 차트 데이터 조회
         
         Args:
             symbol: 종목코드 (6자리)
@@ -112,19 +112,106 @@ class BaseStrategy(ABC):
             차트 데이터 딕셔너리 또는 None (오류 시)
         """
         try:
+            # 키움 차트 데이터 API 호출
+            from ...functions.chart import fn_ka10081
+            
             # Rate Limiter 적용하여 키움 API 호출
             rate_limiter = await get_rate_limiter()
             
+            # 조회 종료일 (오늘)
+            end_date = datetime.now().strftime("%Y%m%d")
+            
             # 차트 데이터 요청 함수 정의
             async def _get_chart_data():
-                # 실제 키움 API 호출 로직은 차후 구현
-                # 현재는 Mock 데이터 반환
-                return {
-                    "symbol": symbol,
-                    "prices": [45000, 45100, 44900, 45200, 45300] * (days // 5 + 1),
-                    "volumes": [100000, 120000, 90000, 110000, 105000] * (days // 5 + 1),
-                    "dates": [datetime.now() - timedelta(days=i) for i in range(days)]
-                }
+                try:
+                    # fn_ka10081: 국내주식 시세(일봉) API 호출
+                    result = await fn_ka10081(
+                        data={
+                            "stk_cd": symbol,           # 종목코드
+                            "base_dt": end_date,        # 기준일자
+                            "upd_stkpc_tp": "1",        # 수정주가타입 (1:수정주가)
+                            "per_tp": "D",              # 기간타입 (D:일봉)
+                            "cnt": str(min(days, 100))  # 조회건수 (최대 100)
+                        },
+                        cont_yn="N"  # 연속조회여부
+                    )
+                    
+                    if result and result.get('Code') == 200 and result.get('Body'):
+                        body = result['Body']
+                        output = body.get('output', [])
+                        
+                        if not output:
+                            print(f"차트 데이터가 없습니다: {symbol}")
+                            return None
+                        
+                        # 데이터 파싱
+                        prices = []
+                        volumes = []
+                        dates = []
+                        opens = []
+                        highs = []
+                        lows = []
+                        
+                        for item in output:
+                            # 가격 데이터 (문자열을 float로 변환)
+                            try:
+                                open_price = float(item.get('stck_oprc', '0'))
+                                high_price = float(item.get('stck_hgpr', '0'))
+                                low_price = float(item.get('stck_lwpr', '0'))
+                                close_price = float(item.get('stck_clpr', '0'))
+                                volume = int(item.get('acml_vol', '0'))
+                                date_str = item.get('stck_bsop_date', '')
+                                
+                                if close_price > 0:  # 유효한 가격 데이터만
+                                    opens.append(open_price)
+                                    highs.append(high_price)
+                                    lows.append(low_price)
+                                    prices.append(close_price)
+                                    volumes.append(volume)
+                                    
+                                    # 날짜 파싱 (YYYYMMDD 형식)
+                                    if date_str and len(date_str) == 8:
+                                        date_obj = datetime.strptime(date_str, '%Y%m%d')
+                                        dates.append(date_obj)
+                                    else:
+                                        dates.append(datetime.now() - timedelta(days=len(dates)))
+                                        
+                            except (ValueError, TypeError) as e:
+                                print(f"데이터 파싱 오류: {item}, 오류: {e}")
+                                continue
+                        
+                        if not prices:
+                            print(f"유효한 차트 데이터가 없습니다: {symbol}")
+                            return None
+                        
+                        # 데이터 역순 정렬 (과거 -> 현재 순서)
+                        prices.reverse()
+                        volumes.reverse()
+                        dates.reverse()
+                        opens.reverse()
+                        highs.reverse()
+                        lows.reverse()
+                        
+                        return {
+                            "symbol": symbol,
+                            "prices": prices,           # 종가
+                            "opens": opens,             # 시가
+                            "highs": highs,             # 고가
+                            "lows": lows,               # 저가
+                            "volumes": volumes,         # 거래량
+                            "dates": dates,             # 날짜
+                            "data_count": len(prices),
+                            "latest_price": prices[-1] if prices else 0,
+                            "retrieved_at": datetime.now()
+                        }
+                    else:
+                        print(f"키움 API 호출 실패: {result}")
+                        return None
+                        
+                except Exception as api_error:
+                    print(f"키움 API 호출 중 오류: {api_error}")
+                    # API 오류 시 None 반환 (실제 데이터만 사용)
+                    return None
             
             # Rate limiting과 재시도 로직이 적용된 API 호출
             result = await rate_limiter.execute_with_retry(
@@ -136,7 +223,9 @@ class BaseStrategy(ABC):
             
         except Exception as e:
             print(f"차트 데이터 조회 실패 - 종목: {symbol}, 오류: {e}")
+            # 오류 시 None 반환 (실제 데이터만 사용)
             return None
+    
     
     def calculate_confidence(self, signal_strength: float, market_condition: str = "normal") -> float:
         """

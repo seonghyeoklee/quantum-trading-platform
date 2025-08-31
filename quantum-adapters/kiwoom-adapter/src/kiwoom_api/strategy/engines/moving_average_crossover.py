@@ -370,7 +370,7 @@ async def test_ma_crossover_strategy():
     config = StrategyConfig(
         strategy_name="MA Crossover Test Strategy",
         strategy_type=StrategyType.MOVING_AVERAGE_CROSSOVER,
-        target_symbols=["005930"],  # 삼성전자
+        target_symbols=["{종목코드}"],  # 예시 종목
         risk_level=RiskLevel.MODERATE,
         max_position_size=Decimal("2000000"),  # 200만원
         execution_interval=300,  # 5분
@@ -386,7 +386,7 @@ async def test_ma_crossover_strategy():
     
     # 전략 생성 및 테스트
     strategy = MovingAverageCrossoverStrategy(config)
-    result = await strategy.analyze("005930")
+    result = await strategy.analyze("{종목코드}")
     
     if result:
         print(f"매매신호 생성: {result.signal_type.value} - {result.reason}")

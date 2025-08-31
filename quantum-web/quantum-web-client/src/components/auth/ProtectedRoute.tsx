@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 interface User {
   id: string;
@@ -36,7 +37,9 @@ export default function ProtectedRoute({ children, requiredRoles = [] }: Protect
       }
 
       // 백엔드에서 사용자 정보 조회
-      const response = await fetch('http://localhost:10101/api/v1/auth/me', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('🛡️ [ProtectedRoute] Checking auth at:', `${apiBaseUrl}/api/v1/auth/me`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,7 +88,9 @@ export default function ProtectedRoute({ children, requiredRoles = [] }: Protect
         return;
       }
 
-      const response = await fetch('http://localhost:10101/api/v1/auth/refresh', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('🔄 [ProtectedRoute] Refreshing token at:', `${apiBaseUrl}/api/v1/auth/refresh`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

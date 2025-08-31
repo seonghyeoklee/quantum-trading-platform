@@ -7,15 +7,16 @@ import { Button } from "@/components/ui/button"
 import ChartContainer, { ChartContainerRef } from "@/components/chart/ChartContainer"
 import ProgramTradingRanking from "@/components/trading/ProgramTradingRanking"
 import TradingSignalsDashboard from "@/components/trading/TradingSignalsDashboard"
+import NewsPanel from "@/components/news/NewsPanel"
 import { KiwoomStockInfo } from "@/lib/api/kiwoom-types";
 
 function TradingDashboard() {
   const [selectedStock, setSelectedStock] = useState<KiwoomStockInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<'chart' | 'signals'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'signals' | 'news'>('chart');
   const chartContainerRef = useRef<ChartContainerRef>(null);
 
   // 차트 컨테이너에서 종목 선택 이벤트를 받기 위한 핸들러
-  const handleStockSelection = (stockOrCode: KiwoomStockInfo | string, stockName?: string) => {
+  const handleStockSelection = (stockOrCode: KiwoomStockInfo | string, stockName?: string, switchToNews?: boolean) => {
     if (typeof stockOrCode === 'string') {
       // ProgramTradingRanking에서 온 데이터 (stockCode, stockName)
       console.log('프로그램 매매 랭킹에서 종목 선택:', stockOrCode, stockName);
@@ -25,27 +26,43 @@ function TradingDashboard() {
         chartContainerRef.current.selectStock(stockOrCode, stockName || stockOrCode);
       }
       
-      const mockStock: any = {
+      // Create minimal stock info structure - only set essential fields, avoid fake data
+      const stockInfo: KiwoomStockInfo = {
         code: stockOrCode,
         name: stockName || stockOrCode,
-        listCount: '0',
+        listCount: '',
         auditInfo: '',
         regDay: '',
-        lastPrice: '0',
+        lastPrice: '',
         state: '',
-        marketCode: '0',
-        marketName: 'KOSPI',
+        marketCode: '',
+        marketName: '',
         upName: '',
         upSizeName: '',
-        orderWarning: '0',
-        nxtEnable: 'N'
+        orderWarning: '',
+        nxtEnable: ''
       };
-      setSelectedStock(mockStock);
+      setSelectedStock(stockInfo);
+      
+      // 뉴스 탭으로 자동 전환 (옵션)
+      if (switchToNews) {
+        setActiveTab('news');
+      }
     } else {
       // ChartContainer에서 온 데이터
       console.log('차트 컨테이너에서 종목 선택 감지:', stockOrCode);
       setSelectedStock(stockOrCode);
+      
+      // 뉴스 탭으로 자동 전환 (옵션)
+      if (switchToNews) {
+        setActiveTab('news');
+      }
     }
+  };
+
+  // 종목 뉴스 보기 전용 핸들러 (뉴스 탭으로 자동 전환)
+  const handleViewStockNews = (stockOrCode: KiwoomStockInfo | string, stockName?: string) => {
+    handleStockSelection(stockOrCode, stockName, true);
   };
 
   return (
@@ -105,6 +122,14 @@ function TradingDashboard() {
                 variant="outline" 
                 size="sm" 
                 className="w-full"
+                onClick={() => setActiveTab('news')}
+              >
+                뉴스 검색
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
                 onClick={() => window.location.href = '/glossary'}
               >
                 용어 사전
@@ -134,6 +159,14 @@ function TradingDashboard() {
               >
                 실시간 매매신호
               </Button>
+              <Button
+                variant={activeTab === 'news' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+                onClick={() => setActiveTab('news')}
+              >
+                뉴스
+              </Button>
             </div>
           </div>
 
@@ -145,11 +178,19 @@ function TradingDashboard() {
                 className="h-full" 
                 onStockSelect={handleStockSelection}
               />
-            ) : (
+            ) : activeTab === 'signals' ? (
               <div className="h-full overflow-y-auto p-6">
                 <TradingSignalsDashboard />
               </div>
-            )}
+            ) : activeTab === 'news' ? (
+              <NewsPanel 
+                className="h-full" 
+                selectedStock={selectedStock ? {
+                  code: selectedStock.code,
+                  name: selectedStock.name
+                } : null}
+              />
+            ) : null}
           </div>
         </div>
 

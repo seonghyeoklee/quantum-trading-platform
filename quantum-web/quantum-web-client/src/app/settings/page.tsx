@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiBaseUrl } from '@/lib/api-config';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,9 @@ function SettingsPage() {
         const token = localStorage.getItem('accessToken');
         if (!token) return;
 
-        const response = await fetch('http://localhost:10101/api/v1/auth/2fa/status', {
+        const apiBaseUrl = getApiBaseUrl();
+        console.log('🔒 [Settings] Checking 2FA status at:', `${apiBaseUrl}/api/v1/auth/2fa/status`);
+        const response = await fetch(`${apiBaseUrl}/api/v1/auth/2fa/status`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -93,7 +96,9 @@ function SettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:10101/api/v1/auth/2fa/disable', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('❌ [Settings] Disabling 2FA at:', `${apiBaseUrl}/api/v1/auth/2fa/disable`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/2fa/disable`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

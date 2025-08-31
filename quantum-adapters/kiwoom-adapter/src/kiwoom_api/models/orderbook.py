@@ -98,12 +98,12 @@ class OrderbookResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "bid_req_base_tm": "093000",
-                "sel_fpr_bid": "75000",
-                "sel_fpr_req": "5000",
-                "buy_fpr_bid": "74900",
-                "buy_fpr_req": "3200",
-                "tot_sel_req": "45000",
-                "tot_buy_req": "38000"
+                "sel_fpr_bid": "{매도최우선호가}",
+                "sel_fpr_req": "{매도최우선잔량}",
+                "buy_fpr_bid": "{매수최우선호가}",
+                "buy_fpr_req": "{매수최우선잔량}",
+                "tot_sel_req": "{총매도잔량}",
+                "tot_buy_req": "{총매수잔량}"
             }
         }
 
@@ -153,20 +153,20 @@ class OrderbookApiResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "raw_data": {
-                    "sel_fpr_bid": "75000",
-                    "sel_fpr_req": "5000",
-                    "buy_fpr_bid": "74900",
-                    "buy_fpr_req": "3200"
+                    "sel_fpr_bid": "{매도최우선호가}",
+                    "sel_fpr_req": "{매도최우선잔량}",
+                    "buy_fpr_bid": "{매수최우선호가}",
+                    "buy_fpr_req": "{매수최우선잔량}"
                 },
                 "orderbook_data": {
                     "timestamp": "093000",
-                    "ask_prices": ["75000", "75100", "75200"],
-                    "ask_volumes": ["5000", "3000", "2000"],
-                    "bid_prices": ["74900", "74800", "74700"],
-                    "bid_volumes": ["3200", "4000", "2500"]
+                    "ask_prices": ["{매도호가1}", "{매도호가2}", "{매도호가3}"],
+                    "ask_volumes": ["{매도잔량1}", "{매도잔량2}", "{매도잔량3}"],
+                    "bid_prices": ["{매수호가1}", "{매수호가2}", "{매수호가3}"],
+                    "bid_volumes": ["{매수잔량1}", "{매수잔량2}", "{매수잔량3}"]
                 }
             }
         }

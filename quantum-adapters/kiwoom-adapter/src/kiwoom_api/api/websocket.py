@@ -54,7 +54,7 @@ class ConnectionManager:
             "timestamp": datetime.now().isoformat(),
             "info": {
                 "mode": settings.kiwoom_mode_description,
-                "available_stocks": ["005930", "000660"],
+                "available_stocks": ["{종목코드1}", "{종목코드2}"],
                 "data_types": ["stock_trade", "stock_orderbook"]
             }
         })
@@ -64,13 +64,13 @@ class ConnectionManager:
             try:
                 await self.start_realtime_client()
             except Exception as e:
-                logger.warning(f"키움 실시간 클라이언트 시작 실패: {e}")
+                logger.error(f"키움 실시간 클라이언트 시작 실패: {e}")
                 await self.send_to_client(websocket, {
-                    "event": "warning", 
-                    "message": f"키움 서버 연결 실패: {str(e)}, 데모 모드로 전환합니다"
+                    "event": "error", 
+                    "message": f"키움 서버 연결 실패: {str(e)}. 실제 키움 API 연결이 필요합니다."
                 })
-                # 키움 연결 실패시에만 데모 모드 시작
-                await self.start_demo_mode()
+                # Mock 데이터 제거: 데모 모드 비활성화
+                # await self.start_demo_mode()
     
     def disconnect(self, websocket: WebSocket):
         """클라이언트 연결 해제"""
@@ -117,39 +117,15 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"❌ 키움 실시간 클라이언트 시작 실패: {e}")
     
-    async def start_demo_mode(self):
-        """데모 모드 시작 - 테스트 데이터 전송"""
-        logger.info("🎮 데모 모드 시작 - 테스트 데이터 전송")
-        
-        # 백그라운드에서 데모 데이터 전송
-        asyncio.create_task(self._send_demo_data())
+    # Mock 데이터 제거: 데모 모드 완전 비활성화
+    # async def start_demo_mode(self):
+    #     """데모 모드 - MOCK 데이터 제거로 비활성화"""
+    #     logger.error("데모 모드가 비활성화되었습니다. 실제 키움 API 연결이 필요합니다.")
+    #     pass
     
-    async def _send_demo_data(self):
-        """데모 실시간 데이터 전송"""
-        import random
-        
-        while self.active_connections:
-            # 삼성전자 데모 데이터
-            demo_price = 75000 + random.randint(-1000, 1000)
-            demo_change = random.randint(-500, 500)
-            demo_volume = random.randint(1000, 10000)
-            
-            demo_message = {
-                "type": "realtime_data",
-                "data": {
-                    "stock_code": "005930",
-                    "stock_name": "삼성전자",
-                    "current_price": f"{demo_price:,}원",
-                    "price_change": f"{demo_change:+,}원",
-                    "change_rate": f"{demo_change/demo_price*100:+.2f}%",
-                    "volume": f"{demo_volume:,}주",
-                    "timestamp": datetime.now().isoformat(),
-                    "trend": "up" if demo_change > 0 else "down" if demo_change < 0 else "flat"
-                }
-            }
-            
-            await self.broadcast(demo_message)
-            await asyncio.sleep(3)  # 3초마다 데이터 전송
+    # async def _send_demo_data(self):
+    #     """Mock 데이터 제거: 데모 데이터 전송 비활성화"""
+    #     pass
     
     async def stop_realtime_client(self):
         """키움 실시간 클라이언트 중지"""
@@ -284,8 +260,7 @@ class ConnectionManager:
                         
                         # 종목명 매핑
                         stock_name = {
-                            '005930': '삼성전자',
-                            '000660': 'SK하이닉스'
+                            '{종목코드}': '{종목명}'
                         }.get(stock_code, stock_code)
                         
                         # 상승/하락 트렌드
@@ -315,8 +290,7 @@ class ConnectionManager:
                         
                         # 종목명 매핑
                         stock_name = {
-                            '005930': '삼성전자',
-                            '000660': 'SK하이닉스'
+                            '{종목코드}': '{종목명}'
                         }.get(stock_code, stock_code)
                         
                         converted_items.append({
@@ -779,9 +753,9 @@ async def websocket_test_page():
                             item: [
                                 '001',    // KOSPI 지수
                                 '028',    // 코스피200
-                                '005930', // 삼성전자
-                                '000660', // SK하이닉스
-                                '373220'  // LG에너지솔루션
+                                '{종목코드1}', // {종목명1}
+                                '{종목코드2}', // {종목명2}
+                                '{종목코드3}'  // {종목명3}
                             ],
                             type: [
                                 '0J',  // 업종지수
@@ -794,7 +768,7 @@ async def websocket_test_page():
                     socket.send(JSON.stringify(message));
                     addMessage('📤 REG 구독 요청 전송: 업종지수 + 종목정보');
                     addMessage('🏢 업종: KOSPI(001), 코스피200(028)');
-                    addMessage('📈 종목: 삼성전자, SK하이닉스, LG에너지솔루션');
+                    addMessage('📈 종목: {종목명1}, {종목명2}, {종목명3}');
                 } else {
                     addMessage('❌ WebSocket이 연결되지 않았습니다');
                 }

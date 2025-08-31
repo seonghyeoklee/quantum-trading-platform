@@ -31,8 +31,8 @@ class DailyStockProfitLossRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "strt_dt": "20241128"
+                "stk_cd": "{종목코드}",
+                "strt_dt": "{시작일자}"
             }
         }
 
@@ -53,9 +53,9 @@ class DailyStockProfitLossPeriodRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "strt_dt": "20241128", 
-                "end_dt": "20241128"
+                "stk_cd": "{종목코드}",
+                "strt_dt": "{시작일자}", 
+                "end_dt": "{종료일자}"
             }
         }
 
@@ -75,8 +75,8 @@ class DailyProfitLossRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "strt_dt": "20241128",
-                "end_dt": "20241128"
+                "strt_dt": "{시작일자}",
+                "end_dt": "{종료일자}"
             }
         }
 
@@ -118,7 +118,7 @@ class UnfilledOrderRequest(BaseModel):
             "example": {
                 "all_stk_tp": "1",
                 "trde_tp": "0", 
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "stex_tp": "0"
             }
         }
@@ -166,7 +166,7 @@ class FilledOrderRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "qry_tp": "1",
                 "sell_tp": "0",
                 "ord_no": "",
@@ -221,7 +221,7 @@ class UnfilledSplitOrderDetailRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "ord_no": "20241128001"
+                "ord_no": "{주문번호}"
             }
         }
 
@@ -254,7 +254,7 @@ class DailyTradingLogRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "base_dt": "20241120",
+                "base_dt": "{기준일자}",
                 "ottks_tp": "1",
                 "ch_crd_tp": "0"
             }
@@ -297,8 +297,8 @@ class DailyEstimatedAssetStatusRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "start_dt": "20241111",
-                "end_dt": "20241125"
+                "start_dt": "{시작일자}",
+                "end_dt": "{종료일자}"
             }
         }
 
@@ -428,7 +428,7 @@ class AccountOrderFilledDetailRequest(BaseModel):
                 "qry_tp": "1",
                 "stk_bond_tp": "0",
                 "sell_tp": "0", 
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "fr_ord_no": "",
                 "dmst_stex_tp": "%"
             }
@@ -543,10 +543,10 @@ class OrderWithdrawalAmountRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "io_amt": "",
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "trde_tp": "2",
                 "trde_qty": "",
-                "uv": "267000",
+                "uv": "{매수가격}",
                 "exp_buy_unp": ""
             }
         }
@@ -561,7 +561,7 @@ class MarginRateOrderQuantityRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "uv": ""
             }
         }
@@ -576,7 +576,7 @@ class CreditMarginRateOrderQuantityRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "uv": ""
             }
         }
@@ -635,8 +635,8 @@ class TrustComprehensiveTransactionRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "strt_dt": "20241121",
-                "end_dt": "20241125", 
+                "strt_dt": "{시작일자}",
+                "end_dt": "{종료일자}", 
                 "tp": "0",
                 "stk_cd": "",
                 "crnc_cd": "",
@@ -662,8 +662,8 @@ class DailyAccountReturnDetailRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "fr_dt": "20241111",
-                "to_dt": "20241125"
+                "fr_dt": "{시작일자}",
+                "to_dt": "{종료일자}"
             }
         }
 

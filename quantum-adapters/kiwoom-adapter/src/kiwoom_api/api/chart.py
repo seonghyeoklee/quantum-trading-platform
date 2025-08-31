@@ -74,8 +74,8 @@ async def api_fn_ka10081(request: KiwoomStockChartApiRequest) -> KiwoomApiRespon
     Args:
         request: 차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (예: '005930')
-                  - base_dt: 기준일자 YYYYMMDD (예: '20250820')
+                  - stk_cd: 종목코드 (예: '{종목코드}')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
@@ -112,7 +112,7 @@ async def api_fn_ka10080(request: KiwoomStockMinuteChartApiRequest) -> KiwoomApi
     Args:
         request: 분봉차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (예: '005930')
+                  - stk_cd: 종목코드 (예: '{종목코드}')
                   - tic_scope: 틱범위 ('1':1분, '3':3분, '5':5분, '10':10분, '15':15분, '30':30분, '45':45분, '60':60분)
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
@@ -150,8 +150,8 @@ async def api_fn_ka10082(request: KiwoomStockWeeklyChartApiRequest) -> KiwoomApi
     Args:
         request: 주봉차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (예: '005930')
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241108')
+                  - stk_cd: 종목코드 (예: '{종목코드}')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
@@ -188,8 +188,8 @@ async def api_fn_ka10094(request: KiwoomStockYearlyChartApiRequest) -> KiwoomApi
     Args:
         request: 년봉차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (예: '005930')
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241212')
+                  - stk_cd: 종목코드 (예: '{종목코드}')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
@@ -226,7 +226,7 @@ async def api_fn_ka10079(request: KiwoomStockTickChartApiRequest) -> KiwoomApiRe
     Args:
         request: 틱차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (예: '005930')
+                  - stk_cd: 종목코드 (예: '{종목코드}')
                   - tic_scope: 틱범위 ('1':1틱, '3':3틱, '5':5틱, '10':10틱, '30':30틱)
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
@@ -302,8 +302,8 @@ async def api_fn_ka10060(request: KiwoomInvestorInstitutionChartApiRequest) -> K
     Args:
         request: 투자자기관별차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - dt: 일자 YYYYMMDD (예: '20241107')
-                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)
+                  - dt: 일자 YYYYMMDD (예: '{날짜}')
+                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:{종목코드}, NXT:{종목코드}_NX, SOR:{종목코드}_AL)
                   - amt_qty_tp: 금액수량구분 ('1':금액, '2':수량)
                   - trde_tp: 매매구분 ('0':순매수, '1':매수, '2':매도)
                   - unit_tp: 단위구분 ('1000':천주, '1':단주)
@@ -345,7 +345,7 @@ async def api_fn_ka10064(request: KiwoomIntradayInvestorTradeChartApiRequest) ->
                   - mrkt_tp: 시장구분 ('000':전체, '001':코스피, '101':코스닥)
                   - amt_qty_tp: 금액수량구분 ('1':금액, '2':수량)
                   - trde_tp: 매매구분 ('0':순매수, '1':매수, '2':매도)
-                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)
+                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:{종목코드}, NXT:{종목코드}_NX, SOR:{종목코드}_AL)
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
     
@@ -421,7 +421,7 @@ async def api_fn_ka20006(request: KiwoomSectorDailyChartApiRequest) -> KiwoomApi
                 - data: 차트조회 파라미터
                   - inds_cd: 업종코드 (001:종합(KOSPI), 002:대형주, 003:중형주, 004:소형주, 
                                      101:종합(KOSDAQ), 201:KOSPI200, 302:KOSTAR, 701:KRX100)
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241122')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
     
@@ -459,7 +459,7 @@ async def api_fn_ka20007(request: KiwoomSectorDailyChartApiRequest) -> KiwoomApi
                 - data: 차트조회 파라미터
                   - inds_cd: 업종코드 (001:종합(KOSPI), 002:대형주, 003:중형주, 004:소형주, 
                                      101:종합(KOSDAQ), 201:KOSPI200, 302:KOSTAR, 701:KRX100)
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241122')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
     
@@ -497,7 +497,7 @@ async def api_fn_ka20008(request: KiwoomSectorDailyChartApiRequest) -> KiwoomApi
                 - data: 차트조회 파라미터
                   - inds_cd: 업종코드 (001:종합(KOSPI), 002:대형주, 003:중형주, 004:소형주, 
                                      101:종합(KOSDAQ), 201:KOSPI200, 302:KOSTAR, 701:KRX100)
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241122')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
     
@@ -535,7 +535,7 @@ async def api_fn_ka20019(request: KiwoomSectorDailyChartApiRequest) -> KiwoomApi
                 - data: 차트조회 파라미터
                   - inds_cd: 업종코드 (001:종합(KOSPI), 002:대형주, 003:중형주, 004:소형주, 
                                      101:종합(KOSDAQ), 201:KOSPI200, 302:KOSTAR, 701:KRX100)
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241122')
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')
     
@@ -571,8 +571,8 @@ async def api_fn_ka10083(request: KiwoomStockChartApiRequest) -> KiwoomApiRespon
     Args:
         request: 주식월봉차트조회 요청 데이터 (토큰 자동 관리)
                 - data: 차트조회 파라미터
-                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)
-                  - base_dt: 기준일자 YYYYMMDD (예: '20241108')
+                  - stk_cd: 종목코드 (거래소별 종목코드: KRX:{종목코드}, NXT:{종목코드}_NX, SOR:{종목코드}_AL)
+                  - base_dt: 기준일자 YYYYMMDD (예: '{날짜}')
                   - upd_stkpc_tp: 수정주가구분 ('0' or '1')
                 - cont_yn: 연속조회여부 ('Y' or 'N', 기본값: 'N')
                 - next_key: 연속조회키 (기본값: '')

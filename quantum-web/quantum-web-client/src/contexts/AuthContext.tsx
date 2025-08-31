@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 interface User {
   id: string;
@@ -75,7 +76,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await fetch('http://localhost:10101/api/v1/auth/login', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('🔐 [AuthContext] Login attempt to:', `${apiBaseUrl}/api/v1/auth/login`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +123,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       if (token) {
         // 백엔드에 로그아웃 요청
-        await fetch('http://localhost:10101/api/v1/auth/logout', {
+        const apiBaseUrl = getApiBaseUrl();
+        console.log('🚪 [AuthContext] Logout attempt to:', `${apiBaseUrl}/api/v1/auth/logout`);
+        await fetch(`${apiBaseUrl}/api/v1/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -148,7 +153,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       console.log('Fetching user data from /api/v1/auth/me...');
 
-      const response = await fetch('http://localhost:10101/api/v1/auth/me', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('👤 [AuthContext] Fetching user info from:', `${apiBaseUrl}/api/v1/auth/me`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -187,7 +194,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error('No refresh token found');
       }
 
-      const response = await fetch('http://localhost:10101/api/v1/auth/refresh', {
+      const apiBaseUrl = getApiBaseUrl();
+      console.log('🔄 [AuthContext] Token refresh attempt to:', `${apiBaseUrl}/api/v1/auth/refresh`);
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -228,7 +228,9 @@ services:
       - FASTAPI_HOST=0.0.0.0
       - FASTAPI_PORT=10201
       - LOG_LEVEL=INFO
-      - KIWOOM_SANDBOX_MODE=true
+      - KIWOOM_SANDBOX_MODE=false
+      - KIWOOM_MARKET_DATA_MODE=production
+      - KIWOOM_TRADING_MODE=sandbox
       - ENABLE_METRICS=true
       - TEMPO_ENDPOINT=http://quantum-tempo:4318
       # 환경변수는 .env.docker에서 로드됨:
@@ -263,13 +265,17 @@ services:
     ports:
       - "10301:10301"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=10301
       # Tailscale IP 설정 (동적 호스트 감지에서 사용)
       - NEXT_PUBLIC_TAILSCALE_IP=100.68.90.21
       # API URL 환경변수를 제거하여 동적 감지 활성화
       # NEXT_PUBLIC_API_URL과 NEXT_PUBLIC_KIWOOM_ADAPTER_URL을 설정하지 않으면
       # api-config.ts의 동적 호스트 감지가 작동함
+    volumes:
+      - ../quantum-web/quantum-web-client:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - quantum-web-api
       - quantum-kiwoom-adapter
@@ -277,10 +283,75 @@ services:
       - quantum-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/app/healthcheck.sh"]
+      test: ["CMD", "curl", "-f", "http://localhost:10301/api/health"]
       interval: 30s
       timeout: 10s
       retries: 5
+
+  # ============== EXPORTERS FOR METRICS ==============
+
+  # PostgreSQL Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: quantum-postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://quantum:quantum123@quantum-postgres:5432/quantum_trading?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - quantum-network
+    restart: unless-stopped
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: quantum-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: "redis://quantum-redis:6379"
+    depends_on:
+      - redis
+    networks:
+      - quantum-network
+    restart: unless-stopped
+
+  # Kafka Exporter
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: quantum-kafka-exporter
+    ports:
+      - "9308:9308"
+    command:
+      - '--kafka.server=quantum-kafka:29092'
+      - '--web.listen-address=0.0.0.0:9308'
+      - '--log.level=info'
+    depends_on:
+      - kafka
+    networks:
+      - quantum-network
+    restart: unless-stopped
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: quantum-cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    privileged: true
+    networks:
+      - quantum-network
+    restart: unless-stopped
 
   # ============== MONITORING & MANAGEMENT ==============
 
@@ -326,9 +397,15 @@ services:
     container_name: quantum-tempo
     ports:
       - "3200:3200"   # HTTP API
-      - "14268:14268" # Jaeger ingest
+      - "9095:9095"   # gRPC
+      - "14268:14268" # Jaeger HTTP
+      - "14250:14250" # Jaeger gRPC
+      - "6832:6832"   # Jaeger binary
+      - "6831:6831"   # Jaeger compact
+      - "9411:9411"   # Zipkin
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
+      - "55678:55678" # OpenCensus
     volumes:
       - ./infrastructure/tempo/tempo.yaml:/etc/tempo/tempo.yaml
       - tempo-data:/tmp/tempo
@@ -336,7 +413,7 @@ services:
     networks:
       - quantum-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3200/ready"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
       interval: 30s
       timeout: 10s
       retries: 5

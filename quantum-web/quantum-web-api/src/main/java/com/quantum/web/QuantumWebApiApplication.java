@@ -20,10 +20,12 @@ import org.springframework.scheduling.annotation.EnableAsync;
     "com.quantum.trading.platform.query"        // Query Side 컴포넌트
 })
 @EntityScan(basePackages = {
-    "com.quantum.trading.platform.query.view"   // JPA Entities (Read Models)
+    "com.quantum.trading.platform.query.view",  // JPA Entities (Read Models)
+    "com.quantum.web.entity"                    // Web API Entities
 })
 @EnableJpaRepositories(basePackages = {
-    "com.quantum.trading.platform.query.repository" // Query Side Repositories
+    "com.quantum.trading.platform.query.repository", // Query Side Repositories
+    "com.quantum.web.repository"                     // Web API Repositories
 })
 public class QuantumWebApiApplication {
 

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 class RSIAnalysisRequest(BaseModel):
     """RSI 분석 요청 모델"""
-    stock_code: str = Field(..., description="6자리 종목코드", example="005930")
+    stock_code: str = Field(..., description="6자리 종목코드", example="{종목코드}")
     period: Optional[int] = Field(14, description="RSI 계산 기간", ge=5, le=50)
 
 
@@ -28,8 +28,8 @@ class RSIAnalysisResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "rsi": 65.24,
                 "score": -0.76,
                 "interpretation": "부정",
@@ -54,8 +54,8 @@ class TechnicalAnalysisResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "indicators": {
                     "rsi": 65.24,
                     "obv": 1250000,
@@ -114,8 +114,8 @@ class ComprehensiveAnalysisResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "financial_score": 1.2,
                 "technical_score": -0.36,
                 "price_score": 0.8,
@@ -143,7 +143,7 @@ class AnalysisError(BaseModel):
             "example": {
                 "error_code": "INSUFFICIENT_DATA",
                 "error_message": "RSI 계산을 위한 충분한 가격 데이터가 없습니다",
-                "stock_code": "005930",
+                "stock_code": "{종목코드}",
                 "timestamp": "2025-08-25T11:30:00"
             }
         }
@@ -157,7 +157,7 @@ class MultiStockAnalysisRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_codes": ["005930", "000660", "373220"],
+                "stock_codes": ["{종목코드1}", "{종목코드2}", "{종목코드3}"],
                 "analysis_type": "comprehensive"
             }
         }

@@ -101,24 +101,16 @@ class DARTClient:
         종목코드로 기업코드 조회
         
         Args:
-            stock_code: 6자리 종목코드 (예: "005930")
+            stock_code: 6자리 종목코드 (예: "{종목코드}")
             
         Returns:
             8자리 기업코드 (예: "00126380")
         """
-        # 기업코드 맵핑 테이블 (실제로는 DART에서 제공하는 고유번호 파일을 다운로드해야 함)
-        # 여기서는 주요 기업만 하드코딩
+        # TODO: DART 고유번호 파일에서 동적 로드 필요
+        # 현재는 주요 기업만 대상 - 실제 운영시 전체 기업 대상으로 변경
         corp_code_map = {
-            "005930": "00126380",  # 삼성전자
-            "000660": "00164779",  # SK하이닉스
-            "005380": "00126186",  # 현대차
-            "035420": "00159320",  # NAVER
-            "000270": "00139649",  # 기아
-            "051910": "00231848",  # LG화학
-            "006400": "00127219",  # 삼성SDI
-            "035720": "00160980",  # 카카오
-            "028260": "00148064",  # 삼성물산
-            "105560": "00547709",  # KB금융
+            # TODO: 전체 상장기업 기업코드 맵핑 필요
+            # 예시 용도로만 사용
         }
         
         return corp_code_map.get(stock_code)
@@ -458,24 +450,24 @@ async def example_usage():
     # 환경변수에 DART_API_KEY 설정 필요
     client = DARTClient()
     
-    # 삼성전자 재무정보 조회
-    financial_data = await client.get_financial_statement("005930", 2024, "11013")
+    # 예시: 재무정보 조회
+    financial_data = await client.get_financial_statement("{종목코드}", 2024, "11013")
     print(f"유보율: {financial_data.get('retention_ratio', 0):.2f}%")
     print(f"부채비율: {financial_data.get('debt_ratio', 0):.2f}%")
     print(f"이자보상배율: {financial_data.get('interest_coverage_ratio', 0):.2f}")
     
     # 공시 정보 조회
-    disclosures = await client.get_disclosures("005930")
+    disclosures = await client.get_disclosures("{종목코드}")
     for disclosure in disclosures[:5]:
         print(f"{disclosure['date']}: {disclosure['title']} ({disclosure['sentiment']})")
     
     # 어닝서프라이즈 체크
-    surprise = await client.check_earnings_surprise("005930")
+    surprise = await client.check_earnings_surprise("{종목코드}")
     if surprise["has_surprise"]:
         print(f"어닝서프라이즈 발생: {surprise['title']}")
     
     # 배당 정보 조회
-    dividend = await client.get_dividend_info("005930", 2023)
+    dividend = await client.get_dividend_info("{종목코드}", 2023)
     print(f"배당수익률: {dividend.get('dividend_yield', 0):.2f}%")
 
 

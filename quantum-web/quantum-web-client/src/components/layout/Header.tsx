@@ -32,6 +32,8 @@ export default function Header({ className }: HeaderProps) {
   const isGlossaryPage = pathname === '/glossary';
   const isStrategiesPage = pathname === '/strategies' || pathname?.startsWith('/strategies/');
   const isTradingTestPage = pathname === '/trading-test';
+  const isAutoTradingPage = pathname === '/auto-trading';
+  const isKiwoomAccountPage = pathname === '/kiwoom-account';
 
   return (
     <header className={`border-b border-border bg-card sticky top-0 z-50 ${className || ''}`}>
@@ -83,6 +85,16 @@ export default function Header({ className }: HeaderProps) {
               </a>
 
               <a 
+                href="/auto-trading" 
+                className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
+                  isAutoTradingPage ? 'text-primary font-medium' : ''
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span className="text-sm">자동매매</span>
+              </a>
+
+              <a 
                 href="/trading-test" 
                 className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
                   isTradingTestPage ? 'text-primary font-medium' : ''
@@ -92,10 +104,15 @@ export default function Header({ className }: HeaderProps) {
                 <span className="text-sm">통합테스트</span>
               </a>
               
-              <div className="flex items-center space-x-1 cursor-pointer hover:text-primary">
-                <span className="text-sm font-medium">브로커</span>
-                <ChevronDown className="w-3 h-3" />
-              </div>
+              <a 
+                href="/kiwoom-account" 
+                className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
+                  isKiwoomAccountPage ? 'text-primary font-medium' : ''
+                }`}
+              >
+                <Building className="w-4 h-4" />
+                <span className="text-sm">키움설정</span>
+              </a>
               
               <div className="flex items-center space-x-1 cursor-pointer hover:text-primary">
                 <span className="text-sm font-medium">더보기</span>
@@ -194,10 +211,22 @@ export default function Header({ className }: HeaderProps) {
                 <span className="text-primary font-medium">자동매매 전략</span>
               </>
             )}
+            {isAutoTradingPage && (
+              <>
+                <span>•</span>
+                <span className="text-primary font-medium">자동매매</span>
+              </>
+            )}
             {isTradingTestPage && (
               <>
                 <span>•</span>
                 <span className="text-primary font-medium">통합 테스트</span>
+              </>
+            )}
+            {isKiwoomAccountPage && (
+              <>
+                <span>•</span>
+                <span className="text-primary font-medium">키움증권 설정</span>
               </>
             )}
           </div>
@@ -236,6 +265,15 @@ export default function Header({ className }: HeaderProps) {
               <span className="text-xs">전략</span>
             </a>
             <a 
+              href="/auto-trading" 
+              className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
+                isAutoTradingPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+              }`}
+            >
+              <TrendingUp className="w-3 h-3" />
+              <span className="text-xs">자동매매</span>
+            </a>
+            <a 
               href="/glossary" 
               className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
                 isGlossaryPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
@@ -252,6 +290,15 @@ export default function Header({ className }: HeaderProps) {
             >
               <Activity className="w-3 h-3" />
               <span className="text-xs">통합테스트</span>
+            </a>
+            <a 
+              href="/kiwoom-account" 
+              className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
+                isKiwoomAccountPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+              }`}
+            >
+              <Building className="w-3 h-3" />
+              <span className="text-xs">키움설정</span>
             </a>
           </div>
           

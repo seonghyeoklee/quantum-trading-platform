@@ -30,14 +30,171 @@ scrape_configs:
         target_label: 'logstream'
     pipeline_stages:
       - docker: {}
-      # Log metrics
+      
+      # JSON 로그 파싱 (Spring Boot, FastAPI 등)
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            logger: logger
+            message: message
+            thread: thread
+            trace_id: trace_id
+            span_id: span_id
+      
+      # 로그 레벨 정규화
+      - regex:
+          expression: '.*(?P<level>DEBUG|INFO|WARN|ERROR|FATAL|TRACE).*'
+      - labels:
+          level:
+      
+      # HTTP 요청 로그 파싱
+      - regex:
+          expression: '.*(?P<method>GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(?P<path>[^\s]+).*(?P<status>\d{3}).*'
+      - labels:
+          http_method:
+          http_status:
+      
+      # 고급 에러 패턴 분류
+      - regex:
+          expression: '.*(?P<error_category>SQLException|ConnectionException|TimeoutException|NetworkException).*'
+      - labels:
+          error_category:
+      
+      # SQL 에러 패턴
+      - regex:
+          expression: '.*(?P<sql_error>SQLException|connection timeout|deadlock|constraint violation|table.*not found).*'
+      - labels:
+          sql_error:
+          
+      # 네트워크 에러 패턴  
+      - regex:
+          expression: '.*(?P<network_error>Connection refused|timeout|ConnectException|SocketTimeoutException|UnknownHostException).*'
+      - labels:
+          network_error:
+          
+      # 인증/권한 에러 패턴
+      - regex:
+          expression: '.*(?P<auth_error>Unauthorized|Forbidden|Access denied|Authentication failed|Invalid token).*'
+      - labels:
+          auth_error:
+          
+      # 비즈니스 로직 에러 패턴
+      - regex:
+          expression: '.*(?P<business_error>ValidationException|OrderFailedException|InsufficientFundsException|MarketClosedException).*'
+      - labels:
+          business_error:
+          
+      # 심각도별 분류
+      - regex:
+          expression: '.*(?P<severity>FATAL|CRITICAL|HIGH|MEDIUM|LOW).*'
+      - labels:
+          severity:
+      
+      # API 엔드포인트 추출
+      - regex:
+          expression: '.*/api/(?P<api_endpoint>[^/\s]+(?:/[^/\s]+)*).*'
+      - labels:
+          api_endpoint:
+          
+      # 거래 ID 추출
+      - regex:
+          expression: '.*(?:trade|order).*id[:\s=]+(?P<trade_id>[a-zA-Z0-9-]+).*'
+      - labels:
+          trade_id:
+          
+      # 사용자 ID 추출  
+      - regex:
+          expression: '.*(?:user|customer).*id[:\s=]+(?P<user_id>[a-zA-Z0-9-]+).*'
+      - labels:
+          user_id:
+          
+      # 응답시간 추출 (milliseconds)
+      - regex:
+          expression: '.*(?:duration|took|elapsed)[:\s=]+(?P<response_time_ms>\d+)(?:ms|millis|milliseconds).*'
+      - labels:
+          response_time_ms:
+          
+      # 일반 에러 패턴 (기존 유지)
+      - regex:
+          expression: '.*(?P<error_type>Exception|Error|Failure|Timeout).*'
+      - labels:
+          error_type:
+      
+      # 확장된 로그 메트릭 수집
       - metrics:
           log_entries_total:
             type: Counter
-            description: "Total number of log entries by service"
-            source: service
+            description: "Total number of log entries by service and level"
+            source: level
             config:
               action: inc
+          log_errors_total:
+            type: Counter
+            description: "Total number of error log entries"
+            source: error_type
+            config:
+              action: inc
+          http_requests_log_total:
+            type: Counter
+            description: "Total HTTP requests from logs"
+            source: http_method
+            config:
+              action: inc
+          error_categories_total:
+            type: Counter
+            description: "Total errors by category (SQL, Network, Auth, Business)"
+            source: error_category
+            config:
+              action: inc
+          sql_errors_total:
+            type: Counter
+            description: "Total SQL related errors"
+            source: sql_error
+            config:
+              action: inc
+          network_errors_total:
+            type: Counter
+            description: "Total network related errors"
+            source: network_error
+            config:
+              action: inc
+          auth_errors_total:
+            type: Counter
+            description: "Total authentication/authorization errors"
+            source: auth_error
+            config:
+              action: inc
+          business_errors_total:
+            type: Counter
+            description: "Total business logic errors"
+            source: business_error
+            config:
+              action: inc
+          api_requests_log_total:
+            type: Counter
+            description: "Total API requests by endpoint"
+            source: api_endpoint
+            config:
+              action: inc
+          user_actions_total:
+            type: Counter
+            description: "Total user actions by user ID"
+            source: user_id
+            config:
+              action: inc
+          trading_events_total:
+            type: Counter
+            description: "Total trading events by trade ID"
+            source: trade_id
+            config:
+              action: inc
+          api_response_time_log:
+            type: Histogram
+            description: "API response times extracted from logs"
+            source: response_time_ms
+            config:
+              buckets: [10, 50, 100, 200, 500, 1000, 2000, 5000]
 
   # 특별한 레이블이 있는 컨테이너 로그
   - job_name: labeled-containers

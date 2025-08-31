@@ -45,7 +45,7 @@ public class OrderExecutionService {
     private boolean executionEnabled;
     
     @Value("${trading.execution.simulate:false}")
-    private boolean simulateExecution;
+    private boolean simulateExecution = false;
     
     /**
      * 주문 생성 이벤트 처리 - 키움증권 API로 주문 제출
@@ -64,10 +64,6 @@ public class OrderExecutionService {
             log.warn("Order execution is disabled - orderId: {}", orderCreatedEvent.orderId().value());
             return CompletableFuture.completedFuture(
                 OrderExecutionResult.rejected("Order execution is disabled"));
-        }
-        
-        if (simulateExecution) {
-            return simulateOrderExecution(orderCreatedEvent);
         }
         
         return executeRealOrder(orderCreatedEvent);
@@ -205,34 +201,6 @@ public class OrderExecutionService {
         };
     }
     
-    /**
-     * 주문 실행 시뮬레이션 (개발/테스트용)
-     */
-    private CompletableFuture<OrderExecutionResult> simulateOrderExecution(OrderCreatedEvent event) {
-        log.info("Simulating order execution - orderId: {}", event.orderId().value());
-        
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // 시뮬레이션 지연 시간 (실제 API 호출과 유사하게)
-                Thread.sleep(100 + (long) (Math.random() * 300));
-                
-                // 90% 확률로 성공, 10% 확률로 실패 시뮬레이션
-                if (Math.random() < 0.9) {
-                    String mockBrokerOrderId = "SIM-" + System.currentTimeMillis();
-                    log.info("Simulated order submitted - orderId: {}, brokerOrderId: {}", 
-                            event.orderId().value(), mockBrokerOrderId);
-                    return OrderExecutionResult.submitted(mockBrokerOrderId);
-                } else {
-                    log.warn("Simulated order rejection - orderId: {}", event.orderId().value());
-                    return OrderExecutionResult.rejected("Simulated rejection for testing");
-                }
-                
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return OrderExecutionResult.rejected("Simulation interrupted");
-            }
-        });
-    }
     
     /**
      * 주문 취소 실행
@@ -248,10 +216,6 @@ public class OrderExecutionService {
         if (!executionEnabled) {
             return CompletableFuture.completedFuture(
                 OrderExecutionResult.rejected("Order execution is disabled"));
-        }
-        
-        if (simulateExecution) {
-            return simulateCancelOrder(orderId, brokerOrderId);
         }
         
         return executeRealCancel(orderId, brokerOrderId);
@@ -320,27 +284,6 @@ public class OrderExecutionService {
         }
     }
     
-    /**
-     * 주문 취소 시뮬레이션
-     */
-    private CompletableFuture<OrderExecutionResult> simulateCancelOrder(OrderId orderId, String brokerOrderId) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                Thread.sleep(50 + (long) (Math.random() * 100));
-                
-                if (Math.random() < 0.95) { // 95% 성공률
-                    log.info("Simulated order cancellation - orderId: {}", orderId.value());
-                    return OrderExecutionResult.cancelled();
-                } else {
-                    return OrderExecutionResult.rejected("Simulated cancel rejection");
-                }
-                
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return OrderExecutionResult.rejected("Cancel simulation interrupted");
-            }
-        });
-    }
     
     /**
      * 주문 실행 결과 DTO

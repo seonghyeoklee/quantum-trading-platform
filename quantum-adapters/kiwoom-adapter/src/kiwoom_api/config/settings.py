@@ -12,7 +12,7 @@ class KiwoomSettings(BaseSettings):
     """키움 API 설정"""
     
     # 키움 모드 설정
-    KIWOOM_SANDBOX_MODE: bool = Field(True, description="키움 샌드박스 모드 (실전투자 vs 모의투자)")
+    KIWOOM_SANDBOX_MODE: bool = Field(False, description="키움 샌드박스 모드 (실전투자 vs 모의투자)")
     
     # 샌드박스 모드용 키 (모의투자)
     KIWOOM_SANDBOX_APP_KEY: str = Field("", description="키움 샌드박스 API 앱키")

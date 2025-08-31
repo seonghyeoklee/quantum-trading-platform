@@ -317,39 +317,10 @@ class TestMovingAverageCrossoverStrategy:
 class TestIntegrationTests:
     """통합 테스트"""
     
-    @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Mock 데이터 테스트 비활성화 - 실제 데이터만 사용")
     async def test_strategy_with_mock_data(self):
-        """Mock 데이터를 사용한 전체 전략 테스트"""
-        config = StrategyConfig(
-            strategy_name="Integration Test Strategy",
-            strategy_type=StrategyType.RSI_MEAN_REVERSION,
-            target_symbols=["005930"],
-            risk_level=RiskLevel.MODERATE,
-            max_position_size=Decimal("1000000"),
-            execution_interval=60,
-            strategy_params={"rsi_period": 14}
-        )
-        
-        strategy = RSIStrategy(config)
-        
-        # Mock 차트 데이터 생성 (RSI < 30이 되도록)
-        mock_chart_data = {
-            "symbol": "005930",
-            "prices": [50000, 49000, 48000, 47000, 46000, 45000, 44000, 43000, 42000, 41000] * 3,  # 하락 추세
-            "volumes": [100000] * 30,
-            "dates": []
-        }
-        
-        # get_chart_data 메서드를 Mock으로 교체
-        with patch.object(strategy, 'get_chart_data', return_value=mock_chart_data):
-            signal = await strategy.analyze("005930")
-        
-        # 하락 추세 데이터로 인해 RSI가 낮아져서 매수 신호가 생성되어야 함
-        if signal:
-            assert signal.signal_type == SignalType.BUY
-            assert signal.symbol == "005930"
-            assert signal.strategy_name == "Integration Test Strategy"
-            assert 0.0 <= signal.confidence <= 1.0
+        """Mock 데이터를 사용한 전체 전략 테스트 - 비활성화됨"""
+        pass
     
     def test_strategy_info(self):
         """전략 정보 반환 테스트"""

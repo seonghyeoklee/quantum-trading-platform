@@ -140,6 +140,14 @@ quantum:
       default-ttl: 14400  # 4시간 (초)
       refresh-threshold: 1800  # 30분 (초)
 
+# Trading Configuration - Disable all simulation/mock modes
+trading:
+  execution:
+    enabled: true
+    simulate: false  # DISABLED: Force real API calls only
+  data:
+    mock-enabled: false  # DISABLED: Force real data sources only
+
 
 
 ---

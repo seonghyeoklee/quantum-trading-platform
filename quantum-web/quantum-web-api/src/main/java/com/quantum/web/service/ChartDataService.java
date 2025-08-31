@@ -38,25 +38,17 @@ public class ChartDataService {
             return cachedData;
         }
         
-        // 캐시에 없으면 데이터 생성 (실제로는 Query Side Repository에서 조회)
-        ChartDataResponse chartData = generateMockChartData(symbol, timeframe, limit);
-        
-        // Redis 캐시에 저장 (TTL: 시간프레임에 따라 차등 적용)
-        int cacheTtlMinutes = getCacheTtlMinutes(timeframe);
-        redisTemplate.opsForValue().set(cacheKey, chartData, cacheTtlMinutes, TimeUnit.MINUTES);
-        
-        log.debug("Chart data cached with key: {}, TTL: {} minutes", cacheKey, cacheTtlMinutes);
-        
-        return chartData;
+        // 캐시에 없으면 실제 데이터 조회 (Query Side Repository에서)
+        // Mock data generation removed - must use real data from Kiwoom API
+        throw new UnsupportedOperationException("Chart data must be retrieved from real Kiwoom API. Mock data generation is disabled.");
     }
 
     public List<Object> searchSymbols(String keyword, int limit) {
         log.debug("Searching symbols with keyword: {}, limit: {}", keyword, limit);
         
-        // 실제 환경에서는 Symbol Master Table에서 검색
-        List<Object> mockResults = generateMockSearchResults(keyword, limit);
-        
-        return mockResults;
+        // Must use real Symbol Master Table search
+        // Mock search results generation is disabled
+        throw new UnsupportedOperationException("Symbol search must use real Symbol Master Table. Mock data generation is disabled.");
     }
 
     public Object getIndicatorData(String symbol, String indicator, int period, int limit) {
@@ -71,111 +63,11 @@ public class ChartDataService {
             return cachedData;
         }
         
-        // 지표 데이터 생성 (실제로는 계산된 지표 데이터)
-        Object indicatorData = generateMockIndicatorData(symbol, indicator, period, limit);
-        
-        // 캐시 저장 (지표는 5분간 캐시)
-        redisTemplate.opsForValue().set(cacheKey, indicatorData, 5, TimeUnit.MINUTES);
-        
-        return indicatorData;
+        // Must use real calculated indicator data
+        // Mock indicator data generation is disabled  
+        throw new UnsupportedOperationException("Indicator data must be calculated from real market data. Mock data generation is disabled.");
     }
 
-    private ChartDataResponse generateMockChartData(String symbol, String timeframe, int limit) {
-        List<ChartDataResponse.CandleData> candles = new ArrayList<>();
-        List<ChartDataResponse.VolumeData.VolumePoint> volumePoints = new ArrayList<>();
-        
-        // 시작 시간 계산
-        LocalDateTime startTime = LocalDateTime.now().minusHours(limit);
-        
-        // Mock 데이터 생성
-        BigDecimal basePrice = BigDecimal.valueOf(50000); // 기준가 50,000원
-        
-        for (int i = 0; i < limit; i++) {
-            LocalDateTime timestamp = startTime.plusHours(i);
-            
-            // 단순한 랜덤 워크로 가격 데이터 생성
-            double variation = (Math.random() - 0.5) * 0.02; // ±1% 변동
-            BigDecimal open = basePrice.multiply(BigDecimal.valueOf(1 + variation));
-            BigDecimal high = open.multiply(BigDecimal.valueOf(1 + Math.random() * 0.01));
-            BigDecimal low = open.multiply(BigDecimal.valueOf(1 - Math.random() * 0.01));
-            BigDecimal close = low.add(high.subtract(low).multiply(BigDecimal.valueOf(Math.random())));
-            
-            long volume = (long) (1000000 + Math.random() * 2000000); // 100만~300만주
-            
-            candles.add(ChartDataResponse.CandleData.builder()
-                    .timestamp(timestamp)
-                    .open(open)
-                    .high(high)
-                    .low(low)
-                    .close(close)
-                    .volume(volume)
-                    .build());
-                    
-            volumePoints.add(ChartDataResponse.VolumeData.VolumePoint.builder()
-                    .timestamp(timestamp)
-                    .volume(volume)
-                    .build());
-                    
-            basePrice = close; // 다음 캔들의 기준가로 사용
-        }
-        
-        ChartDataResponse.VolumeData volumeData = ChartDataResponse.VolumeData.builder()
-                .points(volumePoints)
-                .build();
-        
-        return ChartDataResponse.builder()
-                .symbol(symbol)
-                .timeframe(timeframe)
-                .candles(candles)
-                .volume(volumeData)
-                .build();
-    }
-    
-    private List<Object> generateMockSearchResults(String keyword, int limit) {
-        List<Object> results = new ArrayList<>();
-        
-        // Mock 검색 결과 (실제로는 DB 검색)
-        String[] companies = {
-            "삼성전자", "SK하이닉스", "LG화학", "삼성바이오로직스", "NAVER",
-            "카카오", "셀트리온", "현대차", "기아", "POSCO홀딩스"
-        };
-        
-        String[] codes = {
-            "005930", "000660", "051910", "207940", "035420",
-            "035720", "068270", "005380", "000270", "005490"
-        };
-        
-        for (int i = 0; i < Math.min(limit, companies.length); i++) {
-            if (companies[i].contains(keyword) || codes[i].contains(keyword)) {
-                results.add(new SearchResult(codes[i], companies[i], "KOSPI"));
-            }
-        }
-        
-        return results;
-    }
-    
-    private Object generateMockIndicatorData(String symbol, String indicator, int period, int limit) {
-        List<Object> data = new ArrayList<>();
-        LocalDateTime startTime = LocalDateTime.now().minusHours(limit);
-        
-        // Mock 지표 데이터 생성
-        for (int i = 0; i < limit; i++) {
-            LocalDateTime timestamp = startTime.plusHours(i);
-            
-            switch (indicator) {
-                case "RSI":
-                    data.add(new IndicatorPoint(timestamp, 30 + Math.random() * 40)); // RSI 30-70
-                    break;
-                case "MACD":
-                    data.add(new MacdPoint(timestamp, Math.random() * 10 - 5, Math.random() * 10 - 5));
-                    break;
-                default:
-                    data.add(new IndicatorPoint(timestamp, Math.random() * 100));
-            }
-        }
-        
-        return new IndicatorData(symbol, indicator, period, data);
-    }
     
     private int getCacheTtlMinutes(String timeframe) {
         return switch (timeframe) {

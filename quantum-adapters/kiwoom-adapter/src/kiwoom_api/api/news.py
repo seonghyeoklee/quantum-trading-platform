@@ -73,20 +73,17 @@ async def get_news_info():
         },
         "sentiment_types": ["긍정", "부정", "중립"],
         "supported_stocks": {
-            "005930": "삼성전자",
-            "000660": "SK하이닉스",
-            "035420": "NAVER",
-            "207940": "삼성바이오로직스",
-            "005380": "현대차"
+            # TODO: 실제 상장기업 목록으로 대체 필요
+            # 예시용 데이터
         },
         "usage_examples": {
-            "종목 검색": "/api/v1/news/search?query=삼성전자",
-            "종목코드 검색": "/api/v1/news/search?query=005930",
-            "키워드 검색": "/api/v1/news/search?query=반도체",
-            "많은 결과": "/api/v1/news/search?query=삼성전자&display=50",
-            "정확도순": "/api/v1/news/search?query=삼성전자&sort=sim",
-            "실적 뉴스": "/api/v1/news/search?query=삼성전자 실적",
-            "페이지네이션": "/api/v1/news/search?query=삼성전자&start=21&display=20"
+            "종목 검색": "/api/v1/news/search?query={종목명}",
+            "종목코드 검색": "/api/v1/news/search?query={종목코드}",
+            "키워드 검색": "/api/v1/news/search?query={키워드}",
+            "많은 결과": "/api/v1/news/search?query={종목명}&display=50",
+            "정확도순": "/api/v1/news/search?query={종목명}&sort=sim",
+            "실적 뉴스": "/api/v1/news/search?query={종목명} 실적",
+            "페이지네이션": "/api/v1/news/search?query={종목명}&start=21&display=20"
         }
     }
 

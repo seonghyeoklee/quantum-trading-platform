@@ -41,3 +41,11 @@ logging:
 
 # Test에서는 Kafka, Redis 등 외부 의존성 비활성화 또는 Mock 사용
 # (필요시 TestContainers 또는 Embedded 버전 사용)
+
+# Trading Configuration - Even in test environment, disable simulation modes
+trading:
+  execution:
+    enabled: false  # Disabled in test environment
+    simulate: false  # DISABLED: No simulation even in tests
+  data:
+    mock-enabled: false  # DISABLED: Force real data sources even in tests

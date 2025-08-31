@@ -35,13 +35,13 @@ except ImportError:
 # 요청/응답 모델 정의
 class StockAnalysisRequest(BaseModel):
     """주식 분석 요청 모델"""
-    stock_code: str = Field(..., description="6자리 종목코드", example="005930")
+    stock_code: str = Field(..., description="6자리 종목코드", example="{종목코드}")
     include_details: bool = Field(True, description="상세 분석 포함 여부")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_code": "005930",
+                "stock_code": "{종목코드}",
                 "include_details": True
             }
         }
@@ -106,8 +106,8 @@ class StockAnalysisResponse(BaseResponse):
                 "success": True,
                 "message": "분석 완료",
                 "data": None,
-                "stock_code": "005930",
-                "stock_name": "삼성전자",
+                "stock_code": "{종목코드}",
+                "stock_name": "{종목명}",
                 "calculation_time": "2025-08-25T15:30:00",
                 "summary": {
                     "financial_score": 4,
@@ -141,7 +141,7 @@ class MultiStockAnalysisRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stock_codes": ["005930", "000660", "373220"],
+                "stock_codes": ["{종목코드1}", "{종목코드2}", "{종목코드3}"],
                 "sort_by": "total_score",
                 "sort_desc": True
             }
@@ -169,7 +169,7 @@ data_collector = FinancialDataCollector()
              summary="종합 주식 분석",
              description="Google Sheets VLOOKUP 기반 4개 영역(재무, 기술, 가격, 재료) 종합 분석")
 async def analyze_comprehensive(
-    stock_code: str = Path(..., description="6자리 종목코드 (예: 005930=삼성전자)", pattern="^[0-9]{6}$", example="005930"),
+    stock_code: str = Path(..., description="6자리 종목코드 (예: {종목코드}={종목명})", pattern="^[0-9]{6}$", example="{종목코드}"),
     include_details: bool = Query(True, description="영역별 상세 점수 포함 여부")
 ):
     """
@@ -177,9 +177,9 @@ async def analyze_comprehensive(
     
     Google Sheets의 VLOOKUP 공식을 기반으로 한 완전한 주식 분석을 제공합니다.
     
-    **예시: 삼성전자 (005930) 분석**
+    **예시: {종목명} ({종목코드}) 분석**
     ```
-    POST /api/analysis/comprehensive/005930?include_details=true
+    POST /api/analysis/comprehensive/{종목코드}?include_details=true
     ```
     
     **분석 영역:**
@@ -200,7 +200,7 @@ async def analyze_comprehensive(
     **총점**: 0~20점 (각 영역 최대 5점)
     
     **주요 종목코드:**
-    - 005930: 삼성전자
+    - {종목코드1}: {종목명1}
     - 000660: SK하이닉스  
     - 005380: 현대차
     - 035420: NAVER
@@ -459,7 +459,7 @@ async def health_check():
     """분석 시스템 상태 확인"""
     try:
         # 간단한 데이터 수집 테스트
-        test_result = await data_collector.get_stock_basic_info("005930")
+        test_result = await data_collector.get_stock_basic_info("{종목코드}")
         
         return {
             "success": True,

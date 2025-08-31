@@ -35,13 +35,11 @@ class EnhancedNewsCrawler:
             client_secret=settings.NAVER_CLIENT_SECRET
         )
         
-        # 종목별 검색 키워드 매핑 (기존과 동일)
+        # TODO: 종목별 검색 키워드를 동적으로 로드하도록 개선 필요
+        # 예시: 주요 종목 매핑
         self.keywords_map = {
-            "005930": ["삼성전자", "삼성", "반도체", "SEC", "Samsung"],
-            "000660": ["SK하이닉스", "SK", "하이닉스", "메모리", "Hynix"], 
-            "035420": ["NAVER", "네이버", "검색", "플랫폼"],
-            "207940": ["삼성바이오로직스", "바이오", "제약", "CMO"],
-            "068270": ["셀트리온", "바이오", "제약", "항체"]
+            # TODO: 전체 상장기업 키워드 매핑 적용 필요
+            # 예시 용도로만 사용
         }
     
     async def get_comprehensive_news(self, stock_code: str, stock_name: str = "") -> Dict[str, Any]:
@@ -49,8 +47,8 @@ class EnhancedNewsCrawler:
         네이버 뉴스 검색 API를 통한 종목 관련 뉴스 수집
         
         Args:
-            stock_code: 종목코드 (예: '005930')
-            stock_name: 종목명 (예: '삼성전자')
+            stock_code: 종목코드 (예: '{종목코드}')
+            stock_name: 종목명 (예: '{종목명}')
             
         Returns:
             종합 뉴스 분석 결과 (기존 format과 동일)

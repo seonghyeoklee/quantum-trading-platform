@@ -1,6 +1,10 @@
 global:
-  # Slack API URL (환경변수로 설정)
-  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  # Slack API URL (환경변수로 설정) - 일시적으로 비활성화
+  # slack_api_url: '${SLACK_WEBHOOK_URL}'
+  # smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+  # smtp_from: '${SMTP_FROM}'
+  # smtp_auth_username: '${SMTP_USERNAME}'
+  # smtp_auth_password: '${SMTP_PASSWORD}'
 
 # 알림 라우팅 설정
 route:
@@ -8,69 +12,101 @@ route:
   group_wait: 10s        # 그룹 형성 대기 시간
   group_interval: 10s    # 그룹 내 추가 알림 간격
   repeat_interval: 12h   # 같은 알림 반복 간격
-  receiver: 'quantum-slack'
+  receiver: 'quantum-default'
   
-  # 심각도별 라우팅
+  # 세분화된 라우팅 규칙
   routes:
+    # Critical 알림 - 즉시 알림, 짧은 반복 간격
     - match:
         severity: critical
-      receiver: 'quantum-slack-critical'
+      receiver: 'quantum-critical'
       group_wait: 0s
       repeat_interval: 5m
+      routes:
+        # 비즈니스 Critical 알림은 별도 처리
+        - match:
+            type: business
+          receiver: 'quantum-business-critical'
     
+    # Warning 알림 - 일반적인 경고
     - match:
         severity: warning  
-      receiver: 'quantum-slack-warning'
+      receiver: 'quantum-warning'
+      repeat_interval: 1h
+      routes:
+        # 데이터베이스 관련 경고
+        - match:
+            database: postgresql
+          receiver: 'quantum-database-warning'
+        - match:
+            database: redis
+          receiver: 'quantum-database-warning'
+        # 비즈니스 Warning
+        - match:
+            type: business
+          receiver: 'quantum-business-warning'
+    
+    # Info 알림 - 정보성 알림
+    - match:
+        severity: info
+      receiver: 'quantum-info'
+      repeat_interval: 24h
+    
+    # Test 알림 - 테스트용
+    - match:
+        type: test
+      receiver: 'quantum-test'
       repeat_interval: 1h
 
 # 알림 수신자 설정
 receivers:
-  # 기본 Slack 채널
-  - name: 'quantum-slack'
-    slack_configs:
-      - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#quantum-alerts'
-        title: 'Quantum Trading Platform Alert'
-        text: >-
-          {{ range .Alerts }}
-          *Alert:* {{ .Annotations.summary }}
-          *Description:* {{ .Annotations.description }}
-          *Severity:* {{ .Labels.severity }}
-          *Service:* {{ .Labels.job }}
-          {{ end }}
-        color: 'warning'
+  # 기본 알림 채널 - Webhook 사용
+  - name: 'quantum-default'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
 
-  # Critical 알림용 채널
-  - name: 'quantum-slack-critical'
-    slack_configs:
-      - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#quantum-alerts'
-        title: '🚨 CRITICAL: Quantum Trading Platform'
-        text: >-
-          {{ range .Alerts }}
-          *🔥 CRITICAL ALERT 🔥*
-          *Alert:* {{ .Annotations.summary }}
-          *Description:* {{ .Annotations.description }}
-          *Service:* {{ .Labels.job }}
-          *Duration:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          *Dashboard:* http://localhost:3000
-          {{ end }}
-        color: 'danger'
+  # Critical 알림
+  - name: 'quantum-critical'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
 
-  # Warning 알림용 채널  
-  - name: 'quantum-slack-warning'
-    slack_configs:
-      - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#quantum-alerts'
-        title: '⚠️ WARNING: Quantum Trading Platform'
-        text: >-
-          {{ range .Alerts }}
-          *⚠️ Warning Alert*
-          *Alert:* {{ .Annotations.summary }}
-          *Description:* {{ .Annotations.description }}
-          *Service:* {{ .Labels.job }}
-          {{ end }}
-        color: 'warning'
+  # 비즈니스 Critical 알림
+  - name: 'quantum-business-critical'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # Warning 알림
+  - name: 'quantum-warning'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # 데이터베이스 Warning 알림
+  - name: 'quantum-database-warning'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # 비즈니스 Warning 알림
+  - name: 'quantum-business-warning'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # Info 알림
+  - name: 'quantum-info'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # Test 알림
+  - name: 'quantum-test'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
 
 # 알림 억제 규칙 (중복 방지)
 inhibit_rules:

@@ -44,18 +44,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["종목분석"], prefix="/api/analysis")
 
 
-# 종목명 매핑 (간단한 버전)
+# 종목명 매핑 (실제 API에서 조회하도록 변경 필요)
 STOCK_NAMES = {
-    "005930": "삼성전자",
-    "000660": "SK하이닉스", 
-    "373220": "LG에너지솔루션",
-    "207940": "삼성바이오로직스",
-    "005380": "현대차",
-    "006400": "삼성SDI",
-    "051910": "LG화학",
-    "035420": "NAVER",
-    "068270": "셀트리온",
-    "035720": "카카오"
+    # TODO: 실제 키움 API에서 종목명 조회하도록 구현
+    # 현재는 플레이스홀더로만 사용
 }
 
 
@@ -114,7 +106,8 @@ async def get_stock_chart_data(stock_code: str, days: int = 30) -> List[Dict]:
 
 
 def get_stock_name(stock_code: str) -> str:
-    """종목코드에서 종목명 조회"""
+    """종목코드에서 종목명 조회 (실제 API 연동 필요)"""
+    # TODO: 실제 키움 API ka10099 또는 stock info API 연동
     return STOCK_NAMES.get(stock_code, f"종목{stock_code}")
 
 
@@ -180,14 +173,14 @@ async def _calculate_rsi_internal(stock_code: str, period: int = 14) -> RSIAnaly
     description="키움 API 데이터를 사용하여 RSI를 계산하고 점수화합니다."
 )
 async def analyze_rsi(
-    stock_code: str = Path(..., description="6자리 종목코드", example="005930"),
+    stock_code: str = Path(..., description="6자리 종목코드", example="{종목코드}"),
     period: int = Query(default=14, description="RSI 계산 기간", ge=5, le=50, example=14)
 ) -> RSIAnalysisResponse:
     """
     RSI 분석 API
     
     Args:
-        stock_code: 6자리 종목코드 (예: 005930)
+        stock_code: 6자리 종목코드 (예: {종목코드})
         period: RSI 계산 기간 (기본 14일)
     
     Returns:
@@ -212,7 +205,7 @@ async def analyze_rsi(
     description="RSI를 포함한 기술적 지표들을 종합 분석합니다."
 )
 async def analyze_technical(
-    stock_code: str = Path(..., description="6자리 종목코드", example="005930")
+    stock_code: str = Path(..., description="6자리 종목코드", example="{종목코드}")
 ) -> TechnicalAnalysisResponse:
     """
     기술적 분석 API

@@ -1137,8 +1137,8 @@ def test_area_scorer():
     # 5. 종합 테스트
     print("\n5. 종합 테스트:")
     test_data = {
-        'stock_code': '005930',
-        'stock_name': '삼성전자',
+        'stock_code': '{종목코드}',
+        'stock_name': '{종목명}',
         'current_sales': 1100,
         'previous_sales': 1000,
         'current_profit': 100,

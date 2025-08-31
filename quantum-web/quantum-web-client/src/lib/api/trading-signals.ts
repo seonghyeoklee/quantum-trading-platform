@@ -3,14 +3,15 @@
  * Java 백엔드의 TradingSignalController와 연동
  */
 
-import { getApiBaseUrl } from '../api-config';
+import { getApiBaseUrl, getKiwoomAdapterUrl } from '../api-config';
 
 const API_BASE_URL = getApiBaseUrl();
+const KIWOOM_ADAPTER_URL = getKiwoomAdapterUrl();
 
 // 토큰 관리
 const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('token');
+  return localStorage.getItem('accessToken');
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -19,6 +20,33 @@ const getAuthHeaders = (): Record<string, string> => {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
   };
+};
+
+// API 호출 래퍼 함수 (디버깅 정보 포함)
+const fetchWithLogging = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  console.log(`🔄 API 호출 시작: ${options.method || 'GET'} ${url}`);
+  console.log(`🔧 Headers:`, options.headers);
+  
+  const startTime = Date.now();
+  
+  try {
+    const response = await fetch(url, options);
+    const endTime = Date.now();
+    
+    console.log(`✅ API 응답: ${response.status} ${response.statusText} (${endTime - startTime}ms)`);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error(`❌ API 에러 응답:`, errorText);
+      throw new Error(`API 호출 실패: ${response.status} ${response.statusText}\n응답: ${errorText}`);
+    }
+    
+    return response;
+  } catch (error) {
+    const endTime = Date.now();
+    console.error(`❌ API 호출 실패: ${url} (${endTime - startTime}ms)`, error);
+    throw error;
+  }
 };
 
 // API 응답 타입
@@ -107,15 +135,11 @@ export class TradingSignalsApi {
    * Python 전략에서 매매신호를 Java 백엔드로 전송
    */
   static async receiveSignal(signal: TradingSignalDto): Promise<ApiResponse<OrderExecutionResultDto>> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/trading/signals/receive`, {
+    const response = await fetchWithLogging(`${API_BASE_URL}/api/v1/trading/signals/receive`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(signal),
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to process signal: ${response.statusText}`);
-    }
 
     return await response.json();
   }
@@ -236,23 +260,21 @@ export class TradingSignalsApi {
    * 테스트 매매신호 전송
    */
   static async sendTestSignal(signal: TradingSignalDto): Promise<ApiResponse<OrderExecutionResultDto>> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/trading/signals/test`, {
+    const response = await fetchWithLogging(`${API_BASE_URL}/api/v1/trading/signals/test`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(signal),
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to send test signal: ${response.statusText}`);
-    }
-
     return await response.json();
   }
 }
 
-// Python Strategy Engine API
+// Python Strategy Engine API (Kiwoom Adapter)
 export class PythonStrategyApi {
-  private static readonly PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:10201';
+  private static get PYTHON_API_URL() {
+    return KIWOOM_ADAPTER_URL;
+  }
 
   /**
    * 전략별 분석 실행
@@ -268,10 +290,11 @@ export class PythonStrategyApi {
         strategy_name: strategy,
         dry_run: true,
       }),
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to analyze symbol: ${response.statusText}`);
+      throw new Error(`전략 분석 API 호출 실패: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
@@ -329,10 +352,11 @@ export class PythonStrategyApi {
   static async getRecentSignals(limit: number = 20): Promise<TradingSignalDto[]> {
     const response = await fetch(`${this.PYTHON_API_URL}/api/v1/strategy/recent?limit=${limit}`, {
       method: 'GET',
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch recent signals: ${response.statusText}`);
+      throw new Error(`최근 신호 조회 API 호출 실패: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();

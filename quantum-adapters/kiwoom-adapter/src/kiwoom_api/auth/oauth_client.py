@@ -81,11 +81,7 @@ class KiwoomOAuthClient:
         """
         logger.info("키움 OAuth 토큰 발급 요청 시작")
         
-        # Mock 모드에서는 가상 토큰 생성
-        if self.sandbox_mode:
-            return await self._generate_mock_token()
-        
-        # 실제 키움 API 호출
+        # 실제 키움 API 호출 (Mock 모드 제거)
         return await self._call_kiwoom_api()
     
     async def _call_kiwoom_api(self) -> TokenResponse:
@@ -147,26 +143,6 @@ class KiwoomOAuthClient:
             logger.error(error_msg, exc_info=True)
             return TokenResponse.create_error_response(500, error_msg)
     
-    async def _generate_mock_token(self) -> TokenResponse:
-        """Mock 환경용 가상 토큰 생성 (키움 API 스펙 완전 준수)"""
-        logger.info("Mock 환경 - 가상 토큰 생성 중")
-        
-        # Mock 토큰 생성
-        mock_token = f"MOCK_TOKEN_{uuid.uuid4().hex[:20]}"
-        
-        # 만료일시 (24시간 후, 키움 형식: yyyyMMddHHmmss)
-        expires_at = datetime.now() + timedelta(hours=24)
-        expires_dt = expires_at.strftime("%Y%m%d%H%M%S")
-        
-        logger.info(f"Mock 토큰 생성 완료 - token: {mock_token[:12]}***, expires: {expires_dt}")
-        
-        # 키움 API 스펙 완전 준수 응답
-        return TokenResponse.create_success_response(
-            token=mock_token,
-            expires_dt=expires_dt,
-            token_type="bearer",
-            return_msg="정상적으로 처리되었습니다 (Mock)"
-        )
 
 
 # 전역 OAuth 클라이언트 인스턴스 생성 함수

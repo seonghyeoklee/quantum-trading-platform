@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Header from "@/components/layout/Header";
+import { getApiBaseUrl } from '@/lib/api-config';
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Lock, RefreshCw, Loader2, BookOpen } from "lucide-react";
+import { CheckCircle2, AlertCircle, Lock, RefreshCw, Loader2, BookOpen, Zap } from "lucide-react";
 
 interface KiwoomAccountInfo {
   hasAccount: boolean;
@@ -26,6 +27,7 @@ function KiwoomAccountManagement() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [error, setError] = useState('');
@@ -41,7 +43,8 @@ function KiwoomAccountManagement() {
         return;
       }
       
-      const response = await fetch('/api/kiwoom-accounts/me', {
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/v1/kiwoom-accounts/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -73,7 +76,8 @@ function KiwoomAccountManagement() {
 
     try {
       const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      const response = await fetch('/api/kiwoom-accounts/register', {
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/v1/kiwoom-accounts/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +119,8 @@ function KiwoomAccountManagement() {
 
     try {
       const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      const response = await fetch('/api/kiwoom-accounts/me/credentials', {
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/v1/kiwoom-accounts/me/credentials`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +156,8 @@ function KiwoomAccountManagement() {
 
     try {
       const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      const response = await fetch('/api/kiwoom-accounts/me/token', {
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/v1/kiwoom-accounts/me/token`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -172,6 +178,50 @@ function KiwoomAccountManagement() {
       setError('Error connecting to server');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Test connection with provided credentials
+  const testConnection = async () => {
+    if (!clientId || !clientSecret) {
+      setError('App Key와 App Secret을 모두 입력해주세요');
+      return;
+    }
+
+    setTesting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      const apiBaseUrl = getApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/v1/kiwoom-accounts/test-connection`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          clientId,
+          clientSecret
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSuccess('✅ 키움증권 API 연결 테스트가 성공했습니다!');
+        } else {
+          setError(data.message || '연결 테스트에 실패했습니다');
+        }
+      } else {
+        const data = await response.json();
+        setError(data.message || '연결 테스트 중 오류가 발생했습니다');
+      }
+    } catch {
+      setError('서버 연결 오류가 발생했습니다');
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -377,6 +427,29 @@ function KiwoomAccountManagement() {
                   </Alert>
                 )}
                 
+                {/* Connection Test Button */}
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={testConnection} 
+                    disabled={testing || !clientId || !clientSecret}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 text-xs"
+                  >
+                    {testing ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                        테스트 중...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3 h-3 mr-2" />
+                        연결 테스트
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   {!accountInfo?.hasAccount ? (

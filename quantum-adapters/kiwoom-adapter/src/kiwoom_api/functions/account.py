@@ -62,7 +62,7 @@ async def fn_ka10072(
             - dt_stk_div_rlzt_pl: 일자별종목별실현손익 리스트
 
     Example:
-        >>> result = await fn_ka10072(data={"stk_cd": "005930", "strt_dt": "20241128"})
+        >>> result = await fn_ka10072(data={"stk_cd": "{종목코드}", "strt_dt": "{시작일자}"})
         >>> print(f"Code: {result['Code']}")
         >>> print(f"Body: {result['Body']['dt_stk_div_rlzt_pl']}")
     """
@@ -205,7 +205,7 @@ async def fn_ka10073(
               tdy_trde_tax, wthd_alowa, loan_dt, crd_tp)
 
     Example:
-        >>> data = {"stk_cd": "005930", "strt_dt": "20241128", "end_dt": "20241128"}
+        >>> data = {"stk_cd": "{종목코드}", "strt_dt": "{시작일자}", "end_dt": "{종료일자}"}
         >>> result = await fn_ka10073(data=data)
         >>> print(f"Code: {result['Code']}")
         >>> print(f"Body: {result['Body']['dt_stk_rlzt_pl']}")
@@ -523,7 +523,7 @@ async def fn_ka10075(
               oso_qty(미체결수량), cntr_tot_amt(체결누계금액), trde_tp(매매구분) 등 31개 필드
 
     Example:
-        >>> data = {"all_stk_tp": "1", "trde_tp": "0", "stk_cd": "005930", "stex_tp": "0"}
+        >>> data = {"all_stk_tp": "1", "trde_tp": "0", "stk_cd": "{종목코드}", "stex_tp": "0"}
         >>> result = await fn_ka10075(data=data)
         >>> print(f"Code: {result['Code']}")
         >>> print(f"미체결 리스트: {result['Body']['oso']}")
@@ -687,7 +687,7 @@ async def fn_ka10076(
               oso_qty(미체결수량), ord_stt(주문상태), trde_tp(매매구분) 등 19개 필드
 
     Example:
-        >>> data = {"stk_cd": "005930", "qry_tp": "1", "sell_tp": "0", "ord_no": "", "stex_tp": "0"}
+        >>> data = {"stk_cd": "{종목코드}", "qry_tp": "1", "sell_tp": "0", "ord_no": "", "stex_tp": "0"}
         >>> result = await fn_ka10076(data=data)
         >>> print(f"Code: {result['Code']}")
         >>> print(f"체결 리스트: {result['Body']['cntr']}")
@@ -853,7 +853,7 @@ async def fn_ka10077(
               tdy_trde_cmsn(당일매매수수료), tdy_trde_tax(당일매매세금), stk_cd(종목코드)
 
     Example:
-        >>> data = {"stk_cd": "005930"}
+        >>> data = {"stk_cd": "{종목코드}"}
         >>> result = await fn_ka10077(data=data)
         >>> print(f"Code: {result['Code']}")
         >>> print(f"당일실현손익: {result['Body']['tdy_rlzt_pl']}")
@@ -2209,7 +2209,7 @@ async def fn_kt00007(
         ...         "qry_tp": "1",  # 주문순
         ...         "stk_bond_tp": "0",  # 전체
         ...         "sell_tp": "0",  # 전체
-        ...         "stk_cd": "005930",  # 삼성전자
+        ...         "stk_cd": "{종목코드}",  # 종목코드
         ...         "fr_ord_no": "",  # 전체 주문
         ...         "dmst_stex_tp": "KRX"  # 한국거래소
         ...     }

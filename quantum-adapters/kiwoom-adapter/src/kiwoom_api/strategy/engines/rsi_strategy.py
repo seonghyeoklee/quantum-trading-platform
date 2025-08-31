@@ -269,7 +269,7 @@ async def test_rsi_strategy():
     config = StrategyConfig(
         strategy_name="RSI Test Strategy",
         strategy_type=StrategyType.RSI_MEAN_REVERSION,
-        target_symbols=["005930"],  # 삼성전자
+        target_symbols=["{종목코드}"],  # 예시 종목
         risk_level=RiskLevel.MODERATE,
         max_position_size=Decimal("1000000"),  # 100만원
         execution_interval=60,
@@ -282,7 +282,7 @@ async def test_rsi_strategy():
     
     # 전략 생성 및 테스트
     strategy = RSIStrategy(config)
-    result = await strategy.analyze("005930")
+    result = await strategy.analyze("{종목코드}")
     
     if result:
         print(f"매매신호 생성: {result.signal_type.value} - {result.reason}")

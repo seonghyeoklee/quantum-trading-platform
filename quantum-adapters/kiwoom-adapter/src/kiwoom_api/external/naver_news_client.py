@@ -264,8 +264,8 @@ async def test_naver_news_client():
         client_secret=settings.NAVER_CLIENT_SECRET
     )
     
-    # 삼성전자 뉴스 검색 테스트
-    query = "삼성전자 OR 005930"
+    # 예시: 뉴스 검색 테스트
+    query = "{종목명} OR {종목코드}"
     result = await client.search_news(query, display=5)
     
     if result.get("items"):
@@ -276,7 +276,7 @@ async def test_naver_news_client():
         print(f"🗞️ 첫 번째 뉴스: {client.clean_html_tags(first_item.get('title', ''))}")
         
         # enhanced 형식 변환 테스트
-        enhanced_result = client.convert_to_enhanced_format(result, "005930", "삼성전자")
+        enhanced_result = client.convert_to_enhanced_format(result, "{종목코드}", "{종목명}")
         print(f"🔄 변환 결과: {len(enhanced_result['articles'])}건 변환 완료")
         
         return enhanced_result

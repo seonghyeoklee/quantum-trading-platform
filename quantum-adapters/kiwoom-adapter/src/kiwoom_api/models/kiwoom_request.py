@@ -9,11 +9,11 @@ class KiwoomStockChartRequest(BaseModel):
 
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     base_dt: str = Field(
         description="기준일자 YYYYMMDD",
-        example="20250820"
+        example="{기준일자}"
     )
     upd_stkpc_tp: str = Field(
         description="수정주가구분 (0 or 1)",
@@ -23,8 +23,8 @@ class KiwoomStockChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "base_dt": "20250820",
+                "stk_cd": "{종목코드}",
+                "base_dt": "{기준일자}",
                 "upd_stkpc_tp": "1"
             }
         }
@@ -35,13 +35,13 @@ class KiwoomStockOrderbookRequest(BaseModel):
 
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
 
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930"
+                "stk_cd": "{종목코드}"
             }
         }
 
@@ -67,8 +67,8 @@ class KiwoomStockChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
-                    "base_dt": "20250820",
+                    "stk_cd": "{종목코드}",
+                    "base_dt": "{기준일자}",
                     "upd_stkpc_tp": "1"
                 },
                 "cont_yn": "N",
@@ -82,7 +82,7 @@ class KiwoomStockMinuteChartRequest(BaseModel):
 
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     tic_scope: str = Field(
         description="틱범위 ('1':1분, '3':3분, '5':5분, '10':10분, '15':15분, '30':30분, '45':45분, '60':60분)",
@@ -96,7 +96,7 @@ class KiwoomStockMinuteChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "tic_scope": "1",
                 "upd_stkpc_tp": "1"
             }
@@ -124,7 +124,7 @@ class KiwoomStockMinuteChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
+                    "stk_cd": "{종목코드}",
                     "tic_scope": "1",
                     "upd_stkpc_tp": "1"
                 },
@@ -139,11 +139,11 @@ class KiwoomStockWeeklyChartRequest(BaseModel):
     
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     base_dt: str = Field(
         description="기준일자 YYYYMMDD",
-        example="20241108"
+        example="{기준일자}"
     )
     upd_stkpc_tp: str = Field(
         description="수정주가구분 ('0' or '1')",
@@ -153,8 +153,8 @@ class KiwoomStockWeeklyChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "base_dt": "20241108",
+                "stk_cd": "{종목코드}",
+                "base_dt": "{기준일자}",
                 "upd_stkpc_tp": "1"
             }
         }
@@ -181,8 +181,8 @@ class KiwoomStockWeeklyChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
-                    "base_dt": "20241108",
+                    "stk_cd": "{종목코드}",
+                    "base_dt": "{기준일자}",
                     "upd_stkpc_tp": "1"
                 },
                 "cont_yn": "N",
@@ -196,11 +196,11 @@ class KiwoomStockYearlyChartRequest(BaseModel):
     
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     base_dt: str = Field(
         description="기준일자 YYYYMMDD",
-        example="20241212"
+        example="{기준일자}"
     )
     upd_stkpc_tp: str = Field(
         description="수정주가구분 ('0' or '1')",
@@ -210,8 +210,8 @@ class KiwoomStockYearlyChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "base_dt": "20241212",
+                "stk_cd": "{종목코드}",
+                "base_dt": "{기준일자}",
                 "upd_stkpc_tp": "1"
             }
         }
@@ -238,8 +238,8 @@ class KiwoomStockYearlyChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
-                    "base_dt": "20241212",
+                    "stk_cd": "{종목코드}",
+                    "base_dt": "{기준일자}",
                     "upd_stkpc_tp": "1"
                 },
                 "cont_yn": "N",
@@ -253,7 +253,7 @@ class KiwoomStockTickChartRequest(BaseModel):
     
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     tic_scope: str = Field(
         description="틱범위 ('1':1틱, '3':3틱, '5':5틱, '10':10틱, '30':30틱)",
@@ -267,7 +267,7 @@ class KiwoomStockTickChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
+                "stk_cd": "{종목코드}",
                 "tic_scope": "1",
                 "upd_stkpc_tp": "1"
             }
@@ -295,7 +295,7 @@ class KiwoomStockTickChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
+                    "stk_cd": "{종목코드}",
                     "tic_scope": "1",
                     "upd_stkpc_tp": "1"
                 },
@@ -361,11 +361,11 @@ class KiwoomInvestorInstitutionChartRequest(BaseModel):
     
     dt: str = Field(
         description="일자 YYYYMMDD",
-        example="20241107"
+        example="{일자}"
     )
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
     amt_qty_tp: str = Field(
         description="금액수량구분 ('1':금액, '2':수량)",
@@ -383,8 +383,8 @@ class KiwoomInvestorInstitutionChartRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "dt": "20241107",
-                "stk_cd": "005930",
+                "dt": "{일자}",
+                "stk_cd": "{종목코드}",
                 "amt_qty_tp": "1",
                 "trde_tp": "0",
                 "unit_tp": "1000"
@@ -413,8 +413,8 @@ class KiwoomInvestorInstitutionChartApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "dt": "20241107",
-                    "stk_cd": "005930",
+                    "dt": "{일자}",
+                    "stk_cd": "{종목코드}",
                     "amt_qty_tp": "1",
                     "trde_tp": "0",
                     "unit_tp": "1000"
@@ -442,7 +442,7 @@ class KiwoomIntradayInvestorTradeChartRequest(BaseModel):
     )
     stk_cd: str = Field(
         description="종목코드 (거래소별 종목코드: KRX:039490, NXT:039490_NX, SOR:039490_AL)",
-        example="005930"
+        example="{종목코드}"
     )
 
     class Config:
@@ -451,7 +451,7 @@ class KiwoomIntradayInvestorTradeChartRequest(BaseModel):
                 "mrkt_tp": "000",
                 "amt_qty_tp": "1",
                 "trde_tp": "0",
-                "stk_cd": "005930"
+                "stk_cd": "{종목코드}"
             }
         }
 
@@ -480,7 +480,7 @@ class KiwoomIntradayInvestorTradeChartApiRequest(BaseModel):
                     "mrkt_tp": "000",
                     "amt_qty_tp": "1",
                     "trde_tp": "0",
-                    "stk_cd": "005930"
+                    "stk_cd": "{종목코드}"
                 },
                 "cont_yn": "N",
                 "next_key": ""
@@ -548,14 +548,14 @@ class KiwoomSectorDailyChartRequest(BaseModel):
     )
     base_dt: str = Field(
         description="기준일자 YYYYMMDD",
-        example="20241122"
+        example="{기준일자}"
     )
 
     class Config:
         json_schema_extra = {
             "example": {
                 "inds_cd": "001",
-                "base_dt": "20241122"
+                "base_dt": "{기준일자}"
             }
         }
 
@@ -582,7 +582,7 @@ class KiwoomSectorDailyChartApiRequest(BaseModel):
             "example": {
                 "data": {
                     "inds_cd": "001",
-                    "base_dt": "20241122"
+                    "base_dt": "{기준일자}"
                 },
                 "cont_yn": "N",
                 "next_key": ""
@@ -597,7 +597,7 @@ class KiwoomStockHistoricalRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930"
+                "stk_cd": "{종목코드}"
             }
         }
 
@@ -609,7 +609,7 @@ class KiwoomStockMinuteRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930"
+                "stk_cd": "{종목코드}"
             }
         }
 
@@ -621,7 +621,7 @@ class KiwoomStockMarketInfoRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930"
+                "stk_cd": "{종목코드}"
             }
         }
 
@@ -640,8 +640,8 @@ class KiwoomNewStockRightsRequest(BaseModel):
 
 class KiwoomDailyInstitutionalTradeRequest(BaseModel):
     """키움 일별기관매매종목요청(ka10044) 요청 모델"""
-    strt_dt: str = Field(..., description="시작일자 YYYYMMDD", example="20241106")
-    end_dt: str = Field(..., description="종료일자 YYYYMMDD", example="20241107")
+    strt_dt: str = Field(..., description="시작일자 YYYYMMDD", example="{시작일자}")
+    end_dt: str = Field(..., description="종료일자 YYYYMMDD", example="{종료일자}")
     trde_tp: str = Field(..., description="매매구분 (1:순매도, 2:순매수)", example="1")
     mrkt_tp: str = Field(..., description="시장구분 (001:코스피, 101:코스닥)", example="001")
     stex_tp: str = Field(..., description="거래소구분 (1:KRX, 2:NXT, 3:통합)", example="3")
@@ -649,8 +649,8 @@ class KiwoomDailyInstitutionalTradeRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "strt_dt": "20241106",
-                "end_dt": "20241107",
+                "strt_dt": "{시작일자}",
+                "end_dt": "{종료일자}",
                 "trde_tp": "1",
                 "mrkt_tp": "001",
                 "stex_tp": "3"
@@ -664,27 +664,27 @@ class KiwoomStockInstitutionalTrendRequest(BaseModel):
     
     stk_cd: str = Field(
         description="종목코드 (6자리)",
-        example="005930",
+        example="{종목코드}",
         min_length=6,
         max_length=6
     )
     strt_dt: str = Field(
         description="시작일자 YYYYMMDD",
-        example="20241201",
+        example="{시작일자}",
         pattern=r"^\d{8}$"
     )
     end_dt: str = Field(
         description="종료일자 YYYYMMDD",
-        example="20241225",
+        example="{종료일자}",
         pattern=r"^\d{8}$"
     )
 
     class Config:
         json_schema_extra = {
             "example": {
-                "stk_cd": "005930",
-                "strt_dt": "20241201",
-                "end_dt": "20241225"
+                "stk_cd": "{종목코드}",
+                "strt_dt": "{시작일자}",
+                "end_dt": "{종료일자}"
             }
         }
 
@@ -710,9 +710,9 @@ class KiwoomStockInstitutionalTrendApiRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "data": {
-                    "stk_cd": "005930",
-                    "strt_dt": "20241201",
-                    "end_dt": "20241225"
+                    "stk_cd": "{종목코드}",
+                    "strt_dt": "{시작일자}",
+                    "end_dt": "{종료일자}"
                 },
                 "cont_yn": "N",
                 "next_key": ""
@@ -736,7 +736,7 @@ class KiwoomApiResponse(BaseModel):
         description="키움 API 응답 바디",
         example={
             "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-            "expires_dt": "20250821235959",
+            "expires_dt": "{만료일시}",
             "return_code": 0,
             "return_msg": "정상적으로 처리되었습니다"
         }

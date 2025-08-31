@@ -30,7 +30,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 # Handle both relative and absolute imports for different execution contexts
 try:
-    from .api import auth, chart, stock, account, websocket, news, strategy
+    from .api import auth, chart, stock, account, websocket, news, strategy, conditional_trading
     from .analysis.api import analysis_router
     from .analysis.api.comprehensive_router import router as comprehensive_router
     from .config.settings import settings
@@ -41,7 +41,7 @@ except ImportError:
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
 
-    from kiwoom_api.api import auth, chart, stock, account, websocket, news, strategy
+    from kiwoom_api.api import auth, chart, stock, account, websocket, news, strategy, conditional_trading
     from kiwoom_api.analysis.api import analysis_router
     from kiwoom_api.analysis.api.comprehensive_router import router as comprehensive_router
     from kiwoom_api.config.settings import settings
@@ -166,6 +166,7 @@ app.include_router(account.router, prefix="")
 app.include_router(websocket.router, prefix="")
 app.include_router(news.router, prefix="")  # 뉴스 API 추가
 app.include_router(strategy.router, prefix="")  # 자동매매 전략 API 추가
+app.include_router(conditional_trading.router, prefix="")  # 조건부 매매 API 추가
 app.include_router(analysis_router.router, prefix="")
 app.include_router(comprehensive_router, prefix="")
 

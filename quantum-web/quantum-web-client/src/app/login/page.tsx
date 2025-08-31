@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiBaseUrl } from '@/lib/api-config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, Shield, TrendingUp } from 'lucide-react';
 import TwoFactorLogin from '@/components/auth/TwoFactorLogin';
 
 export default function LoginPage() {
@@ -32,7 +33,11 @@ export default function LoginPage() {
 
     try {
       // 먼저 2FA 확인을 위해 직접 API 호출
-      const response = await fetch('http://localhost:10101/api/v1/auth/login', {
+      const apiBaseUrl = getApiBaseUrl();
+      const loginUrl = `${apiBaseUrl}/api/v1/auth/login`;
+      console.log('🔐 [Login] Attempting login to:', loginUrl);
+      
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,11 +50,13 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
+        console.error('❌ [Login] Login failed with status:', response.status);
         const errorData = await response.json();
         throw new Error(errorData.message || '로그인에 실패했습니다.');
       }
 
       const data = await response.json();
+      console.log('✅ [Login] Login response received, requiresTwoFactor:', data.requiresTwoFactor);
       
       if (data.requiresTwoFactor) {
         // 2FA가 필요한 경우
@@ -88,7 +95,11 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:10101/api/v1/auth/2fa/verify-login', {
+      const apiBaseUrl = getApiBaseUrl();
+      const twoFactorUrl = `${apiBaseUrl}/api/v1/auth/2fa/verify-login`;
+      console.log('🔐 [2FA] Attempting 2FA verification to:', twoFactorUrl);
+      
+      const response = await fetch(twoFactorUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,17 +147,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md space-y-6">
-        {/* 로고 및 제목 */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-primary/10 rounded-lg">
-            <LogIn className="w-6 h-6 text-primary" />
+        {/* 로고 헤더 */}
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center space-x-3">
+            <div className="w-10 h-10 bg-primary rounded flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Quantum Trading</h1>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Quantum Trading</h1>
-          <p className="text-muted-foreground">
-            {twoFactorRequired ? '2단계 인증을 완료하세요' : '플랫폼에 로그인하세요'}
-          </p>
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-foreground">
+              {twoFactorRequired ? '2단계 인증' : '로그인'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {twoFactorRequired ? '보안 코드를 입력하여 인증을 완료하세요' : '계정에 로그인하여 거래를 시작하세요'}
+            </p>
+          </div>
         </div>
 
         {twoFactorRequired ? (
@@ -161,14 +179,7 @@ export default function LoginPage() {
         ) : (
           <>
             {/* 로그인 카드 */}
-            <Card className="trading-card border-border/50 shadow-lg">
-              <CardHeader className="trading-card-header">
-                <CardTitle className="text-xl font-semibold">로그인</CardTitle>
-                <CardDescription>
-                  계정 정보를 입력하여 플랫폼에 접속하세요
-                </CardDescription>
-              </CardHeader>
-              
+            <Card className="trading-card">
               <CardContent className="trading-card-content space-y-4">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* 에러 메시지 */}
@@ -191,7 +202,7 @@ export default function LoginPage() {
                       placeholder="사용자명을 입력하세요"
                       value={formData.username}
                       onChange={handleInputChange}
-                      className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary"
+                      className="h-10"
                       required
                       disabled={isLoading}
                     />
@@ -210,14 +221,14 @@ export default function LoginPage() {
                         placeholder="비밀번호를 입력하세요"
                         value={formData.password}
                         onChange={handleInputChange}
-                        className="h-11 bg-input border-border focus:ring-2 focus:ring-primary focus:border-primary pr-11"
+                        className="h-10 pr-12"
                         required
                         disabled={isLoading}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 flex items-center justify-center w-11 text-muted-foreground hover:text-foreground transition-colors"
+                        className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-muted-foreground hover:text-foreground transition-colors"
                         disabled={isLoading}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -228,7 +239,7 @@ export default function LoginPage() {
                   {/* 로그인 버튼 */}
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors"
+                    className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium mt-6"
                     disabled={isLoading || !formData.username || !formData.password}
                   >
                     {isLoading ? (
@@ -237,25 +248,35 @@ export default function LoginPage() {
                         <span>로그인 중...</span>
                       </div>
                     ) : (
-                      '로그인'
+                      <div className="flex items-center space-x-2">
+                        <LogIn className="w-4 h-4" />
+                        <span>로그인</span>
+                      </div>
                     )}
                   </Button>
                 </form>
 
                 {/* 추가 링크 */}
                 <div className="text-center text-sm text-muted-foreground pt-4 border-t border-border">
-                  <p>계정이 없으신가요? 관리자에게 문의하세요.</p>
+                  <p>계정이 필요하시나요? <span className="text-primary font-medium hover:underline cursor-pointer">관리자에게 문의하세요</span></p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* 데모 계정 안내 */}
-            <Card className="border-info-blue/20 bg-info-blue/5">
+            {/* 보안 안내 */}
+            <Card className="border border-border bg-muted/30">
               <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">
-                  <h4 className="font-medium text-foreground mb-2">데모 계정</h4>
-                  <p className="mb-1">사용자명: <code className="bg-muted px-1 rounded">trader1</code></p>
-                  <p>비밀번호: <code className="bg-muted px-1 rounded">password123</code></p>
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Shield className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-foreground text-sm mb-1">보안 안내</h4>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      안전한 거래를 위해 개인 계정 정보를 타인과 공유하지 마세요.<br />
+                      보안 강화를 위해 <span className="font-medium text-primary">2단계 인증</span> 설정을 권장합니다.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -47,9 +47,8 @@ async def _get_valid_token() -> str:
         return token
     else:
         logger.error(f"❌ 토큰 발급 실패: {auth_result}")
-        # 실패 시 환경변수 고정키 사용 (fallback)
-        logger.warning("⚠️ fallback으로 환경변수 고정키 사용")
-        return settings.KIWOOM_APP_KEY
+        # 실패 시 예외 발생 (실제 데이터만 사용)
+        raise Exception(f"토큰 발급 실패: {auth_result}")
 
 
 async def fn_ka10045(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '') -> Dict[str, Any]:
@@ -57,7 +56,7 @@ async def fn_ka10045(data: Dict[str, Any], cont_yn: str = 'N', next_key: str = '
     키움 종목별기관매매추이요청 API (ka10045) 호출
     
     Args:
-        data: 요청 데이터 {'stk_cd': '005930', 'strt_dt': '20241201', 'end_dt': '20241225'}
+        data: 요청 데이터 {'stk_cd': '{종목코드}', 'strt_dt': '{시작일자}', 'end_dt': '{종룼일자}'}
         cont_yn: 연속조회여부 ('N' or 'Y')
         next_key: 연속조회키
     
@@ -212,9 +211,9 @@ def get_change_sign_name(sign: str) -> str:
 async def test_ka10045():
     """ka10045 API 테스트"""
     try:
-        # 종목별기관매매추이 조회 (삼성전자)
+        # 종목별기관매매추이 조회 예시
         test_data = {
-            "stk_cd": "005930",
+            "stk_cd": "{종목코드}",
             "strt_dt": "20241201",
             "end_dt": "20241225"
         }
