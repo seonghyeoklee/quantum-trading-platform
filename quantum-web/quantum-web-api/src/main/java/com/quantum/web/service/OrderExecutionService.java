@@ -12,7 +12,8 @@ import org.axonframework.modelling.command.AggregateLifecycle;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -30,13 +31,20 @@ import java.util.concurrent.CompletableFuture;
  * - 실시간 주문 상태 업데이트
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OrderExecutionService {
     
     private final CommandGateway commandGateway;
     private final KiwoomApiService kiwoomApiService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final WebClient webClient;
+    
+    public OrderExecutionService(CommandGateway commandGateway,
+                               KiwoomApiService kiwoomApiService,
+                               @Qualifier("webClient") WebClient webClient) {
+        this.commandGateway = commandGateway;
+        this.kiwoomApiService = kiwoomApiService;
+        this.webClient = webClient;
+    }
     
     @Value("${kiwoom.adapter.base-url:http://localhost:10201}")
     private String kiwoomAdapterBaseUrl;
@@ -85,17 +93,16 @@ public class OrderExecutionService {
             
             log.info("Calling Kiwoom API - URL: {}, orderId: {}", url, event.orderId().value());
             
-            // 3. HTTP 요청 헤더 설정
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            
-            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(orderData, headers);
-            
             // 4. 키움 API 호출 (비동기)
             return CompletableFuture.supplyAsync(() -> {
                 try {
-                    ResponseEntity<Map> response = restTemplate.exchange(
-                            url, HttpMethod.POST, requestEntity, Map.class);
+                    Map<String, Object> response = webClient.post()
+                            .uri(url)
+                            .header("Content-Type", "application/json")
+                            .bodyValue(orderData)
+                            .retrieve()
+                            .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class)
+                            .block();
                     
                     return processKiwoomResponse(event, response);
                     
@@ -116,20 +123,10 @@ public class OrderExecutionService {
     /**
      * 키움 API 응답 처리
      */
-    private OrderExecutionResult processKiwoomResponse(OrderCreatedEvent event, ResponseEntity<Map> response) {
+    private OrderExecutionResult processKiwoomResponse(OrderCreatedEvent event, Map<String, Object> responseBody) {
         try {
-            Map<String, Object> responseBody = response.getBody();
-            
             if (responseBody == null) {
                 return OrderExecutionResult.rejected("Empty response from Kiwoom API");
-            }
-            
-            // HTTP 상태 코드 확인
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                String errorMessage = (String) responseBody.getOrDefault("message", "Unknown error");
-                log.error("Kiwoom API returned error - orderId: {}, status: {}, message: {}", 
-                         event.orderId().value(), response.getStatusCode(), errorMessage);
-                return OrderExecutionResult.rejected("Kiwoom API error: " + errorMessage);
             }
             
             // 키움 API 응답 구조 파싱
@@ -240,13 +237,13 @@ public class OrderExecutionService {
                 
                 String url = kiwoomAdapterBaseUrl + "/api/fn_kt10003";
                 
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                
-                HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(request, headers);
-                
-                ResponseEntity<Map> response = restTemplate.exchange(
-                        url, HttpMethod.POST, requestEntity, Map.class);
+                Map<String, Object> response = webClient.post()
+                        .uri(url)
+                        .header("Content-Type", "application/json")
+                        .bodyValue(request)
+                        .retrieve()
+                        .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class)
+                        .block();
                 
                 return processCancelResponse(orderId, response);
                 
@@ -260,11 +257,9 @@ public class OrderExecutionService {
     /**
      * 키움 취소 API 응답 처리
      */
-    private OrderExecutionResult processCancelResponse(OrderId orderId, ResponseEntity<Map> response) {
+    private OrderExecutionResult processCancelResponse(OrderId orderId, Map<String, Object> responseBody) {
         try {
-            Map<String, Object> responseBody = response.getBody();
-            
-            if (responseBody == null || !response.getStatusCode().is2xxSuccessful()) {
+            if (responseBody == null) {
                 return OrderExecutionResult.rejected("Cancel request failed");
             }
             

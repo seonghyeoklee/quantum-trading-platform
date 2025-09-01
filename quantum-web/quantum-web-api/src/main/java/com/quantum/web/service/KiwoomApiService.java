@@ -3,12 +3,13 @@ package com.quantum.web.service;
 import com.quantum.trading.platform.query.service.KiwoomAccountQueryService;
 import com.quantum.trading.platform.query.view.KiwoomAccountView;
 import com.quantum.trading.platform.shared.value.ApiCredentials;
-import com.quantum.trading.platform.shared.value.EncryptedValue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,20 +18,26 @@ import java.util.Optional;
 /**
  * 키움증권 API 호출 서비스
  * 
- * 암호화된 API 키를 복호화하여 실제 키움증권 API를 호출하는 서비스
+ * Plain text API 키로 실제 키움증권 API를 호출하는 서비스
  * - 암호화된 credentials 복호화
  * - 토큰 발급 및 갱신
  * - API 호출 프록시
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class KiwoomApiService {
 
     private final KiwoomAccountQueryService kiwoomAccountQueryService;
-    private final EncryptionService encryptionService;
     private final KiwoomTokenService tokenService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final WebClient kiwoomWebClient;
+    
+    public KiwoomApiService(KiwoomAccountQueryService kiwoomAccountQueryService, 
+                           KiwoomTokenService tokenService,
+                           @Qualifier("kiwoomWebClient") WebClient kiwoomWebClient) {
+        this.kiwoomAccountQueryService = kiwoomAccountQueryService;
+        this.tokenService = tokenService;
+        this.kiwoomWebClient = kiwoomWebClient;
+    }
 
     private static final String KIWOOM_API_BASE_URL = "https://openapi.koreainvestment.com:9443";
     private static final String KIWOOM_SANDBOX_URL = "https://openapivts.koreainvestment.com:29443";
@@ -50,17 +57,11 @@ public class KiwoomApiService {
 
             KiwoomAccountView account = accountOpt.get();
 
-            // 2. 암호화된 API credentials 복호화
-            // 실제 DB 필드명에 맞게 수정
-            String encryptedData = account.getEncryptedClientId() + ":" + account.getEncryptedClientSecret();
-            String salt = account.getEncryptionSalt();
-            
-            EncryptedValue encryptedCredentials = new EncryptedValue(
-                    encryptedData,
-                    salt
+            // 2. API credentials 조회 (plain text)
+            ApiCredentials credentials = ApiCredentials.of(
+                    account.getClientId(),
+                    account.getClientSecret()
             );
-
-            ApiCredentials credentials = encryptionService.decryptApiCredentials(encryptedCredentials);
 
             log.info("Successfully decrypted API credentials for user: {}", userId);
 
@@ -72,20 +73,17 @@ public class KiwoomApiService {
             tokenRequest.put("appkey", credentials.getClientId());
             tokenRequest.put("appsecret", credentials.getClientSecret());
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            Mono<Map<String, Object>> responseMono = kiwoomWebClient.post()
+                    .uri(tokenUrl)
+                    .header("Content-Type", "application/json")
+                    .bodyValue(tokenRequest)
+                    .retrieve()
+                    .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class);
+                    
+            Map<String, Object> response = responseMono.block();
 
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(tokenRequest, headers);
-            
-            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                    tokenUrl,
-                    HttpMethod.POST,
-                    request,
-                    (Class<Map<String, Object>>) (Class<?>) Map.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> tokenResponse = response.getBody();
+            if (response != null) {
+                Map<String, Object> tokenResponse = response;
                 String accessToken = (String) tokenResponse.get("access_token");
                 Long expiresIn = Long.valueOf(tokenResponse.get("expires_in").toString());
 
@@ -140,36 +138,30 @@ public class KiwoomApiService {
             // 3. 키움증권 API 호출
             String apiUrl = KIWOOM_API_BASE_URL + endpoint;
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(accessToken);
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            
-            // 복호화된 App Key/Secret도 헤더에 추가 (키움 API 요구사항)
+            // App Key/Secret 헤더 추가 (키움 API 요구사항) - plain text
             KiwoomAccountView account = accountOpt.get();
-            String encryptedData = account.getEncryptedClientId() + ":" + account.getEncryptedClientSecret();
-            String salt = account.getEncryptionSalt();
-            
-            EncryptedValue encryptedCredentials = new EncryptedValue(
-                    encryptedData,
-                    salt
+            ApiCredentials credentials = ApiCredentials.of(
+                    account.getClientId(),
+                    account.getClientSecret()
             );
-            ApiCredentials credentials = encryptionService.decryptApiCredentials(encryptedCredentials);
-            
-            headers.add("appkey", credentials.getClientId());
-            headers.add("appsecret", credentials.getClientSecret());
-            headers.add("tr_id", (String) params.getOrDefault("tr_id", "FHKST01010100"));
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(params, headers);
-
-            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                    apiUrl,
-                    HttpMethod.POST,
-                    request,
-                    (Class<Map<String, Object>>) (Class<?>) Map.class
-            );
+            Mono<Map<String, Object>> responseMono = kiwoomWebClient.post()
+                    .uri(apiUrl)
+                    .headers(h -> {
+                        h.setBearerAuth(accessToken);
+                        h.setContentType(MediaType.APPLICATION_JSON);
+                        h.add("appkey", credentials.getClientId());
+                        h.add("appsecret", credentials.getClientSecret());
+                        h.add("tr_id", (String) params.getOrDefault("tr_id", "FHKST01010100"));
+                    })
+                    .bodyValue(params)
+                    .retrieve()
+                    .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class);
+                    
+            Map<String, Object> response = responseMono.block();
 
             log.debug("Successfully called Kiwoom API endpoint: {} for user: {}", endpoint, userId);
-            return response.getBody();
+            return response;
 
         } catch (Exception e) {
             log.error("Failed to call Kiwoom API endpoint: {} for user: {}", endpoint, userId, e);

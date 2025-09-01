@@ -2,13 +2,16 @@ package com.quantum.web.service;
 
 import com.quantum.web.dto.TradingSignalDto;
 import com.quantum.web.dto.OrderExecutionResultDto;
+import com.quantum.web.dto.KiwoomAuthInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientException;
+import reactor.core.publisher.Mono;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,10 +25,16 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class KiwoomOrderService {
     
-    private final RestTemplate restTemplate;
+    private final WebClient kiwoomWebClient;
+    private final KiwoomTokenService kiwoomTokenService;
+    
+    public KiwoomOrderService(@Qualifier("kiwoomWebClient") WebClient kiwoomWebClient,
+                             KiwoomTokenService kiwoomTokenService) {
+        this.kiwoomWebClient = kiwoomWebClient;
+        this.kiwoomTokenService = kiwoomTokenService;
+    }
     
     @Value("${kiwoom.adapter.url:http://localhost:10201}")
     private String kiwoomAdapterUrl;
@@ -76,7 +85,7 @@ public class KiwoomOrderService {
             Map<String, Object> orderRequest = createBuyOrderRequest(signal, quantity);
             
             // 키움 어댑터로 주문 전송
-            Map<String, Object> response = sendOrderToKiwoom(orderRequest, "buy");
+            Map<String, Object> response = sendOrderToKiwoom(orderRequest, "buy", signal);
             
             return parseKiwoomResponse(signal, quantity, response, "BUY");
             
@@ -101,7 +110,7 @@ public class KiwoomOrderService {
             Map<String, Object> orderRequest = createSellOrderRequest(signal, quantity);
             
             // 키움 어댑터로 주문 전송
-            Map<String, Object> response = sendOrderToKiwoom(orderRequest, "sell");
+            Map<String, Object> response = sendOrderToKiwoom(orderRequest, "sell", signal);
             
             return parseKiwoomResponse(signal, quantity, response, "SELL");
             
@@ -114,81 +123,73 @@ public class KiwoomOrderService {
     }
     
     /**
-     * 키움 매수 주문 요청 생성
+     * 키움 매수 주문 요청 생성 (Python API StockBuyOrderRequest 스펙) - 헤더 기반
      * 
      * @param signal 매매신호
      * @param quantity 수량
-     * @return 주문 요청 데이터
+     * @return 주문 요청 데이터 (Python API 형식, 인증 정보는 헤더로 전달)
      */
     private Map<String, Object> createBuyOrderRequest(TradingSignalDto signal, Integer quantity) {
-        Map<String, Object> request = new HashMap<>();
+        // Python StockBuyOrderRequest 모델에 맞는 데이터 구조 (인증 정보 제외)
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("dmst_stex_tp", "KRX");                         // 국내거래소구분
+        requestBody.put("stk_cd", signal.getSymbol());                  // 종목코드
+        requestBody.put("ord_qty", quantity.toString());                // 주문수량
+        requestBody.put("ord_uv", signal.getCurrentPrice().toString()); // 주문단가 (Python API 필드명)
+        requestBody.put("trde_tp", "0");                               // 매매구분 (0: 보통지정가)
+        requestBody.put("cond_uv", "");                                // 조건단가 (빈값)
+        requestBody.put("dry_run", signal.getDryRun());                // 모의/실전 모드 정보
         
-        // 기본 주문 정보
-        request.put("stk_cd", signal.getSymbol());                    // 종목코드
-        request.put("ord_qty", quantity.toString());                  // 주문수량
-        request.put("ord_prc", signal.getCurrentPrice().toString());  // 주문가격
-        request.put("sll_by_tp", "01");                              // 매매구분 (01: 매수)
-        request.put("ord_tp", "01");                                 // 주문유형 (01: 지정가)
-        
-        // 전략 메타데이터
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("strategy_name", signal.getStrategyName());
-        metadata.put("signal_confidence", signal.getConfidence().doubleValue());
-        metadata.put("signal_reason", signal.getReason());
-        metadata.put("signal_timestamp", signal.getTimestamp().toString());
-        metadata.put("order_type", "BUY");
+        // 전략 메타데이터 (추가 정보 - Python에서 무시될 수 있음)
+        requestBody.put("strategy_name", signal.getStrategyName());
+        requestBody.put("signal_confidence", signal.getConfidence().toString());
+        requestBody.put("signal_reason", signal.getReason());
         
         if (signal.getTargetPrice() != null) {
-            metadata.put("target_price", signal.getTargetPrice().toString());
+            requestBody.put("target_price", signal.getTargetPrice().toString());
         }
         
         if (signal.getStopLoss() != null) {
-            metadata.put("stop_loss", signal.getStopLoss().toString());
+            requestBody.put("stop_loss", signal.getStopLoss().toString());
         }
         
-        request.put("metadata", metadata);
-        
-        log.debug("매수 주문 요청 생성 완료: {}", request);
-        return request;
+        log.debug("키움 매수 주문 요청 생성 완료 (헤더 기반 인증): {}", signal.getSymbol());
+        return requestBody;
     }
     
     /**
-     * 키움 매도 주문 요청 생성
+     * 키움 매도 주문 요청 생성 (Python API StockSellOrderRequest 스펙) - 헤더 기반
      * 
      * @param signal 매매신호
      * @param quantity 수량
-     * @return 주문 요청 데이터
+     * @return 주문 요청 데이터 (Python API 형식, 인증 정보는 헤더로 전달)
      */
     private Map<String, Object> createSellOrderRequest(TradingSignalDto signal, Integer quantity) {
-        Map<String, Object> request = new HashMap<>();
+        // Python StockSellOrderRequest 모델에 맞는 데이터 구조 (인증 정보 제외)
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("dmst_stex_tp", "KRX");                         // 국내거래소구분
+        requestBody.put("stk_cd", signal.getSymbol());                  // 종목코드
+        requestBody.put("ord_qty", quantity.toString());                // 주문수량
+        requestBody.put("ord_uv", signal.getCurrentPrice().toString()); // 주문단가 (Python API 필드명)
+        requestBody.put("trde_tp", "0");                               // 매매구분 (0: 보통지정가)
+        requestBody.put("cond_uv", "");                                // 조건단가 (빈값)
+        requestBody.put("dry_run", signal.getDryRun());                // 모의/실전 모드 정보
         
-        // 기본 주문 정보
-        request.put("stk_cd", signal.getSymbol());                    // 종목코드
-        request.put("ord_qty", quantity.toString());                  // 주문수량
-        request.put("ord_prc", signal.getCurrentPrice().toString());  // 주문가격
-        request.put("sll_by_tp", "02");                              // 매매구분 (02: 매도)
-        request.put("ord_tp", "01");                                 // 주문유형 (01: 지정가)
-        
-        // 전략 메타데이터
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("strategy_name", signal.getStrategyName());
-        metadata.put("signal_confidence", signal.getConfidence().doubleValue());
-        metadata.put("signal_reason", signal.getReason());
-        metadata.put("signal_timestamp", signal.getTimestamp().toString());
-        metadata.put("order_type", "SELL");
+        // 전략 메타데이터 (추가 정보 - Python에서 무시될 수 있음)
+        requestBody.put("strategy_name", signal.getStrategyName());
+        requestBody.put("signal_confidence", signal.getConfidence().toString());
+        requestBody.put("signal_reason", signal.getReason());
         
         if (signal.getTargetPrice() != null) {
-            metadata.put("target_price", signal.getTargetPrice().toString());
+            requestBody.put("target_price", signal.getTargetPrice().toString());
         }
         
         if (signal.getStopLoss() != null) {
-            metadata.put("stop_loss", signal.getStopLoss().toString());
+            requestBody.put("stop_loss", signal.getStopLoss().toString());
         }
         
-        request.put("metadata", metadata);
-        
-        log.debug("매도 주문 요청 생성 완료: {}", request);
-        return request;
+        log.debug("키움 매도 주문 요청 생성 완료 (헤더 기반 인증): {}", signal.getSymbol());
+        return requestBody;
     }
     
     /**
@@ -196,34 +197,59 @@ public class KiwoomOrderService {
      * 
      * @param orderRequest 주문 요청
      * @param orderType 주문 타입 ("buy" or "sell")
+     * @param signal 매매신호 (토큰 획득용)
      * @return 키움 API 응답
      */
-    private Map<String, Object> sendOrderToKiwoom(Map<String, Object> orderRequest, String orderType) {
-        String url = kiwoomAdapterUrl + "/api/order/" + orderType;
+    private Map<String, Object> sendOrderToKiwoom(Map<String, Object> orderRequest, String orderType, TradingSignalDto signal) {
+        // 키움 API 실제 엔드포인트 사용
+        String url;
+        if ("buy".equals(orderType)) {
+            url = kiwoomAdapterUrl + "/api/fn_kt10000";  // 키움 주식 매수주문
+        } else if ("sell".equals(orderType)) {
+            url = kiwoomAdapterUrl + "/api/fn_kt10001";  // 키움 주식 매도주문
+        } else {
+            throw new IllegalArgumentException("지원하지 않는 주문 타입: " + orderType);
+        }
         
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("User-Agent", "QuantumTradingPlatform/1.0");
+        // Query Parameter 추가 (Python API 요구사항)
+        String urlWithParams = url + "?cont_yn=N&next_key=";
         
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(orderRequest, headers);
+        // 키움 인증 정보 조회
+        KiwoomAuthInfo authInfo = getKiwoomAuthInfo(signal);
         
         Exception lastException = null;
         
         // 재시도 로직
         for (int attempt = 1; attempt <= retryAttempts; attempt++) {
             try {
-                log.info("키움 주문 API 호출 시도 {}/{}: {}", attempt, retryAttempts, url);
+                log.info("키움 주문 API 호출 시도 {}/{}: {}", attempt, retryAttempts, urlWithParams);
                 
-                ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                Mono<Map<String, Object>> responseMono = kiwoomWebClient.post()
+                        .uri(urlWithParams)
+                        .headers(h -> {
+                            h.setContentType(MediaType.APPLICATION_JSON);
+                            h.set("User-Agent", "QuantumTradingPlatform/1.0");
+                            h.set("Authorization", "Bearer " + authInfo.getAccessToken());
+                            h.set("X-Kiwoom-Access-Token", authInfo.getAccessToken());
+                            h.set("X-Kiwoom-App-Key", authInfo.getApiKey());
+                            h.set("X-Kiwoom-App-Secret", authInfo.getApiSecret());
+                            h.set("X-Kiwoom-Base-Url", authInfo.getBaseUrl());
+                            h.set("X-Kiwoom-Mode", authInfo.isRealMode() ? "real" : "sandbox");
+                        })
+                        .bodyValue(orderRequest)
+                        .retrieve()
+                        .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class);
                 
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    log.info("키움 주문 API 호출 성공: HTTP {}", response.getStatusCode());
-                    return response.getBody();
+                Map<String, Object> response = responseMono.block();
+                
+                if (response != null) {
+                    log.info("키움 주문 API 호출 성공");
+                    return response;
                 } else {
-                    throw new RuntimeException("키움 API 응답 오류: HTTP " + response.getStatusCode());
+                    throw new RuntimeException("키움 API 응답이 null입니다");
                 }
                 
-            } catch (ResourceAccessException e) {
+            } catch (WebClientException e) {
                 lastException = e;
                 log.warn("키움 어댑터 연결 실패 - 재시도 {}/{}: {}", attempt, retryAttempts, e.getMessage());
                 
@@ -415,10 +441,15 @@ public class KiwoomOrderService {
     public boolean checkKiwoomConnection() {
         try {
             String healthUrl = kiwoomAdapterUrl + "/health";
-            ResponseEntity<Map> response = restTemplate.getForEntity(healthUrl, Map.class);
             
-            boolean isHealthy = response.getStatusCode().is2xxSuccessful() && 
-                               response.getBody() != null;
+            Mono<Map<String, Object>> responseMono = kiwoomWebClient.get()
+                    .uri(healthUrl)
+                    .retrieve()
+                    .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class);
+                    
+            Map<String, Object> response = responseMono.block();
+            
+            boolean isHealthy = (response != null);
             
             log.info("키움 어댑터 연결 상태: {}", isHealthy ? "정상" : "비정상");
             return isHealthy;
@@ -451,5 +482,136 @@ public class KiwoomOrderService {
         // TODO: 키움 주문 상태 조회 API 구현
         log.info("주문 상태 조회: {}", kiwoomOrderNo);
         return new HashMap<>();
+    }
+    
+    /**
+     * 키움 액세스 토큰 획득
+     * Python 어댑터의 fn_au10001을 호출하여 토큰을 가져옴
+     * 
+     * @return 키움 액세스 토큰
+     */
+    /**
+     * 모드별 키움 액세스 토큰 획득 (자동매매용)
+     * 
+     * @param signal 매매신호 (모의/실전 모드 판단용)
+     * @return 키움 액세스 토큰
+     */
+    private String getKiwoomAccessToken(TradingSignalDto signal) {
+        try {
+            boolean isRealMode = !signal.getDryRun(); // dryRun=false면 실전모드
+            String userId = getCurrentUserId(); // 현재 사용자 ID 획득
+            
+            log.debug("Requesting {} mode Kiwoom access token for user: {}", 
+                    isRealMode ? "real" : "mock", userId);
+
+            // KiwoomTokenService를 통해 모드별 토큰 획득
+            return kiwoomTokenService.getAccessToken(userId, isRealMode);
+            
+        } catch (Exception e) {
+            log.error("키움 액세스 토큰 획득 중 예외 발생: {}", e.getMessage(), e);
+            // Fallback: 기존 방식으로 토큰 획득 시도
+            return getKiwoomAccessTokenFallback();
+        }
+    }
+
+    /**
+     * 현재 사용자 ID 획득 (Spring Security Context에서)
+     */
+    private String getCurrentUserId() {
+        // TODO: Spring Security Context에서 현재 사용자 ID 추출
+        // 현재는 하드코딩으로 처리 (실제 구현 시 수정 필요)
+        return "current_user_id"; // Placeholder
+    }
+
+    /**
+     * 기존 방식의 토큰 획득 (Fallback)
+     */
+    private String getKiwoomAccessTokenFallback() {
+        try {
+            // Python 어댑터의 토큰 발급 엔드포인트 호출
+            String tokenUrl = kiwoomAdapterUrl + "/api/fn_au10001";
+            
+            Map<String, Object> tokenRequest = new HashMap<>();
+            tokenRequest.put("data", new HashMap<>()); // 빈 데이터
+            tokenRequest.put("cont_yn", "N");
+            tokenRequest.put("next_key", "");
+            
+            Mono<Map<String, Object>> responseMono = kiwoomWebClient.post()
+                    .uri(tokenUrl)
+                    .header("Content-Type", "application/json")
+                    .bodyValue(tokenRequest)
+                    .retrieve()
+                    .bodyToMono((Class<Map<String, Object>>) (Class<?>) Map.class);
+                    
+            Map<String, Object> response = responseMono.block();
+            
+            if (response != null) {
+                Map<String, Object> responseBody = response;
+                Object codeObj = responseBody.get("Code");
+                Object bodyObj = responseBody.get("Body");
+                
+                if (codeObj != null && "200".equals(codeObj.toString()) && bodyObj instanceof Map) {
+                    Map<String, Object> body = (Map<String, Object>) bodyObj;
+                    Object tokenObj = body.get("token");
+                    
+                    if (tokenObj != null) {
+                        log.debug("키움 액세스 토큰 획득 성공 (Fallback)");
+                        return tokenObj.toString();
+                    }
+                }
+            }
+            
+            log.warn("키움 액세스 토큰 획득 실패 - 기본값 사용");
+            return "DEFAULT_TOKEN"; // Fallback
+            
+        } catch (Exception e) {
+            log.error("키움 액세스 토큰 획득 중 오류: {}", e.getMessage(), e);
+            return "DEFAULT_TOKEN"; // Fallback
+        }
+    }
+
+    /**
+     * 모드별 키움 인증 정보 조회
+     * 
+     * @param signal 매매신호 (모의/실전 모드 판단용)
+     * @return 키움 인증 정보
+     */
+    private KiwoomAuthInfo getKiwoomAuthInfo(TradingSignalDto signal) {
+        try {
+            boolean isRealMode = !signal.getDryRun(); // dryRun=false면 실전모드
+            String userId = getCurrentUserId(); // 현재 사용자 ID 획득
+            
+            log.debug("Requesting {} mode Kiwoom auth info for user: {}", 
+                    isRealMode ? "real" : "mock", userId);
+
+            // KiwoomTokenService를 통해 모드별 인증 정보 획득
+            return kiwoomTokenService.getAuthInfo(userId, isRealMode);
+            
+        } catch (Exception e) {
+            log.error("키움 인증 정보 획득 중 예외 발생: {}", e.getMessage(), e);
+            
+            // Fallback: 환경변수 기반 기본 인증 정보 생성
+            return createFallbackAuthInfo(signal.getDryRun());
+        }
+    }
+
+    /**
+     * Fallback 인증 정보 생성 (환경변수 기반)
+     * 
+     * @param isDryRun 모의투자 모드 여부
+     * @return 기본 인증 정보
+     */
+    private KiwoomAuthInfo createFallbackAuthInfo(Boolean isDryRun) {
+        log.warn("Fallback 키움 인증 정보 사용 - 환경변수 기반");
+        
+        boolean isRealMode = !Boolean.TRUE.equals(isDryRun);
+        
+        // 기본값으로 인증 정보 생성 (실제 구현에서는 환경변수에서 읽어옴)
+        return new KiwoomAuthInfo(
+                "DEFAULT_TOKEN",           // accessToken
+                "DEFAULT_API_KEY",         // apiKey
+                "DEFAULT_API_SECRET",      // apiSecret
+                isRealMode                 // realMode
+        );
     }
 }
