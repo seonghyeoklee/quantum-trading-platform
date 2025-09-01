@@ -2,6 +2,7 @@ package com.quantum.web.service;
 
 import com.quantum.trading.platform.query.service.UserQueryService;
 import com.quantum.trading.platform.query.view.UserView;
+import com.quantum.trading.platform.query.repository.UserViewRepository;
 import com.quantum.trading.platform.shared.command.*;
 import com.quantum.trading.platform.shared.value.UserId;
 import com.quantum.web.security.JwtTokenProvider;
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Authentication Service
- * 
+ *
  * Event-Driven 사용자 인증 관련 비즈니스 로직 처리
  * - Command Gateway를 통한 명령 전송
  * - Query Service를 통한 사용자 조회
@@ -38,58 +39,75 @@ public class AuthService {
 
     private final CommandGateway commandGateway;
     private final UserQueryService userQueryService;
+    private final UserViewRepository userViewRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, Object> redisTemplate;
-
+    private final UserKiwoomSettingsService userKiwoomSettingsService;
+    private final KiwoomTokenService kiwoomTokenService;
 
     /**
      * 2FA가 필요한지 확인하는 초기 인증 (1단계)
      */
     public PreAuthResult preAuthenticate(String username, String password, HttpServletRequest request) {
         log.info("Pre-authentication for user: {}", username);
-        
+
         // 기본 사용자 인증 로직 (기존과 동일)
         Optional<UserQueryService.UserLoginInfo> loginInfoOpt = userQueryService.findLoginInfo(username);
         if (loginInfoOpt.isEmpty()) {
             log.warn("Pre-authentication failed - user not found: {}", username);
             throw new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username);
         }
-        
+
         UserQueryService.UserLoginInfo loginInfo = loginInfoOpt.get();
-        
+
         // 계정 상태 확인
         if (!loginInfo.canLogin()) {
-            log.warn("Pre-authentication failed - user cannot login: {} (status: {}, attempts: {})", 
+            log.warn("Pre-authentication failed - user cannot login: {} (status: {}, attempts: {})",
                     username, loginInfo.status(), loginInfo.failedLoginAttempts());
             throw new IllegalArgumentException("로그인할 수 없는 계정 상태입니다: " + loginInfo.status());
         }
-        
-        // 비밀번호 검증
-        if (!passwordEncoder.matches(password, loginInfo.passwordHash())) {
-            // 비밀번호 불일치 시 실패 Command 전송
-            String clientIp = extractClientIp(request);
-            String userAgent = extractUserAgent(request);
-            
-            RecordLoginFailureCommand failureCommand = new RecordLoginFailureCommand(
-                    UserId.of(loginInfo.userId()),
-                    "Invalid password",
-                    clientIp,
-                    userAgent
-            );
-            
-            commandGateway.sendAndWait(failureCommand);
-            throw new IllegalArgumentException("비밀번호가 올바르지 않습니다");
+
+        // 비밀번호 검증 - 임시 디버그 로깅
+        log.warn("🔍 [DEBUG] Password verification for user: {}", username);
+        log.warn("🔍 [DEBUG] Input password length: {}", password != null ? password.length() : "null");
+        log.warn("🔍 [DEBUG] Input password: '{}'", password); // 임시로만 - 보안상 위험
+        log.warn("🔍 [DEBUG] Stored hash: '{}'", loginInfo.passwordHash());
+        log.warn("🔍 [DEBUG] Hash starts with $2a: {}", loginInfo.passwordHash() != null && loginInfo.passwordHash().startsWith("$2a"));
+
+        boolean passwordMatches = passwordEncoder.matches(password, loginInfo.passwordHash());
+        log.warn("🔍 [DEBUG] Password matches result: {}", passwordMatches);
+
+        if (!passwordMatches) {
+            // 비밀번호 불일치 시 DB에서 실패 횟수 원자적 증가
+            log.warn("Password verification failed for user: {}", username);
+
+            // 현재 실패 횟수 증가
+            int updatedRows = userViewRepository.incrementFailureCount(username);
+            log.info("Incremented failure count for user: {} (updated rows: {})", username, updatedRows);
+
+            // 증가된 후의 실패 횟수 확인
+            Optional<Integer> currentFailureCount = userViewRepository.getCurrentFailureCount(username);
+            int failureCount = currentFailureCount.orElse(0);
+
+            // 5회 이상 실패 시 계정 잠금
+            if (failureCount >= 5) {
+                userViewRepository.lockAccount(username, failureCount);
+                log.warn("Account locked for user: {} after {} failed attempts", username, failureCount);
+                throw new IllegalArgumentException("5회 실패로 계정이 잠겨있습니다. 관리자에게 문의하세요.");
+            }
+
+            throw new IllegalArgumentException("비밀번호가 올바르지 않습니다. 남은 시도 횟수: " + (5 - failureCount));
         }
-        
+
         // 2FA 활성화 여부 확인
         UserView user = userQueryService.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User not found after pre-authentication"));
-        
+
         if (user.isTwoFactorEnabled()) {
             // 2FA가 필요한 경우, 임시 토큰 생성
             String tempToken = generateTempSessionToken(user.getUserId(), username);
-            
+
             return PreAuthResult.builder()
                     .userId(user.getUserId())
                     .username(username)
@@ -97,7 +115,10 @@ public class AuthService {
                     .tempSessionToken(tempToken)
                     .build();
         } else {
-            // 2FA가 필요하지 않은 경우, 바로 완전한 인증 수행
+            // 2FA가 필요하지 않은 경우, 먼저 실패 횟수 초기화 후 완전한 인증 수행
+            int resetRows = userViewRepository.resetFailureCount(username);
+            log.info("Reset failure count for user: {} (updated rows: {}) - Pre-auth success without 2FA", username, resetRows);
+
             return PreAuthResult.builder()
                     .userId(user.getUserId())
                     .username(username)
@@ -112,11 +133,11 @@ public class AuthService {
      */
     public AuthResult authenticateUser(String username, String password, HttpServletRequest request) {
         log.info("Attempting authentication for user: {}", username);
-        
+
         // 디버깅을 위해 사용자 존재 여부 확인
         boolean userExists = userQueryService.isUsernameExists(username);
         log.info("Debug - User exists check: {} = {}", username, userExists);
-        
+
         // 디버깅을 위해 모든 admin 사용자 조회
         Optional<UserQueryService.UserLoginInfo> loginInfoOpt = userQueryService.findLoginInfo(username);
         if (loginInfoOpt.isEmpty()) {
@@ -124,13 +145,13 @@ public class AuthService {
             Optional<UserView> userViewOpt = userQueryService.findByUsername(username);
             if (userViewOpt.isPresent()) {
                 UserView userView = userViewOpt.get();
-                log.warn("User found but no password hash: userId={}, username={}, passwordHash={}", 
+                log.warn("User found but no password hash: userId={}, username={}, passwordHash={}",
                     userView.getUserId(), userView.getUsername(), userView.getPasswordHash());
             } else {
                 log.warn("No user found at all for username: {}", username);
             }
         }
-        
+
         // Query Side에서 사용자 조회
         UserQueryService.UserLoginInfo loginInfo;
         try {
@@ -139,40 +160,57 @@ public class AuthService {
                         log.warn("Authentication failed - user not found: {} (userExists: {})", username, userExists);
                         return new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username);
                     });
-            log.info("Login info retrieved successfully: userId={}, username={}, status={}", 
+            log.info("Login info retrieved successfully: userId={}, username={}, status={}",
                     loginInfo.userId(), loginInfo.username(), loginInfo.status());
         } catch (Exception e) {
             log.error("Error retrieving login info for user: {} - Error: {}", username, e.getMessage(), e);
             throw new IllegalArgumentException("사용자 정보 조회에 실패하였습니다: " + e.getMessage());
         }
-        
+
         // 계정 상태 확인
         if (!loginInfo.canLogin()) {
-            log.warn("Authentication failed - user cannot login: {} (status: {}, attempts: {})", 
+            log.warn("Authentication failed - user cannot login: {} (status: {}, attempts: {})",
                     username, loginInfo.status(), loginInfo.failedLoginAttempts());
             throw new IllegalArgumentException("로그인할 수 없는 계정 상태입니다: " + loginInfo.status());
         }
-        
+
         // 세션 ID 생성
         String sessionId = "SESSION-" + UUID.randomUUID().toString();
         String clientIp = extractClientIp(request);
         String userAgent = extractUserAgent(request);
-        
+
         try {
-            // 저장된 사용자의 실제 비밀번호 해시를 사용하여 검증
-            if (!passwordEncoder.matches(password, loginInfo.passwordHash())) {
-                // 비밀번호 불일치 시 실패 Command 전송
-                RecordLoginFailureCommand failureCommand = new RecordLoginFailureCommand(
-                        UserId.of(loginInfo.userId()),
-                        "Invalid password",
-                        clientIp,
-                        userAgent
-                );
-                
-                commandGateway.sendAndWait(failureCommand);
-                throw new IllegalArgumentException("비밀번호가 올바르지 않습니다");
+            // 저장된 사용자의 실제 비밀번호 해시를 사용하여 검증 - 임시 디버그 로깅
+            log.warn("🔍 [DEBUG-COMPLETE] Password verification for user: {}", username);
+            log.warn("🔍 [DEBUG-COMPLETE] Input password length: {}", password != null ? password.length() : "null");
+            log.warn("🔍 [DEBUG-COMPLETE] Input password: '{}'", password); // 임시로만 - 보안상 위험
+            log.warn("🔍 [DEBUG-COMPLETE] Stored hash: '{}'", loginInfo.passwordHash());
+
+            boolean passwordMatches = passwordEncoder.matches(password, loginInfo.passwordHash());
+            log.warn("🔍 [DEBUG-COMPLETE] Password matches result: {}", passwordMatches);
+
+            if (!passwordMatches) {
+                // 비밀번호 불일치 시 DB에서 실패 횟수 원자적 증가
+                log.warn("Password verification failed for user: {} in authenticateUser method", username);
+
+                // 현재 실패 횟수 증가
+                int updatedRows = userViewRepository.incrementFailureCount(username);
+                log.info("Incremented failure count for user: {} (updated rows: {})", username, updatedRows);
+
+                // 증가된 후의 실패 횟수 확인
+                Optional<Integer> currentFailureCount = userViewRepository.getCurrentFailureCount(username);
+                int failureCount = currentFailureCount.orElse(0);
+
+                // 5회 이상 실패 시 계정 잠금
+                if (failureCount >= 5) {
+                    userViewRepository.lockAccount(username, failureCount);
+                    log.warn("Account locked for user: {} after {} failed attempts", username, failureCount);
+                    throw new IllegalArgumentException("5회 실패로 계정이 잠겨있습니다. 관리자에게 문의하세요.");
+                }
+
+                throw new IllegalArgumentException("비밀번호가 올바르지 않습니다. 남은 시도 횟수: " + (5 - failureCount));
             }
-            
+
             // 비밀번호 검증 성공 시 로그인 성공 Command 전송 (비밀번호 필드는 빈 값)
             AuthenticateUserCommand authCommand = new AuthenticateUserCommand(
                     UserId.of(loginInfo.userId()),
@@ -182,45 +220,76 @@ public class AuthService {
                     clientIp,
                     userAgent
             );
-            
+
             // 인증 성공 명령 전송 (동기 방식)
             commandGateway.sendAndWait(authCommand);
-            
+
+            // 로그인 성공 시 실패 횟수 초기화 (CRITICAL SECURITY FIX)
+            int resetRows = userViewRepository.resetFailureCount(username);
+            log.info("Reset failure count for user: {} (updated rows: {}) - Login success", username, resetRows);
+
             // 인증 성공 후 사용자 정보 재조회
             UserView user = userQueryService.findByUsername(username)
                     .orElseThrow(() -> new IllegalStateException("User not found after authentication"));
-            
+
             // JWT 토큰 생성
             List<String> roles = new ArrayList<>(user.getRoles());
             String accessToken = jwtTokenProvider.generateAccessToken(
                     user.getUserId(), user.getUsername(), roles);
             String refreshToken = jwtTokenProvider.generateRefreshToken(
                     user.getUserId(), user.getUsername());
-            
+
             // Refresh Token을 Redis에 저장 (7일 TTL)
             String refreshTokenKey = "refresh_token:" + user.getUserId();
             redisTemplate.opsForValue().set(refreshTokenKey, refreshToken, 7, TimeUnit.DAYS);
-            
-            log.info("User authenticated successfully - username: {}, roles: {}", 
+
+            // 키움 토큰 발급 (로그인 시 자동 발급)
+            String kiwoomAccessToken = null;
+            try {
+                // 사용자의 기본 거래 모드 조회
+                boolean isRealMode = userKiwoomSettingsService.getUserDefaultRealMode(user.getUserId());
+
+                log.info("🔑 Issuing Kiwoom token for user {} in {} mode",
+                        user.getUsername(), isRealMode ? "real" : "sandbox");
+
+                // 키움 토큰 발급
+                kiwoomAccessToken = kiwoomTokenService.issueKiwoomToken(user.getUserId(), isRealMode);
+
+                log.info("✅ Kiwoom token issued successfully for user: {} (mode: {})",
+                        user.getUsername(), isRealMode ? "real" : "sandbox");
+
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to issue Kiwoom token for user {} (login still successful): {}",
+                        user.getUsername(), e.getMessage());
+                // 키움 토큰 발급 실패는 로그인 자체를 실패시키지 않음
+            }
+
+            log.info("User authenticated successfully - username: {}, roles: {}",
                     username, user.getRoles());
-            
-            return AuthResult.builder()
+
+            AuthResult.AuthResultBuilder resultBuilder = AuthResult.builder()
                     .userId(user.getUserId())
                     .username(user.getUsername())
                     .name(user.getName())
                     .email(user.getEmail())
                     .roles(roles)
                     .accessToken(accessToken)
-                    .refreshToken(refreshToken)
-                    .build();
-            
+                    .refreshToken(refreshToken);
+
+            // 키움 토큰이 성공적으로 발급된 경우 추가
+            if (kiwoomAccessToken != null) {
+                resultBuilder.kiwoomAccessToken(kiwoomAccessToken);
+            }
+
+            return resultBuilder.build();
+
         } catch (Exception e) {
             // 인증 실패 시 실패 명령 전송 (선택적)
             log.warn("Authentication failed for user: {} - {}", username, e.getMessage());
             throw new IllegalArgumentException("인증에 실패하였습니다: " + e.getMessage());
         }
     }
-    
+
     /**
      * HttpServletRequest에서 클라이언트 IP 추출
      */
@@ -242,15 +311,15 @@ public class AuthService {
         if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
             clientIp = request.getRemoteAddr();
         }
-        
+
         // X-Forwarded-For 헤더에서 첫 번째 IP만 추출 (체인된 경우)
         if (clientIp != null && clientIp.contains(",")) {
             clientIp = clientIp.split(",")[0].trim();
         }
-        
+
         return clientIp != null ? clientIp : "unknown";
     }
-    
+
     /**
      * HttpServletRequest에서 User-Agent 추출
      */
@@ -266,32 +335,32 @@ public class AuthService {
         // 저장된 Refresh Token 검증
         String refreshTokenKey = "refresh_token:" + userId;
         String storedRefreshToken = (String) redisTemplate.opsForValue().get(refreshTokenKey);
-        
+
         if (storedRefreshToken == null) {
             throw new IllegalArgumentException("Refresh Token이 만료되었거나 존재하지 않습니다");
         }
-        
+
         // Query Side에서 사용자 정보 조회
         UserView user = userQueryService.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + userId));
-        
+
         // 계정 상태 확인
         if (!user.canLogin()) {
             throw new IllegalArgumentException("로그인할 수 없는 계정 상태입니다: " + user.getStatus());
         }
-        
+
         // 새로운 토큰 생성
         List<String> roles = new ArrayList<>(user.getRoles());
         String newAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getUserId(), user.getUsername(), roles);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(
                 user.getUserId(), user.getUsername());
-        
+
         // 새로운 Refresh Token 저장
         redisTemplate.opsForValue().set(refreshTokenKey, newRefreshToken, 7, TimeUnit.DAYS);
-        
+
         log.info("Tokens refreshed successfully - username: {}", username);
-        
+
         return TokenPair.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
@@ -305,12 +374,12 @@ public class AuthService {
         try {
             String userId = jwtTokenProvider.getUserIdFromToken(token);
             String username = jwtTokenProvider.getUsernameFromToken(token);
-            
+
             // Query Side에서 사용자 정보 조회하여 활성 세션 ID 가져오기
             String sessionId = userQueryService.findById(userId)
                     .map(userView -> userView.getActiveSessionId())
                     .orElse("UNKNOWN-SESSION");
-            
+
             // Command를 통한 로그아웃 처리
             try {
                 LogoutUserCommand logoutCommand = new LogoutUserCommand(
@@ -319,29 +388,29 @@ public class AuthService {
                         "USER_LOGOUT",
                         extractClientIp(request)
                 );
-                
+
                 commandGateway.sendAndWait(logoutCommand);
                 log.info("Logout command sent successfully for user: {}", username);
-                
+
             } catch (Exception e) {
                 log.warn("Failed to send logout command, continuing with token invalidation: {}", e.getMessage());
             }
-            
+
             // Refresh Token 삭제
             String refreshTokenKey = "refresh_token:" + userId;
             redisTemplate.delete(refreshTokenKey);
-            
+
             // Access Token 블랙리스트 추가 (토큰 만료까지)
             Date expiration = jwtTokenProvider.getExpirationDateFromToken(token);
             long ttl = expiration.getTime() - System.currentTimeMillis();
-            
+
             if (ttl > 0) {
                 String blacklistKey = "blacklist_token:" + token;
                 redisTemplate.opsForValue().set(blacklistKey, "true", ttl, TimeUnit.MILLISECONDS);
             }
-            
+
             log.info("Token invalidated successfully - userId: {}, username: {}", userId, username);
-            
+
         } catch (Exception e) {
             log.error("Failed to invalidate token: {}", e.getMessage(), e);
         }
@@ -375,16 +444,16 @@ public class AuthService {
     public List<UserView> getAllUsers() {
         return userQueryService.findActiveUsers(); // 활성 사용자만 반환
     }
-    
+
     /**
      * 사용자 등록 (Event-Driven 방식)
      */
-    public String registerUser(String username, String password, String name, 
+    public String registerUser(String username, String password, String name,
                              String email, String phone, Set<String> roles) {
         try {
             String userId = "USER-" + UUID.randomUUID().toString();
             String hashedPassword = passwordEncoder.encode(password); // 비밀번호 해시화
-            
+
             RegisterUserCommand command = new RegisterUserCommand(
                     UserId.of(userId),
                     username,
@@ -395,18 +464,18 @@ public class AuthService {
                     roles,
                     UserId.of("SYSTEM")
             );
-            
+
             commandGateway.sendAndWait(command);
-            
+
             log.info("User registered successfully: {} with ID: {}", username, userId);
             return userId;
-            
+
         } catch (Exception e) {
             log.error("Failed to register user: {}", username, e);
             throw new IllegalArgumentException("사용자 등록에 실패하였습니다: " + e.getMessage());
         }
     }
-    
+
     /**
      * 사용자 권한 부여 (Event-Driven 방식)
      */
@@ -418,17 +487,17 @@ public class AuthService {
                     UserId.of(grantedBy),
                     reason
             );
-            
+
             commandGateway.sendAndWait(command);
-            
+
             log.info("Role granted successfully: {} to user: {} by: {}", roleName, userId, grantedBy);
-            
+
         } catch (Exception e) {
             log.error("Failed to grant role: {} to user: {}", roleName, userId, e);
             throw new IllegalArgumentException("권한 부여에 실패하였습니다: " + e.getMessage());
         }
     }
-    
+
     /**
      * 계정 잠금 (Event-Driven 방식)
      */
@@ -440,11 +509,11 @@ public class AuthService {
                     details,
                     lockedBy != null ? UserId.of(lockedBy) : null
             );
-            
+
             commandGateway.sendAndWait(command);
-            
+
             log.info("Account locked successfully: {} by: {} - reason: {}", userId, lockedBy, reason);
-            
+
         } catch (Exception e) {
             log.error("Failed to lock account: {}", userId, e);
             throw new IllegalArgumentException("계정 잠금에 실패하였습니다: " + e.getMessage());
@@ -452,7 +521,7 @@ public class AuthService {
     }
 
     // Response DTOs
-    
+
     @lombok.Builder
     @lombok.Data
     public static class AuthResult {
@@ -463,15 +532,16 @@ public class AuthService {
         private List<String> roles;
         private String accessToken;
         private String refreshToken;
+        private String kiwoomAccessToken; // 키움증권 액세스 토큰 (로그인 시 자동 발급)
     }
-    
+
     @lombok.Builder
     @lombok.Data
     public static class TokenPair {
         private String accessToken;
         private String refreshToken;
     }
-    
+
     /**
      * 2FA 인증용 사용자 정보로 JWT 토큰 생성
      */
@@ -480,48 +550,48 @@ public class AuthService {
         return jwtTokenProvider.generateAccessToken(
                 user.getUserId(), user.getUsername(), roles);
     }
-    
+
     /**
      * 임시 세션 토큰 생성 (2FA 대기 중)
      */
     private String generateTempSessionToken(String userId, String username) {
         String tempToken = "TEMP-" + UUID.randomUUID().toString();
-        
+
         // Redis에 임시 토큰 저장 (5분 TTL)
         String tempTokenKey = "temp_session:" + tempToken;
         Map<String, String> sessionData = new HashMap<>();
         sessionData.put("userId", userId);
         sessionData.put("username", username);
         sessionData.put("timestamp", String.valueOf(System.currentTimeMillis()));
-        
+
         redisTemplate.opsForHash().putAll(tempTokenKey, sessionData);
         redisTemplate.expire(tempTokenKey, 5, TimeUnit.MINUTES);
-        
+
         log.info("Temporary session token generated for user: {}", username);
         return tempToken;
     }
-    
+
     /**
      * 임시 세션 토큰 검증 및 사용자 정보 반환
      */
     public TempSessionInfo validateTempSessionToken(String tempToken) {
         String tempTokenKey = "temp_session:" + tempToken;
         Map<Object, Object> sessionData = redisTemplate.opsForHash().entries(tempTokenKey);
-        
+
         if (sessionData.isEmpty()) {
             throw new IllegalArgumentException("임시 세션이 만료되었거나 존재하지 않습니다");
         }
-        
+
         String userId = (String) sessionData.get("userId");
         String username = (String) sessionData.get("username");
-        
+
         return TempSessionInfo.builder()
                 .userId(userId)
                 .username(username)
                 .tempToken(tempToken)
                 .build();
     }
-    
+
     /**
      * 임시 세션 토큰 제거
      */
@@ -529,7 +599,7 @@ public class AuthService {
         String tempTokenKey = "temp_session:" + tempToken;
         redisTemplate.delete(tempTokenKey);
     }
-    
+
     /**
      * 2FA 인증 완료 후 최종 인증 수행
      */
@@ -538,7 +608,7 @@ public class AuthService {
         String sessionId = "SESSION-" + UUID.randomUUID().toString();
         String clientIp = extractClientIp(request);
         String userAgent = extractUserAgent(request);
-        
+
         try {
             // 로그인 성공 Command 전송
             AuthenticateUserCommand authCommand = new AuthenticateUserCommand(
@@ -549,40 +619,71 @@ public class AuthService {
                     clientIp,
                     userAgent
             );
-            
+
             commandGateway.sendAndWait(authCommand);
-            
+
+            // 2FA 인증 성공 시 실패 횟수 초기화 (CRITICAL SECURITY FIX)
+            int resetRows = userViewRepository.resetFailureCount(user.getUsername());
+            log.info("Reset failure count for user: {} (updated rows: {}) - 2FA authentication completed", user.getUsername(), resetRows);
+
             // JWT 토큰 생성
             List<String> roles = new ArrayList<>(user.getRoles());
             String accessToken = jwtTokenProvider.generateAccessToken(
                     user.getUserId(), user.getUsername(), roles);
             String refreshToken = jwtTokenProvider.generateRefreshToken(
                     user.getUserId(), user.getUsername());
-            
+
             // Refresh Token을 Redis에 저장 (7일 TTL)
             String refreshTokenKey = "refresh_token:" + user.getUserId();
             redisTemplate.opsForValue().set(refreshTokenKey, refreshToken, 7, TimeUnit.DAYS);
-            
+
+            // 키움 토큰 발급 (로그인 시 자동 발급)
+            String kiwoomAccessToken = null;
+            try {
+                // 사용자의 기본 거래 모드 조회
+                boolean isRealMode = userKiwoomSettingsService.getUserDefaultRealMode(user.getUserId());
+
+                log.info("🔑 Issuing Kiwoom token for user {} in {} mode",
+                        user.getUsername(), isRealMode ? "real" : "sandbox");
+
+                // 키움 토큰 발급
+                kiwoomAccessToken = kiwoomTokenService.issueKiwoomToken(user.getUserId(), isRealMode);
+
+                log.info("✅ Kiwoom token issued successfully for user: {} (mode: {})",
+                        user.getUsername(), isRealMode ? "real" : "sandbox");
+
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to issue Kiwoom token for user {} (login still successful): {}",
+                        user.getUsername(), e.getMessage());
+                // 키움 토큰 발급 실패는 로그인 자체를 실패시키지 않음 (사용자가 나중에 수동으로 발급 가능)
+            }
+
             log.info("Authentication completed successfully for user: {}", user.getUsername());
-            
-            return AuthResult.builder()
+
+            AuthResult.AuthResultBuilder resultBuilder = AuthResult.builder()
                     .userId(user.getUserId())
                     .username(user.getUsername())
                     .name(user.getName())
                     .email(user.getEmail())
                     .roles(roles)
                     .accessToken(accessToken)
-                    .refreshToken(refreshToken)
-                    .build();
-                    
+                    .refreshToken(refreshToken);
+
+            // 키움 토큰이 성공적으로 발급된 경우 추가
+            if (kiwoomAccessToken != null) {
+                resultBuilder.kiwoomAccessToken(kiwoomAccessToken);
+            }
+
+            return resultBuilder.build();
+
         } catch (Exception e) {
             log.error("Failed to complete authentication for user: {}", user.getUsername(), e);
             throw new IllegalArgumentException("인증 완료에 실패하였습니다: " + e.getMessage());
         }
     }
-    
+
     // Additional DTOs for 2FA
-    
+
     @lombok.Builder
     @lombok.Data
     public static class PreAuthResult {
@@ -592,7 +693,7 @@ public class AuthService {
         private String tempSessionToken;
         private AuthResult authResult;
     }
-    
+
     @lombok.Builder
     @lombok.Data
     public static class TempSessionInfo {

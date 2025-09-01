@@ -2,7 +2,6 @@ package com.quantum.trading.platform.shared.event;
 
 import com.quantum.trading.platform.shared.value.UserId;
 import com.quantum.trading.platform.shared.value.KiwoomAccountId;
-import com.quantum.trading.platform.shared.value.EncryptedValue;
 import java.time.Instant;
 
 /**
@@ -10,13 +9,15 @@ import java.time.Instant;
  * 
  * - userId: 할당받은 사용자 ID
  * - kiwoomAccountId: 할당된 키움증권 계좌번호
- * - encryptedCredentials: 암호화된 API 인증 정보
+ * - clientId: 클라이언트 ID (plain text)
+ * - clientSecret: 클라이언트 시크릿 (plain text)
  * - assignedAt: 할당 시점
  */
 public record KiwoomAccountAssignedEvent(
     UserId userId,
     KiwoomAccountId kiwoomAccountId,
-    EncryptedValue encryptedCredentials,
+    String clientId,
+    String clientSecret,
     Instant assignedAt
 ) {
     public KiwoomAccountAssignedEvent {
@@ -28,8 +29,12 @@ public record KiwoomAccountAssignedEvent(
             throw new IllegalArgumentException("KiwoomAccountId cannot be null");
         }
         
-        if (encryptedCredentials == null) {
-            throw new IllegalArgumentException("Encrypted credentials cannot be null");
+        if (clientId == null || clientId.trim().isEmpty()) {
+            throw new IllegalArgumentException("ClientId cannot be null or empty");
+        }
+        
+        if (clientSecret == null || clientSecret.trim().isEmpty()) {
+            throw new IllegalArgumentException("ClientSecret cannot be null or empty");
         }
         
         if (assignedAt == null) {
@@ -40,12 +45,14 @@ public record KiwoomAccountAssignedEvent(
     public static KiwoomAccountAssignedEvent createNow(
         UserId userId,
         KiwoomAccountId kiwoomAccountId,
-        EncryptedValue encryptedCredentials
+        String clientId,
+        String clientSecret
     ) {
         return new KiwoomAccountAssignedEvent(
             userId,
             kiwoomAccountId,
-            encryptedCredentials,
+            clientId,
+            clientSecret,
             Instant.now()
         );
     }

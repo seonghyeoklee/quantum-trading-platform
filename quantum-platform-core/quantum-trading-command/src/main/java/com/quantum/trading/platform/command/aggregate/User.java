@@ -5,7 +5,6 @@ import com.quantum.trading.platform.shared.event.*;
 import com.quantum.trading.platform.shared.value.UserId;
 import com.quantum.trading.platform.shared.value.UserStatus;
 import com.quantum.trading.platform.shared.value.KiwoomAccountId;
-import com.quantum.trading.platform.shared.value.EncryptedValue;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.axonframework.commandhandling.CommandHandler;
@@ -38,7 +37,6 @@ public class User {
     private String phone;
     private UserStatus status;
     private Set<String> roles;
-    private int failedLoginAttempts;
     private Instant lastLoginAt;
     private Instant passwordChangedAt;
     private String activeSessionId;
@@ -52,10 +50,11 @@ public class User {
 
     // Kiwoom Account Management
     private KiwoomAccountId kiwoomAccountId;
-    private EncryptedValue encryptedKiwoomCredentials;
+    private String kiwoomClientId;
+    private String kiwoomClientSecret;
     private Instant kiwoomAccountAssignedAt;
 
-    // 암호화 로직은 Application Layer(AuthService)에서 처리
+    // 키움 API 키는 plain text로 저장 (보안은 Application Layer에서 처리)
 
     /**
      * 사용자 등록 처리
@@ -89,51 +88,11 @@ public class User {
      */
     @CommandHandler
     public void handle(AuthenticateUserCommand command) {
-        log.info("Processing authentication for user: {}", command.username());
+        log.info("Processing authentication success for user: {}", command.username());
 
         // Bean Validation이 자동으로 처리되므로 validate() 호출 불필요
-        // 계정 상태 확인
-        if (!canAttemptLogin()) {
-            String reason = getLoginFailureReason();
-
-            AggregateLifecycle.apply(UserLoginFailedEvent.create(
-                    this.userId,
-                    command.username(),
-                    reason,
-                    command.ipAddress(),
-                    command.userAgent(),
-                    this.failedLoginAttempts + 1,
-                    this.status == UserStatus.LOCKED
-            ));
-
-            log.warn("Login failed for user {} - {}", command.username(), reason);
-            return;
-        }
-
-        // 임시: 테스트를 위한 비밀번호 검증 (실제로는 Application Layer에서 수행)
-        if (!isPasswordValid(command.password())) {
-            AggregateLifecycle.apply(UserLoginFailedEvent.create(
-                    this.userId,
-                    command.username(),
-                    "Invalid password",
-                    command.ipAddress(),
-                    command.userAgent(),
-                    this.failedLoginAttempts + 1,
-                    this.failedLoginAttempts + 1 >= 5
-            ));
-
-            if (this.failedLoginAttempts + 1 >= 5) {
-                AggregateLifecycle.apply(UserAccountLockedEvent.createAutoLock(
-                        this.userId,
-                        this.username,
-                        "TOO_MANY_FAILED_ATTEMPTS",
-                        "Account locked after 5 failed login attempts"
-                ));
-            }
-            return;
-        }
-
-        // 비밀번호가 맞으면 로그인 성공 이벤트 발행
+        // Application Layer에서 이미 모든 검증 완료 - DB 기반 검증으로 전환됨
+        // Aggregate에서는 성공 이벤트만 발행
         AggregateLifecycle.apply(UserLoginSucceededEvent.create(
                 this.userId,
                 this.username,
@@ -143,40 +102,7 @@ public class User {
                 this.lastLoginAt
         ));
 
-        log.info("User {} logged in successfully", command.username());
-    }
-
-    /**
-     * 로그인 실패 처리 - Application Layer에서 호출
-     */
-    @CommandHandler
-    public void handle(RecordLoginFailureCommand command) {
-        log.info("Recording login failure for user: {}", this.username);
-
-        // 로그인 실패 횟수 증가
-        boolean willBeLocked = (this.failedLoginAttempts + 1) >= 5;
-
-        AggregateLifecycle.apply(UserLoginFailedEvent.create(
-                this.userId,
-                this.username,
-                command.reason(),
-                command.ipAddress(),
-                command.userAgent(),
-                this.failedLoginAttempts + 1,
-                willBeLocked
-        ));
-
-        // 5회 실패 시 계정 잠금
-        if (willBeLocked) {
-            AggregateLifecycle.apply(UserAccountLockedEvent.createAutoLock(
-                    this.userId,
-                    this.username,
-                    "TOO_MANY_FAILED_ATTEMPTS",
-                    "Account locked after 5 failed login attempts"
-            ));
-        }
-
-        log.warn("Login failure recorded for user: {}, attempts: {}", this.username, this.failedLoginAttempts + 1);
+        log.info("User {} logged in successfully via AuthenticateUserCommand", command.username());
     }
 
     /**
@@ -287,13 +213,12 @@ public class User {
             throw new IllegalStateException("User already has a Kiwoom account assigned");
         }
 
-        // 키움증권 계좌 할당 이벤트 발행 (암호화는 Application Layer에서 수행)
-        // TODO: Application Layer에서 실제 암호화된 credentials로 교체
-        EncryptedValue tempEncryptedCredentials = EncryptedValue.of("TEMP_ENCRYPTED", "TEMP_SALT");
+        // 키움증권 계좌 할당 이벤트 발행 (plain text)
         AggregateLifecycle.apply(KiwoomAccountAssignedEvent.createNow(
                 this.userId,
                 command.kiwoomAccountId(),
-                tempEncryptedCredentials
+                command.apiCredentials().getClientId(),
+                command.apiCredentials().getClientSecret()
         ));
 
         log.info("Kiwoom account {} assigned to user {}", command.kiwoomAccountId().value(), this.username);
@@ -315,12 +240,11 @@ public class User {
             throw new IllegalStateException("No Kiwoom account assigned to update credentials");
         }
 
-        // 키움증권 인증 정보 업데이트 이벤트 발행 (암호화는 Application Layer에서 수행)
-        // TODO: Application Layer에서 실제 암호화된 credentials로 교체
-        EncryptedValue tempUpdatedCredentials = EncryptedValue.of("TEMP_UPDATED_ENCRYPTED", "TEMP_UPDATED_SALT");
+        // 키움증권 인증 정보 업데이트 이벤트 발행 (plain text)
         AggregateLifecycle.apply(KiwoomCredentialsUpdatedEvent.createNow(
                 this.userId,
-                tempUpdatedCredentials
+                command.newApiCredentials().getClientId(),
+                command.newApiCredentials().getClientSecret()
         ));
 
         log.info("Kiwoom credentials updated for user {}", this.username);
@@ -470,6 +394,7 @@ public class User {
                 this.username, remainingCodes);
     }
 
+
     // Event Sourcing Handlers - 상태 복원 로직
 
     @EventSourcingHandler
@@ -482,7 +407,6 @@ public class User {
         this.phone = event.phone();
         this.status = UserStatus.ACTIVE;
         this.roles = new HashSet<>(event.initialRoles());
-        this.failedLoginAttempts = 0;
         this.lastLoginAt = null;
         this.passwordChangedAt = event.registeredAt();
         this.activeSessionId = null;
@@ -496,13 +420,13 @@ public class User {
 
         // Kiwoom Account fields 초기화
         this.kiwoomAccountId = null;
-        this.encryptedKiwoomCredentials = null;
+        this.kiwoomClientId = null;
+        this.kiwoomClientSecret = null;
         this.kiwoomAccountAssignedAt = null;
     }
 
     @EventSourcingHandler
     public void on(UserLoginSucceededEvent event) {
-        this.failedLoginAttempts = 0;
         this.lastLoginAt = event.loginTime();
         this.activeSessionId = event.sessionId();
         this.sessionStartTime = event.loginTime();
@@ -510,10 +434,9 @@ public class User {
 
     @EventSourcingHandler
     public void on(UserLoginFailedEvent event) {
-        this.failedLoginAttempts = event.failedAttempts();
-        if (event.accountLocked()) {
-            this.status = UserStatus.LOCKED;
-        }
+        // 로그인 실패 처리는 이제 Application Layer에서 DB 기반으로 처리됨
+        // Event Sourcing에서는 상태를 변경하지 않음
+        log.debug("UserLoginFailedEvent received but ignored - using DB-based failure tracking");
     }
 
     @EventSourcingHandler
@@ -558,19 +481,22 @@ public class User {
     @EventSourcingHandler
     public void on(KiwoomAccountAssignedEvent event) {
         this.kiwoomAccountId = event.kiwoomAccountId();
-        this.encryptedKiwoomCredentials = event.encryptedCredentials();
+        this.kiwoomClientId = event.clientId();
+        this.kiwoomClientSecret = event.clientSecret();
         this.kiwoomAccountAssignedAt = event.assignedAt();
     }
 
     @EventSourcingHandler
     public void on(KiwoomCredentialsUpdatedEvent event) {
-        this.encryptedKiwoomCredentials = event.newEncryptedCredentials();
+        this.kiwoomClientId = event.newClientId();
+        this.kiwoomClientSecret = event.newClientSecret();
     }
 
     @EventSourcingHandler
     public void on(KiwoomAccountRevokedEvent event) {
         this.kiwoomAccountId = null;
-        this.encryptedKiwoomCredentials = null;
+        this.kiwoomClientId = null;
+        this.kiwoomClientSecret = null;
         this.kiwoomAccountAssignedAt = null;
     }
 
@@ -579,6 +505,7 @@ public class User {
         // API 사용 로그는 상태에 영향을 주지 않음
         // 실제로는 별도의 집계나 통계를 위해 사용될 수 있음
     }
+
 
     // 비즈니스 로직 메서드들
 
@@ -594,7 +521,7 @@ public class User {
     }
 
     private boolean canAttemptLogin() {
-        return this.status == UserStatus.ACTIVE && this.failedLoginAttempts < 5;
+        return this.status == UserStatus.ACTIVE;
     }
 
     private String getLoginFailureReason() {
@@ -606,9 +533,6 @@ public class User {
         }
         if (this.status == UserStatus.DELETED) {
             return "Account is deleted";
-        }
-        if (this.failedLoginAttempts >= 5) {
-            return "Too many failed attempts";
         }
         return "Unknown error";
     }

@@ -233,6 +233,8 @@ services:
       - KIWOOM_TRADING_MODE=sandbox
       - ENABLE_METRICS=true
       - TEMPO_ENDPOINT=http://quantum-tempo:4318
+      - NAVER_CLIENT_ID=N3OzgKOdUC_6rHtsjOrt
+      - NAVER_CLIENT_SECRET=MyagRrSctX
       # 환경변수는 .env.docker에서 로드됨:
       # - KIWOOM_SANDBOX_APP_KEY
       # - KIWOOM_SANDBOX_APP_SECRET  

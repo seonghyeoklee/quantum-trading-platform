@@ -2,12 +2,24 @@
 종목정보 관련 데이터 모델 (ka10001, ka10099 API)
 주식 거래주문 관련 데이터 모델 (kt10000~kt10003 API)
 키움 API 스펙에 완전히 맞춰진 최소한의 모델
+Java 인증 정보 전달 지원
 """
 from typing import Optional
 from pydantic import BaseModel, Field, validator
 
 
-class StockInfoRequest(BaseModel):
+class BaseKiwoomRequest(BaseModel):
+    """키움 API 요청 기본 모델 (Java 인증 정보 전달 지원)"""
+    
+    # Java에서 전달되는 키움 인증 정보 (선택적)
+    kiwoom_access_token: Optional[str] = Field(None, description="Java에서 전달된 키움 액세스 토큰")
+    kiwoom_app_key: Optional[str] = Field(None, description="Java에서 전달된 키움 API 키")
+    kiwoom_app_secret: Optional[str] = Field(None, description="Java에서 전달된 키움 API 시크릿")
+    kiwoom_base_url: Optional[str] = Field(None, description="Java에서 전달된 키움 베이스 URL")
+    dry_run: Optional[bool] = Field(None, description="모드 지정 (true: 모의투자, false: 실전투자)")
+
+
+class StockInfoRequest(BaseKiwoomRequest):
     """종목 기본정보 요청 모델 (ka10001)"""
     
     stk_cd: str = Field(..., max_length=20, description="종목코드 (거래소별 종목코드)")
@@ -80,7 +92,7 @@ class ProgramTradeRequest(BaseModel):
 
 # ============== 주식 거래주문 관련 API 모델 ==============
 
-class StockBuyOrderRequest(BaseModel):
+class StockBuyOrderRequest(BaseKiwoomRequest):
     """주식 매수주문 요청 모델 (kt10000)"""
     
     dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")
@@ -117,7 +129,7 @@ class StockBuyOrderRequest(BaseModel):
         }
 
 
-class StockSellOrderRequest(BaseModel):
+class StockSellOrderRequest(BaseKiwoomRequest):
     """주식 매도주문 요청 모델 (kt10001)"""
     
     dmst_stex_tp: str = Field(..., max_length=3, description="국내거래소구분 (KRX, NXT, SOR)")

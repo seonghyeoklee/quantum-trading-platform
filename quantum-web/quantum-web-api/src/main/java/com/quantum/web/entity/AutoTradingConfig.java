@@ -87,16 +87,6 @@ public class AutoTradingConfig {
     private LocalDateTime updatedAt;
 
     /**
-     * 복합 인덱스 설정
-     * 활성화된 설정에서 전략명+종목으로 유니크 제약
-     */
-    @Table(indexes = {
-            @Index(name = "idx_strategy_symbol_active", columnList = "strategy_name, symbol, is_active"),
-            @Index(name = "idx_symbol_active", columnList = "symbol, is_active"),
-            @Index(name = "idx_created_at", columnList = "created_at")
-    })
-    
-    /**
      * JPA 생명주기 콜백
      */
     @PrePersist
@@ -114,10 +104,6 @@ public class AutoTradingConfig {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * 비즈니스 로직 메서드
-     */
-    
     /**
      * 설정이 유효한지 검증
      */
@@ -138,7 +124,7 @@ public class AutoTradingConfig {
         if (capital == null || maxPositionSize == null) {
             return BigDecimal.ZERO;
         }
-        
+
         return capital.multiply(BigDecimal.valueOf(maxPositionSize))
                      .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
     }
@@ -150,10 +136,10 @@ public class AutoTradingConfig {
         if (entryPrice == null || stopLossPercent == null) {
             return BigDecimal.ZERO;
         }
-        
+
         BigDecimal stopLossAmount = entryPrice.multiply(stopLossPercent)
                                             .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
-        
+
         return entryPrice.subtract(stopLossAmount);
     }
 
@@ -164,10 +150,10 @@ public class AutoTradingConfig {
         if (entryPrice == null || takeProfitPercent == null) {
             return BigDecimal.ZERO;
         }
-        
+
         BigDecimal takeProfitAmount = entryPrice.multiply(takeProfitPercent)
                                                .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
-        
+
         return entryPrice.add(takeProfitAmount);
     }
 
@@ -176,7 +162,7 @@ public class AutoTradingConfig {
      */
     public String getSummary() {
         return String.format("[%s] %s - 자본: %s원, 포지션: %d%%, 손절: %.2f%%, 익절: %.2f%%",
-                symbol, strategyName, capital.toPlainString(), maxPositionSize, 
+                symbol, strategyName, capital.toPlainString(), maxPositionSize,
                 stopLossPercent, takeProfitPercent);
     }
 }

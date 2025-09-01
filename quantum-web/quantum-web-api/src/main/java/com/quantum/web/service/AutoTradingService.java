@@ -318,11 +318,15 @@ public class AutoTradingService {
             throw new IllegalArgumentException("최대 포지션 크기는 1-100% 사이여야 합니다");
         }
 
-        if (request.stopLossPercent() == null || request.stopLossPercent() <= 0 || request.stopLossPercent() >= 50) {
+        if (request.stopLossPercent() == null || 
+            request.stopLossPercent().compareTo(BigDecimal.ZERO) <= 0 || 
+            request.stopLossPercent().compareTo(BigDecimal.valueOf(50)) >= 0) {
             throw new IllegalArgumentException("손절 비율은 0-50% 사이여야 합니다");
         }
 
-        if (request.takeProfitPercent() == null || request.takeProfitPercent() <= 0 || request.takeProfitPercent() >= 100) {
+        if (request.takeProfitPercent() == null || 
+            request.takeProfitPercent().compareTo(BigDecimal.ZERO) <= 0 || 
+            request.takeProfitPercent().compareTo(BigDecimal.valueOf(100)) >= 0) {
             throw new IllegalArgumentException("익절 비율은 0-100% 사이여야 합니다");
         }
 

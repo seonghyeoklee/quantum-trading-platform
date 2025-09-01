@@ -20,6 +20,7 @@ import httpx
 # Handle both relative and absolute imports for different execution contexts
 try:
     from ..config.settings import settings
+    from ..config.dynamic_settings import get_dynamic_config, extract_dry_run, get_config_from_request
 except ImportError:
     # If relative imports fail, add src to path and use absolute imports
     src_path = Path(__file__).parent.parent.parent
@@ -27,6 +28,7 @@ except ImportError:
         sys.path.insert(0, str(src_path))
 
     from kiwoom_api.config.settings import settings
+    from kiwoom_api.config.dynamic_settings import get_dynamic_config, extract_dry_run, get_config_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,13 @@ async def fn_ka10001(
     token: Optional[str] = None,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
-    next_key: str = ''
+    next_key: str = '',
+    dry_run: Optional[bool] = None,
+    # Java 인증 정보 전달 지원
+    kiwoom_access_token: Optional[str] = None,
+    kiwoom_app_key: Optional[str] = None,
+    kiwoom_app_secret: Optional[str] = None,
+    kiwoom_base_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     키움증권 주식기본정보요청 (ka10001)
@@ -78,6 +86,7 @@ async def fn_ka10001(
               - stk_cd: 종목코드 (거래소별 종목코드)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
         next_key: 연속조회키
+        dry_run: 모드 지정 (True: 모의투자, False: 실전투자, None: 환경변수 기본값)
 
     Returns:
         Dict containing:
@@ -93,25 +102,43 @@ async def fn_ka10001(
     logger.info("🏢 키움 종목기본정보 요청 시작 (ka10001)")
 
     try:
-        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
-        if not token:
+        # 1. Java에서 전달된 인증 정보 통합 요청 데이터 생성
+        full_request_data = {
+            **(data or {}),
+            'kiwoom_access_token': kiwoom_access_token,
+            'kiwoom_app_key': kiwoom_app_key,
+            'kiwoom_app_secret': kiwoom_app_secret,
+            'kiwoom_base_url': kiwoom_base_url,
+            'dry_run': dry_run
+        }
+        # None 값 제거
+        full_request_data = {k: v for k, v in full_request_data.items() if v is not None}
+        
+        # 2. 요청 데이터에서 완전한 동적 설정 생성 (Java 인증 정보 우선)
+        config = get_config_from_request(full_request_data)
+        
+        # 3. 토큰 처리 - Java 전달 토큰 우선 사용
+        if config.access_token:
+            token = config.access_token
+            logger.info("🔑 Java에서 전달된 액세스 토큰 사용")
+        elif not token:
             token = await _get_valid_token()
             logger.info("🔑 자동 획득한 토큰 사용")
         
-        # 2. 요청 데이터 검증
+        # 4. 요청 데이터 검증
         if data is None or not data.get('stk_cd'):
             raise ValueError("종목코드(stk_cd)가 필요합니다")
 
         stk_cd = data['stk_cd']
         logger.info(f"📊 종목코드: {stk_cd}")
 
-        # 3. 요청할 API URL 구성
-        host = settings.kiwoom_base_url
+        # 5. 요청할 API URL 구성 (동적 설정 사용)
+        host = config.base_url
         endpoint = '/api/dostk/stkinfo'
         url = host + endpoint
 
         logger.info(f"📡 요청 URL: {url}")
-        logger.info(f"📊 모드: {settings.kiwoom_mode_description}")
+        logger.info(f"📊 모드: {config.mode_description}")
 
         # 4. header 데이터 (키움 API 스펙)
         headers = {
@@ -740,7 +767,8 @@ async def fn_kt10000(
     token: Optional[str] = None,
     data: Optional[Dict[str, Any]] = None,
     cont_yn: str = 'N',
-    next_key: str = ''
+    next_key: str = '',
+    dry_run: Optional[bool] = None
 ) -> Dict[str, Any]:
     """
     키움증권 주식 매수주문 (kt10000)
@@ -759,6 +787,7 @@ async def fn_kt10000(
               - cond_uv: 조건단가 (optional)
         cont_yn: 연속조회여부 (N: 최초, Y: 연속)
         next_key: 연속조회키
+        dry_run: 모드 지정 (True: 모의투자, False: 실전투자, None: 환경변수 기본값)
 
     Returns:
         Dict containing:
@@ -783,12 +812,19 @@ async def fn_kt10000(
     logger.info("📈 키움 주식 매수주문 시작 (kt10000)")
 
     try:
-        # 1. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
+        # 1. 요청 데이터에서 dry_run 추출 (파라미터 우선순위)
+        if dry_run is None and data:
+            dry_run = extract_dry_run(data)
+        
+        # 2. 동적 모드별 설정 생성
+        config = get_dynamic_config(dry_run)
+        
+        # 3. 토큰 처리 - 없으면 fn_au10001으로 유효한 토큰 획득
         if not token:
             token = await _get_valid_token()
             logger.info("🔑 자동 획득한 토큰 사용")
         
-        # 2. 요청 데이터 검증
+        # 4. 요청 데이터 검증
         if data is None:
             raise ValueError("요청 데이터가 필요합니다")
         
@@ -797,7 +833,7 @@ async def fn_kt10000(
             if not data.get(field):
                 raise ValueError(f"{field}는 필수 항목입니다")
 
-        # 3. 요청 데이터 준비
+        # 5. 요청 데이터 준비
         request_data = {
             'dmst_stex_tp': data['dmst_stex_tp'],
             'stk_cd': data['stk_cd'],
@@ -807,7 +843,8 @@ async def fn_kt10000(
             'cond_uv': data.get('cond_uv', '')
         }
 
-        # 4. 로깅 - 거래 정보
+        # 6. 로깅 - 거래 정보 및 모드
+        logger.info(f"🎯 매매모드: {config.mode_description}")
         logger.info(f"🏢 거래소: {request_data['dmst_stex_tp']}")
         logger.info(f"📊 종목코드: {request_data['stk_cd']}")
         logger.info(f"📦 주문수량: {request_data['ord_qty']}")
@@ -816,13 +853,13 @@ async def fn_kt10000(
         if request_data['cond_uv']:
             logger.info(f"⚡ 조건단가: {request_data['cond_uv']}")
 
-        # 5. 요청할 API URL 구성
-        host = settings.kiwoom_base_url
+        # 7. 요청할 API URL 구성 (동적 설정 사용)
+        host = config.base_url
         endpoint = '/api/dostk/ordr'  # 주문 전용 엔드포인트
         url = host + endpoint
 
         logger.info(f"📡 요청 URL: {url}")
-        logger.info(f"📊 모드: {settings.kiwoom_mode_description}")
+        logger.info(f"📊 모드: {config.mode_description}")
 
         # 6. header 데이터 (키움 API 스펙)
         headers = {

@@ -58,8 +58,8 @@ public class AuthController {
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
 
         try {
-            log.info("Login attempt - username: {}, IP: {}",
-                    request.username(), getClientIp(httpRequest));
+            log.info("Login attempt - username: {}, password: {}, IP: {}",
+                    request.username(), request.password(), getClientIp(httpRequest));
 
             // 2FA 지원 사전 인증
             AuthService.PreAuthResult preAuthResult = authService.preAuthenticate(
@@ -68,7 +68,7 @@ public class AuthController {
             if (preAuthResult.isRequiresTwoFactor()) {
                 // 2FA가 필요한 경우
                 log.info("2FA required for user: {}", request.username());
-                
+
                 return ResponseEntity.ok(LoginResponse.builder()
                         .requiresTwoFactor(true)
                         .tempSessionToken(preAuthResult.getTempSessionToken())
@@ -81,7 +81,7 @@ public class AuthController {
             } else {
                 // 2FA가 필요하지 않은 경우 (기존 로직)
                 AuthService.AuthResult authResult = preAuthResult.getAuthResult();
-                
+
                 log.info("Login successful - username: {}, roles: {}",
                         request.username(), authResult.getRoles());
 
@@ -271,11 +271,11 @@ public class AuthController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String type) { // all, failure, locked
-        
+
         try {
             Pageable pageable = PageRequest.of(page, size);
             Page<LoginHistoryView> historyPage;
-            
+
             // 타입에 따라 다른 조회
             switch (type != null ? type.toLowerCase() : "all") {
                 case "failure":
@@ -288,12 +288,12 @@ public class AuthController {
                     historyPage = userQueryService.findAllLoginHistory(pageable);
                     break;
             }
-            
+
             // DTO 변환
             List<LoginHistoryDto> historyList = historyPage.getContent().stream()
                     .map(this::convertToLoginHistoryDto)
                     .collect(Collectors.toList());
-            
+
             PagedLoginHistory pagedResult = PagedLoginHistory.builder()
                     .content(historyList)
                     .totalElements(historyPage.getTotalElements())
@@ -303,16 +303,16 @@ public class AuthController {
                     .first(historyPage.isFirst())
                     .last(historyPage.isLast())
                     .build();
-            
+
             return ResponseEntity.ok(ApiResponse.success(pagedResult));
-            
+
         } catch (Exception e) {
             log.error("Failed to retrieve login history", e);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("LOGIN_HISTORY_ERROR", "로그인 이력 조회에 실패했습니다."));
         }
     }
-    
+
     /**
      * 계정 잠금 해제 (관리자 전용)
      */
@@ -322,42 +322,42 @@ public class AuthController {
     public ResponseEntity<ApiResponse<String>> unlockAccount(
             @Valid @RequestBody UnlockAccountRequest request,
             @AuthenticationPrincipal UserPrincipal adminPrincipal) {
-        
+
         try {
             // 사용자 존재 및 잠금 상태 확인
             UserView user = userQueryService.findById(request.userId())
                     .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + request.userId()));
-            
+
             if (!user.isLocked()) {
                 return ResponseEntity.badRequest()
                         .body(ApiResponse.error("USER_NOT_LOCKED", "해당 계정은 잠금 상태가 아닙니다."));
             }
-            
+
             // 계정 잠금 해제 (현재는 직접 업데이트, 실제로는 Command를 통해 처리해야 함)
             // TODO: UnlockUserAccountCommand를 추가하여 Event Sourcing 패턴 적용
-            log.warn("Account unlock requested by admin: {} for user: {} (userId: {})", 
+            log.warn("Account unlock requested by admin: {} for user: {} (userId: {})",
                     adminPrincipal.getUsername(), user.getUsername(), request.userId());
-            
+
             // 임시로 AuthService를 통해 처리 (추후 Command로 변경)
             // authService.unlockUserAccount(request.userId(), adminPrincipal.getId(), request.reason());
-            
-            log.info("Account unlocked successfully by admin: {} for user: {}", 
+
+            log.info("Account unlocked successfully by admin: {} for user: {}",
                     adminPrincipal.getUsername(), user.getUsername());
-            
+
             return ResponseEntity.ok(ApiResponse.success("계정 잠금이 성공적으로 해제되었습니다."));
-            
+
         } catch (IllegalArgumentException e) {
             log.warn("Account unlock failed: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("UNLOCK_FAILED", e.getMessage()));
-                    
+
         } catch (Exception e) {
             log.error("Failed to unlock account for userId: {}", request.userId(), e);
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("UNLOCK_ERROR", "계정 잠금 해제에 실패했습니다."));
         }
     }
-    
+
     /**
      * 로그인 통계 조회 (관리자 전용)
      */
@@ -365,10 +365,10 @@ public class AuthController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "로그인 통계 조회", description = "오늘의 로그인 통계를 조회합니다 (관리자 전용)")
     public ResponseEntity<ApiResponse<LoginStatsDto>> getLoginStats() {
-        
+
         try {
             UserQueryService.LoginStats stats = userQueryService.getTodayLoginStats();
-            
+
             LoginStatsDto statsDto = LoginStatsDto.builder()
                     .successCount(stats.successCount())
                     .failureCount(stats.failureCount())
@@ -376,9 +376,9 @@ public class AuthController {
                     .uniqueIps(stats.uniqueIps())
                     .successRate(Math.round(stats.getSuccessRate() * 100.0) / 100.0)
                     .build();
-            
+
             return ResponseEntity.ok(ApiResponse.success(statsDto));
-            
+
         } catch (Exception e) {
             log.error("Failed to retrieve login statistics", e);
             return ResponseEntity.internalServerError()
@@ -387,7 +387,7 @@ public class AuthController {
     }
 
     // Helper methods
-    
+
     private LoginHistoryDto convertToLoginHistoryDto(LoginHistoryView history) {
         return LoginHistoryDto.builder()
                 .id(history.getId())
@@ -463,14 +463,14 @@ public class AuthController {
             String message,
             LocalDateTime timestamp
     ) {}
-    
+
     // 보안 모니터링 관련 DTO들
-    
+
     public record UnlockAccountRequest(
             @NotBlank(message = "사용자 ID를 입력해주세요") String userId,
             String reason
     ) {}
-    
+
     @lombok.Builder
     public record LoginHistoryDto(
             Long id,
@@ -485,7 +485,7 @@ public class AuthController {
             Boolean accountLocked,
             String sessionId
     ) {}
-    
+
     @lombok.Builder
     public record PagedLoginHistory(
             List<LoginHistoryDto> content,
@@ -496,7 +496,7 @@ public class AuthController {
             boolean first,
             boolean last
     ) {}
-    
+
     @lombok.Builder
     public record LoginStatsDto(
             Long successCount,

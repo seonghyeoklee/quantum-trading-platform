@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import UserMenu from "@/components/auth/UserMenu";
+import { CompactTradingModeIndicator } from "@/components/layout/TradingModeIndicator";
+import TradingModeToggle from "@/components/layout/TradingModeToggle";
 import { 
   BarChart3, 
   Search,
@@ -16,7 +19,9 @@ import {
   Building,
   BookOpen,
   Bot,
-  Activity
+  Activity,
+  Menu,
+  X
 } from "lucide-react";
 
 interface HeaderProps {
@@ -25,6 +30,7 @@ interface HeaderProps {
 
 export default function Header({ className }: HeaderProps) {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 현재 페이지 확인
   const isHomePage = pathname === '/';
@@ -40,13 +46,26 @@ export default function Header({ className }: HeaderProps) {
       {/* Top Navigation */}
       <div className="px-4 py-2 border-b border-border/50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 md:space-x-6">
+            {/* Mobile Menu Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+            
+            <a 
+              href="/" 
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 hover:scale-105 transition-all duration-200 active:scale-95"
+            >
               <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">Quantum Trading</span>
-            </div>
+              <span className="font-bold text-sm sm:text-lg">Quantum Trading</span>
+            </a>
             
             {/* Navigation Menu */}
             <nav className="hidden md:flex items-center space-x-6">
@@ -132,14 +151,19 @@ export default function Header({ className }: HeaderProps) {
             </nav>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {/* Search */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Search - Mobile Icon Only */}
+            <Button variant="ghost" size="sm" className="md:hidden">
+              <Search className="w-5 h-5" />
+            </Button>
+            
+            {/* Search - Desktop */}
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input 
                 type="text" 
                 placeholder="종목, 지표, 아이디어 검색..." 
-                className="pl-10 pr-4 py-2 w-64 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                className="pl-10 pr-4 py-2 w-48 lg:w-64 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
             
@@ -189,10 +213,12 @@ export default function Header({ className }: HeaderProps) {
             </div>
           </div>
           
-          {/* Current Page Indicator */}
-          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            <Globe className="w-4 h-4" />
-            <span>실시간 데이터</span>
+          {/* Trading Mode & Current Page Indicator */}
+          <div className="flex items-center space-x-4">
+            <TradingModeToggle />
+            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+              <Globe className="w-4 h-4" />
+              <span>실시간 데이터</span>
             {isStockPage && (
               <>
                 <span>•</span>
@@ -229,6 +255,7 @@ export default function Header({ className }: HeaderProps) {
                 <span className="text-primary font-medium">키움증권 설정</span>
               </>
             )}
+            </div>
           </div>
         </div>
       </div>

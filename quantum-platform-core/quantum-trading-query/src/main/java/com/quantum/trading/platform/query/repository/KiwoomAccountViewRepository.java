@@ -55,7 +55,7 @@ public interface KiwoomAccountViewRepository extends JpaRepository<KiwoomAccount
     /**
      * 유효한 인증 정보를 가진 계좌 수 조회
      */
-    @Query("SELECT COUNT(k) FROM KiwoomAccountView k WHERE k.isActive = true AND k.encryptedClientId IS NOT NULL AND k.encryptedClientSecret IS NOT NULL")
+    @Query("SELECT COUNT(k) FROM KiwoomAccountView k WHERE k.isActive = true AND k.clientId IS NOT NULL AND k.clientSecret IS NOT NULL")
     long countAccountsWithValidCredentials();
 
     /**

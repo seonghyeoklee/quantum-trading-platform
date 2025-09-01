@@ -70,6 +70,9 @@ public class UserView {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
     
+    @Column(name = "last_failed_login_at")
+    private Instant lastFailedLoginAt;
+    
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
     

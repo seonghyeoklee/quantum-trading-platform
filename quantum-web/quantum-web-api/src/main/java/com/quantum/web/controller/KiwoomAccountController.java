@@ -55,15 +55,25 @@ public class KiwoomAccountController {
         log.info("User {} registering Kiwoom account", userPrincipal.getId());
 
         try {
+            // 최소 1개 키 쌍 검증
+            if (!request.hasValidKeyPair()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("실전투자 또는 모의투자 키 쌍 중 최소 하나는 완전히 입력해주세요"));
+            }
+
             // 키움증권 계정 ID 생성 (사용자별 유니크)
             String kiwoomAccountId = "KIWOOM_" + userPrincipal.getId() + "_" + System.currentTimeMillis();
 
-            // 계정 할당 및 API 키 저장
-            kiwoomAccountManagementService.assignKiwoomAccount(
+            // 4개 키 필드로 계정 할당 (기존 호환성 포함)
+            kiwoomAccountManagementService.assignKiwoomAccountWithFourKeys(
                     userPrincipal.getId(),
                     kiwoomAccountId,
-                    request.getClientId(),
-                    request.getClientSecret()
+                    request.getRealAppKey(),
+                    request.getRealAppSecret(),
+                    request.getMockAppKey(),
+                    request.getMockAppSecret(),
+                    request.getPrimaryAppKey(),  // 기존 호환성
+                    request.getPrimaryAppSecret() // 기존 호환성
             );
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -145,18 +155,64 @@ public class KiwoomAccountController {
         log.info("Updating Kiwoom credentials for user: {}", userPrincipal.getId());
 
         try {
-            kiwoomAccountManagementService.updateKiwoomCredentials(
+            // 최소 1개 키 쌍 검증
+            if (!request.hasValidKeyPair()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("실전투자 또는 모의투자 키 쌍 중 최소 하나는 완전히 입력해주세요"));
+            }
+
+            kiwoomAccountManagementService.updateKiwoomCredentialsWithFourKeys(
                     userPrincipal.getId(),
-                    request.clientId,
-                    request.clientSecret
+                    request.getRealAppKey(),
+                    request.getRealAppSecret(),
+                    request.getMockAppKey(),
+                    request.getMockAppSecret(),
+                    request.getPrimaryAppKey(),  // 기존 호환성
+                    request.getPrimaryAppSecret() // 기존 호환성
             );
 
-            return ResponseEntity.ok(ApiResponse.success("Credentials updated successfully"));
+            return ResponseEntity.ok(ApiResponse.success("인증 정보가 성공적으로 업데이트되었습니다"));
 
         } catch (KiwoomAccountManagementService.KiwoomAccountManagementException e) {
             log.warn("Failed to update credentials for user {}: {}", userPrincipal.getId(), e.getMessage());
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * 키움증권 API 연결 테스트 (4개 키 지원)
+     */
+    @PostMapping("/test-connection")
+    public ResponseEntity<ApiResponse> testConnection(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody TestConnectionRequest request) {
+
+        log.info("Testing Kiwoom API connection for user: {}", userPrincipal.getId());
+
+        try {
+            // 최소 1개 키 쌍 검증
+            if (!request.hasValidKeyPair()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("실전투자 또는 모의투자 키 쌍 중 최소 하나는 완전히 입력해주세요"));
+            }
+
+            // 키움증권 API 연결 테스트
+            boolean success = kiwoomAccountManagementService.testKiwoomConnection(
+                    request.getPrimaryAppKey(),
+                    request.getPrimaryAppSecret()
+            );
+
+            if (success) {
+                return ResponseEntity.ok(ApiResponse.success("키움증권 API 연결 테스트 성공", true));
+            } else {
+                return ResponseEntity.ok(ApiResponse.success("키움증권 API 연결 테스트 실패", false));
+            }
+
+        } catch (Exception e) {
+            log.error("Failed to test Kiwoom connection for user {}", userPrincipal.getId(), e);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("연결 테스트 중 오류가 발생했습니다: " + e.getMessage()));
         }
     }
 
@@ -190,13 +246,50 @@ public class KiwoomAccountController {
 
     @lombok.Data
     public static class RegisterKiwoomAccountRequest {
-        @NotBlank(message = "Client ID(App Key)는 필수입니다")
+        // 4개 키 필드 (최소 1개 키 쌍은 필수)
+        @Size(min = 10, max = 100, message = "Real App Key는 10-100자 사이여야 합니다")
+        private String realAppKey;
+
+        @Size(min = 20, max = 200, message = "Real App Secret은 20-200자 사이여야 합니다")
+        private String realAppSecret;
+
+        @Size(min = 10, max = 100, message = "Mock App Key는 10-100자 사이여야 합니다")
+        private String mockAppKey;
+
+        @Size(min = 20, max = 200, message = "Mock App Secret은 20-200자 사이여야 합니다")
+        private String mockAppSecret;
+
+        // 기존 호환성을 위한 필드
         @Size(min = 10, max = 100, message = "Client ID는 10-100자 사이여야 합니다")
         private String clientId;
 
-        @NotBlank(message = "Client Secret(App Secret)은 필수입니다")
         @Size(min = 20, max = 200, message = "Client Secret은 20-200자 사이여야 합니다")
         private String clientSecret;
+
+        // 검증: 최소 1개 키 쌍은 있어야 함
+        public boolean hasValidKeyPair() {
+            boolean hasRealKeys = isNotBlank(realAppKey) && isNotBlank(realAppSecret);
+            boolean hasMockKeys = isNotBlank(mockAppKey) && isNotBlank(mockAppSecret);
+            boolean hasLegacyKeys = isNotBlank(clientId) && isNotBlank(clientSecret);
+            return hasRealKeys || hasMockKeys || hasLegacyKeys;
+        }
+
+        private boolean isNotBlank(String str) {
+            return str != null && !str.trim().isEmpty();
+        }
+
+        // 우선순위: realAppKey > mockAppKey > clientId
+        public String getPrimaryAppKey() {
+            if (isNotBlank(realAppKey)) return realAppKey;
+            if (isNotBlank(mockAppKey)) return mockAppKey;
+            return clientId;
+        }
+
+        public String getPrimaryAppSecret() {
+            if (isNotBlank(realAppSecret)) return realAppSecret;
+            if (isNotBlank(mockAppSecret)) return mockAppSecret;
+            return clientSecret;
+        }
     }
 
     @lombok.Data
@@ -229,13 +322,96 @@ public class KiwoomAccountController {
 
     @lombok.Data
     public static class UpdateCredentialsRequest {
-        @NotBlank(message = "Client ID is required")
+        // 4개 키 필드 (최소 1개 키 쌍은 필수)
+        @Size(min = 10, max = 100, message = "Real App Key는 10-100자 사이여야 합니다")
+        private String realAppKey;
+
+        @Size(min = 20, max = 200, message = "Real App Secret은 20-200자 사이여야 합니다")
+        private String realAppSecret;
+
+        @Size(min = 10, max = 100, message = "Mock App Key는 10-100자 사이여야 합니다")
+        private String mockAppKey;
+
+        @Size(min = 20, max = 200, message = "Mock App Secret은 20-200자 사이여야 합니다")
+        private String mockAppSecret;
+
+        // 기존 호환성을 위한 필드
         @Size(min = 10, max = 100, message = "Client ID must be between 10 and 100 characters")
         private String clientId;
 
-        @NotBlank(message = "Client secret is required")
         @Size(min = 20, max = 200, message = "Client secret must be between 20 and 200 characters")
         private String clientSecret;
+
+        // 검증: 최소 1개 키 쌍은 있어야 함
+        public boolean hasValidKeyPair() {
+            boolean hasRealKeys = isNotBlank(realAppKey) && isNotBlank(realAppSecret);
+            boolean hasMockKeys = isNotBlank(mockAppKey) && isNotBlank(mockAppSecret);
+            boolean hasLegacyKeys = isNotBlank(clientId) && isNotBlank(clientSecret);
+            return hasRealKeys || hasMockKeys || hasLegacyKeys;
+        }
+
+        private boolean isNotBlank(String str) {
+            return str != null && !str.trim().isEmpty();
+        }
+
+        public String getPrimaryAppKey() {
+            if (isNotBlank(realAppKey)) return realAppKey;
+            if (isNotBlank(mockAppKey)) return mockAppKey;
+            return clientId;
+        }
+
+        public String getPrimaryAppSecret() {
+            if (isNotBlank(realAppSecret)) return realAppSecret;
+            if (isNotBlank(mockAppSecret)) return mockAppSecret;
+            return clientSecret;
+        }
+    }
+
+    @lombok.Data
+    public static class TestConnectionRequest {
+        // 4개 키 필드 (최소 1개 키 쌍은 필수)
+        @Size(min = 10, max = 100, message = "Real App Key는 10-100자 사이여야 합니다")
+        private String realAppKey;
+
+        @Size(min = 20, max = 200, message = "Real App Secret은 20-200자 사이여야 합니다")
+        private String realAppSecret;
+
+        @Size(min = 10, max = 100, message = "Mock App Key는 10-100자 사이여야 합니다")
+        private String mockAppKey;
+
+        @Size(min = 20, max = 200, message = "Mock App Secret은 20-200자 사이여야 합니다")
+        private String mockAppSecret;
+
+        // 기존 호환성을 위한 필드
+        @Size(min = 10, max = 100, message = "Client ID must be between 10 and 100 characters")
+        private String clientId;
+
+        @Size(min = 20, max = 200, message = "Client secret must be between 20 and 200 characters")
+        private String clientSecret;
+
+        // 검증: 최소 1개 키 쌍은 있어야 함
+        public boolean hasValidKeyPair() {
+            boolean hasRealKeys = isNotBlank(realAppKey) && isNotBlank(realAppSecret);
+            boolean hasMockKeys = isNotBlank(mockAppKey) && isNotBlank(mockAppSecret);
+            boolean hasLegacyKeys = isNotBlank(clientId) && isNotBlank(clientSecret);
+            return hasRealKeys || hasMockKeys || hasLegacyKeys;
+        }
+
+        private boolean isNotBlank(String str) {
+            return str != null && !str.trim().isEmpty();
+        }
+
+        public String getPrimaryAppKey() {
+            if (isNotBlank(realAppKey)) return realAppKey;
+            if (isNotBlank(mockAppKey)) return mockAppKey;
+            return clientId;
+        }
+
+        public String getPrimaryAppSecret() {
+            if (isNotBlank(realAppSecret)) return realAppSecret;
+            if (isNotBlank(mockAppSecret)) return mockAppSecret;
+            return clientSecret;
+        }
     }
 
     @lombok.Data

@@ -46,7 +46,7 @@ public class DataInitializer implements CommandLineRunner {
         // 1. ADMIN 계정 생성
         createUserWithEventSourcing(
             "admin", 
-            "admin", 
+            "admin123!", 
             "시스템 관리자", 
             "admin@quantum-trading.com", 
             "+82-10-1234-5678",

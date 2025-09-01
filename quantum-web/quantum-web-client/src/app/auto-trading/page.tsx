@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Header from "@/components/layout/Header";
+import TradingModeWarning from "@/components/layout/TradingModeWarning";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -124,6 +125,9 @@ function AutoTradingDashboard() {
       <Header />
       
       <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
+        {/* Trading Mode Warning */}
+        <TradingModeWarning />
+
         {/* 헤더 */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
@@ -136,7 +140,7 @@ function AutoTradingDashboard() {
         </div>
 
         {/* 진행 상태 */}
-        <Card>
+        <Card className="card">
           <CardContent className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -200,7 +204,7 @@ function AutoTradingDashboard() {
         <div className="space-y-6">
           {currentStep === 'strategy' && (
             <div className="space-y-4">
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="w-5 h-5" />
@@ -217,7 +221,7 @@ function AutoTradingDashboard() {
 
           {currentStep === 'stock' && selectedStrategy && (
             <div className="space-y-4">
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5" />
@@ -234,7 +238,7 @@ function AutoTradingDashboard() {
 
           {currentStep === 'config' && selectedStrategy && selectedStock && (
             <div className="space-y-4">
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="w-5 h-5" />
@@ -256,7 +260,7 @@ function AutoTradingDashboard() {
 
           {currentStep === 'monitor' && selectedStrategy && selectedStock && tradingConfig && (
             <div className="space-y-4">
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CheckCircle className="w-5 h-5" />

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * TradingOrder Aggregate 테스트
@@ -63,8 +64,10 @@ class TradingOrderTest {
         
         SubmitOrderToBrokerCommand submitCommand = SubmitOrderToBrokerCommand.builder()
                 .orderId(orderId)
+                .userId(UserId.of("user-001"))
                 .brokerType("KIS")
-                .accountNumber("12345678")
+                .brokerOrderId("BROKER-ORDER-001")
+                .submittedAt(Instant.now())
                 .build();
         
         fixture.given(OrderCreatedEvent.builder()
@@ -116,8 +119,10 @@ class TradingOrderTest {
         
         SubmitOrderToBrokerCommand submitCommand = SubmitOrderToBrokerCommand.builder()
                 .orderId(orderId)
+                .userId(UserId.of("user-001"))
                 .brokerType("KIS")
-                .accountNumber("12345678")
+                .brokerOrderId("BROKER-ORDER-001")
+                .submittedAt(Instant.now())
                 .build();
         
         fixture.given(

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Header from "@/components/layout/Header";
+import TradingModeWarning from "@/components/layout/TradingModeWarning";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,6 +252,9 @@ function TradingTestPage() {
       <Header />
       
       <div className="container mx-auto px-4 py-6 max-w-6xl">
+        {/* Trading Mode Warning */}
+        <TradingModeWarning className="mb-6" />
+
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-4">
@@ -264,7 +268,7 @@ function TradingTestPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Test Configuration */}
-          <Card>
+          <Card className="card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
@@ -338,7 +342,7 @@ function TradingTestPage() {
           </Card>
 
           {/* Test Results */}
-          <Card>
+          <Card className="card">
             <CardHeader>
               <CardTitle>테스트 결과</CardTitle>
             </CardHeader>
@@ -388,7 +392,7 @@ function TradingTestPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             {/* Last Signal */}
             {lastSignal && (
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="text-lg">최근 생성된 신호</CardTitle>
                 </CardHeader>
@@ -434,7 +438,7 @@ function TradingTestPage() {
 
             {/* Last Execution */}
             {lastExecution && (
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="text-lg">최근 처리 결과</CardTitle>
                 </CardHeader>

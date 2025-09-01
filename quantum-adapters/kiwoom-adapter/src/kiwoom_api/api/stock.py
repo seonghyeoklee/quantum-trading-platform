@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Header, Query, Depends
+from fastapi import APIRouter, HTTPException, Header, Query, Depends, Request
 from fastapi.responses import JSONResponse
 
 try:
@@ -110,6 +110,7 @@ async def api_fn_ka10001(
     request: StockInfoRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
+    dry_run: Optional[bool] = Query(None, description="모드 지정 (true: 모의투자, false: 실전투자)"),
     auth_key: str = Depends(get_read_only_auth)  # 고정키 사용 (조회성 API)
 ) -> JSONResponse:
     """
@@ -126,13 +127,24 @@ async def api_fn_ka10001(
     **키움 API 원본 응답을 그대로 반환합니다**
     """
     try:
-        logger.info(f"📊 fn_ka10001 요청: {request.stk_cd} (고정키 사용)")
+        # 🔑 Java 인증 정보 전달 지원
+        request_data = request.model_dump()
+        if any([request.kiwoom_access_token, request.kiwoom_app_key, request.kiwoom_app_secret, request.kiwoom_base_url]):
+            logger.info(f"📊 fn_ka10001 요청: {request.stk_cd} (Java 인증 정보 사용)")
+        else:
+            logger.info(f"📊 fn_ka10001 요청: {request.stk_cd} (환경변수 기본값 사용)")
 
-        # fn_ka10001 내부에서 고정키로 호출 (token 없이 호출하면 자동으로 환경변수 키 사용)
+        # fn_ka10001에 모든 요청 데이터와 추가 인증 정보 전달
         result = await fn_ka10001(
-            data=request.model_dump(),
+            data={k: v for k, v in request_data.items() if k not in ['kiwoom_access_token', 'kiwoom_app_key', 'kiwoom_app_secret', 'kiwoom_base_url']},
             cont_yn=cont_yn,
-            next_key=next_key
+            next_key=next_key,
+            dry_run=dry_run or request.dry_run,  # 쿼리 파라미터 우선, 없으면 request body의 dry_run 사용
+            # Java 인증 정보 전달
+            kiwoom_access_token=request.kiwoom_access_token,
+            kiwoom_app_key=request.kiwoom_app_key,
+            kiwoom_app_secret=request.kiwoom_app_secret,
+            kiwoom_base_url=request.kiwoom_base_url
         )
 
         return JSONResponse(
@@ -972,6 +984,7 @@ async def api_fn_kt10000(
     request: StockBuyOrderRequest,
     cont_yn: str = Query("N", description="연속조회여부 (N: 최초, Y: 연속)"),
     next_key: str = Query("", description="연속조회키"),
+    dry_run: Optional[bool] = Query(None, description="모드 지정 (true: 모의투자, false: 실전투자)"),
     authorization: str = Header(..., description="Bearer {access_token}")
 ) -> JSONResponse:
     """
@@ -1018,12 +1031,26 @@ async def api_fn_kt10000(
         access_token = extract_bearer_token(authorization)
         logger.info(f"📈 fn_kt10000 요청: {request.stk_cd} {request.ord_qty}주 매수주문")
 
-        # fn_kt10000 직접 호출
+        # 요청 데이터를 dict로 변환하고 dry_run 우선순위 설정
+        request_data = request.model_dump()
+        
+        # Query 파라미터의 dry_run이 None이면 요청 본문에서 추출
+        if dry_run is None:
+            try:
+                from ..config.dynamic_settings import extract_dry_run
+            except ImportError:
+                from kiwoom_api.config.dynamic_settings import extract_dry_run
+            dry_run = extract_dry_run(request_data)
+        
+        logger.info(f"🎯 매매모드 파라미터: dry_run={dry_run}")
+
+        # fn_kt10000 직접 호출 (동적 모드 전환 지원)
         result = await fn_kt10000(
             token=access_token,
-            data=request.model_dump(),
+            data=request_data,
             cont_yn=cont_yn,
-            next_key=next_key
+            next_key=next_key,
+            dry_run=dry_run
         )
 
         return JSONResponse(

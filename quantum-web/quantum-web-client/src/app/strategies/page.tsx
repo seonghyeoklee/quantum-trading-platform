@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Header from "@/components/layout/Header";
+import TradingModeWarning from "@/components/layout/TradingModeWarning";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,9 @@ function StrategiesPage() {
       <Header />
       
       <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Trading Mode Warning */}
+        <TradingModeWarning className="mb-6" />
+
         {/* 페이지 헤더 */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-4">
@@ -137,7 +141,7 @@ function StrategiesPage() {
         </div>
 
         {/* 검색 및 필터 섹션 */}
-        <Card className="mb-6">
+        <Card className="mb-6 card">
           <CardContent className="p-6">
             <div className="space-y-4">
               {/* 검색바 */}

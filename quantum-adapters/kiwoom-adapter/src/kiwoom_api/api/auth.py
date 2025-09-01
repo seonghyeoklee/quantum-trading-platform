@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
 # Handle both relative and absolute imports for different execution contexts
 try:
@@ -31,22 +31,29 @@ router = APIRouter(tags=["인증 API"])
     "/api/fn_au10001",
     response_model=KiwoomApiResponse,
     summary="키움증권 접근토큰 발급 (au10001)",
-    description="환경변수 기반 자동 토큰 발급 - 사용자 입력 불필요"
+    description="Java에서 헤더로 전달받은 키로 토큰 발급 - 환경변수 의존성 완전 제거"
 )
-async def api_fn_au10001() -> KiwoomApiResponse:
+async def api_fn_au10001(
+    kiwoom_app_key: str = Header(..., alias="X-Kiwoom-App-Key", description="Java에서 전달하는 키움 앱키"),
+    kiwoom_app_secret: str = Header(..., alias="X-Kiwoom-App-Secret", description="Java에서 전달하는 키움 앱시크릿")
+) -> KiwoomApiResponse:
     """키움증권 접근토큰 발급 (au10001)
 
-    환경변수에서 자동으로 앱키/시크릿키를 읽어서 토큰 발급
-    사용자가 별도로 입력할 데이터 없음
+    Java에서 헤더로 전달받은 모드별 앱키/시크릿키로 토큰 발급
+    환경변수 의존성 완전 제거
+
+    Headers:
+        X-Kiwoom-App-Key: 키움 앱키 (Java에서 sandbox/real 모드에 따라 선택)
+        X-Kiwoom-App-Secret: 키움 앱시크릿 (Java에서 sandbox/real 모드에 따라 선택)
 
     Returns:
         KiwoomApiResponse containing:
         - Code: HTTP 상태 코드
         - Header: 키움 API 응답 헤더
-        - Body: 키움 API 응답 바디 (토큰 정보)
+        - Body: 키움 API 응답 바디 (access_token 포함)
     """
-    # fn_au10001 함수 직접 호출 (환경변수 기반 자동 설정)
-    result = await fn_au10001()
+    # Java에서 전달받은 키로 토큰 발급 (환경변수 의존성 완전 제거)
+    result = await fn_au10001(kiwoom_app_key, kiwoom_app_secret)
 
     # KiwoomApiResponse 모델로 반환
     return KiwoomApiResponse(**result)

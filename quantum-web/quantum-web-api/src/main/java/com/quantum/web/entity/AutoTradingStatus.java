@@ -112,15 +112,6 @@ public class AutoTradingStatus {
     private LocalDateTime updatedAt;
 
     /**
-     * 인덱스 설정
-     */
-    @Table(indexes = {
-            @Index(name = "idx_config_id", columnList = "config_id"),
-            @Index(name = "idx_status", columnList = "status"),
-            @Index(name = "idx_updated_at", columnList = "updated_at")
-    })
-
-    /**
      * JPA 생명주기 콜백
      */
     @PrePersist

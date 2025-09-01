@@ -48,53 +48,59 @@ async def _close_client() -> None:
         _client = None
 
 
-async def fn_au10001(data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+async def fn_au10001(
+    app_key: str,
+    app_secret: str,
+    data: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     키움증권 접근토큰 발급 (au10001)
-
-    키움 API 스펙 완전 준수 함수
-    사용자 제공 코드와 동일한 방식으로 구현
+    환경변수 의존성 제거 - Java에서 키 전달받음
 
     Args:
+        app_key: 키움 앱키 (Java에서 모드별로 선택해서 전달)
+        app_secret: 키움 앱시크릿 (Java에서 모드별로 선택해서 전달)
         data: 토큰 발급 요청 데이터 (선택적)
               - grant_type: client_credentials (기본값)
-              - appkey: 앱키 (환경변수에서 자동 설정)
-              - secretkey: 시크릿키 (환경변수에서 자동 설정)
 
     Returns:
         Dict containing:
         - Code: HTTP 상태 코드
         - Header: 키움 API 응답 헤더
-        - Body: 키움 API 응답 바디
+        - Body: 키움 API 응답 바디 (access_token 포함)
 
     Example:
-        >>> result = await fn_au10001()
+        >>> result = await fn_au10001("sandbox_key", "sandbox_secret")
         >>> print(f"Code: {result['Code']}")
-        >>> print(f"Body: {result['Body']['token']}")
+        >>> print(f"Body: {result['Body']['access_token']}")
     """
     logger.info("🔑 키움 접근토큰 발급 시작 (au10001)")
 
     try:
-        # 1. 요청할 API URL 구성
-        host = settings.kiwoom_base_url
+        # 1. 모드 판단 (전달받은 키로부터)
+        is_sandbox = "sandbox" in app_key.lower() or "mock" in app_key.lower()
+        mode_desc = "모의투자 (Sandbox)" if is_sandbox else "실전투자 (Real)"
+        
+        # 2. 요청할 API URL 구성 (키 기반 자동 결정)
+        host = "https://mockapi.kiwoom.com" if is_sandbox else "https://api.kiwoom.com"
         endpoint = '/oauth2/token'
         url = host + endpoint
 
         logger.info(f"📡 요청 URL: {url}")
-        logger.info(f"📊 모드: {settings.kiwoom_mode_description}")
+        logger.info(f"📊 모드: {mode_desc}")
 
-        # 2. 요청 데이터 준비 (환경변수 기반 자동 설정)
+        # 3. 요청 데이터 준비 (Java에서 전달받은 키 사용)
         if data is None:
             data = {}
 
-        # 기본값 설정 (키움 API 스펙)
+        # Java에서 전달받은 키 사용 (환경변수 의존성 완전 제거)
         params = {
             'grant_type': data.get('grant_type', 'client_credentials'),
-            'appkey': data.get('appkey', settings.KIWOOM_APP_KEY),
-            'secretkey': data.get('secretkey', settings.KIWOOM_APP_SECRET),
+            'appkey': app_key,      # Java에서 전달받은 키
+            'secretkey': app_secret  # Java에서 전달받은 시크릿
         }
 
-        logger.info(f"🔑 앱키: {params['appkey']}")
+        logger.info(f"🔑 앱키: {app_key[:20]}*** (Java에서 전달)")
         logger.info(f"📋 grant_type: {params['grant_type']}")
 
         # 3. header 데이터 (키움 API 스펙)

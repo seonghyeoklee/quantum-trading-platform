@@ -5,9 +5,11 @@ import com.quantum.trading.platform.shared.value.UserStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -158,4 +160,57 @@ public interface UserViewRepository extends JpaRepository<UserView, String> {
      * 특정 등록자에 의해 생성된 사용자 목록
      */
     List<UserView> findByRegisteredBy(String registeredBy);
+    
+    // ============================================
+    // 로그인 실패 카운트 관리 - 원자적 DB 연산
+    // ============================================
+    
+    /**
+     * 로그인 실패 횟수 원자적 증가 및 마지막 실패 시간 업데이트
+     * @param username 사용자명
+     * @return 업데이트된 행 수 (성공 시 1)
+     */
+    @Query("UPDATE UserView u SET u.failedLoginAttempts = u.failedLoginAttempts + 1, u.lastFailedLoginAt = CURRENT_TIMESTAMP WHERE u.username = :username")
+    @Modifying
+    @Transactional
+    int incrementFailureCount(@Param("username") String username);
+    
+    /**
+     * 로그인 실패 횟수 초기화 (로그인 성공 시)
+     * @param username 사용자명
+     * @return 업데이트된 행 수 (성공 시 1)
+     */
+    @Query("UPDATE UserView u SET u.failedLoginAttempts = 0, u.lastFailedLoginAt = null WHERE u.username = :username")
+    @Modifying
+    @Transactional
+    int resetFailureCount(@Param("username") String username);
+    
+    /**
+     * 계정 잠금 처리
+     * @param username 사용자명
+     * @param attempts 현재 실패 횟수
+     * @return 업데이트된 행 수 (성공 시 1)
+     */
+    @Query("UPDATE UserView u SET u.status = 'LOCKED', u.failedLoginAttempts = :attempts WHERE u.username = :username")
+    @Modifying
+    @Transactional
+    int lockAccount(@Param("username") String username, @Param("attempts") int attempts);
+    
+    /**
+     * 계정 잠금 해제
+     * @param username 사용자명
+     * @return 업데이트된 행 수 (성공 시 1)
+     */
+    @Query("UPDATE UserView u SET u.status = 'ACTIVE', u.failedLoginAttempts = 0, u.lastFailedLoginAt = null WHERE u.username = :username")
+    @Modifying
+    @Transactional
+    int unlockAccount(@Param("username") String username);
+    
+    /**
+     * 현재 실패 횟수 조회 (원자적 연산 전 확인용)
+     * @param username 사용자명
+     * @return 현재 실패 횟수
+     */
+    @Query("SELECT u.failedLoginAttempts FROM UserView u WHERE u.username = :username")
+    Optional<Integer> getCurrentFailureCount(@Param("username") String username);
 }

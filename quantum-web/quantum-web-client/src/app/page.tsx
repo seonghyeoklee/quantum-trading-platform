@@ -8,11 +8,14 @@ import ChartContainer, { ChartContainerRef } from "@/components/chart/ChartConta
 import ProgramTradingRanking from "@/components/trading/ProgramTradingRanking"
 import TradingSignalsDashboard from "@/components/trading/TradingSignalsDashboard"
 import NewsPanel from "@/components/news/NewsPanel"
+import TradingModeIndicator from "@/components/layout/TradingModeIndicator";
 import { KiwoomStockInfo } from "@/lib/api/kiwoom-types";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 function TradingDashboard() {
   const [selectedStock, setSelectedStock] = useState<KiwoomStockInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'chart' | 'signals' | 'news'>('chart');
+  const [showMobileSidebar, setShowMobileSidebar] = useState<'left' | 'right' | null>(null);
   const chartContainerRef = useRef<ChartContainerRef>(null);
 
   // 차트 컨테이너에서 종목 선택 이벤트를 받기 위한 핸들러
@@ -70,9 +73,9 @@ function TradingDashboard() {
       <Header />
 
       {/* Main Content - TradingView Style */}
-      <main className="flex flex-1 overflow-hidden min-h-0" style={{ height: 'calc(100vh - 64px)' }}>
-        {/* Left Sidebar - Watchlist */}
-        <div className="w-80 border-r border-border bg-sidebar flex flex-col">
+      <main className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0" style={{ height: 'calc(100vh - 64px)' }}>
+        {/* Left Sidebar - Watchlist (Hidden on mobile, shown on desktop) */}
+        <div className="hidden lg:flex w-80 border-r border-border bg-sidebar flex-col sidebar-production-accent">
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-sm">관심종목</h3>
@@ -103,6 +106,19 @@ function TradingDashboard() {
               <div className="text-xs">
                 거래를 시작해보세요
               </div>
+            </div>
+          </div>
+
+          {/* Trading Mode Section */}
+          <div className="p-4 border-b border-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">트레이딩 모드</h3>
+            </div>
+            <div className="space-y-3">
+              <TradingModeIndicator 
+                showQuickToggle={true} 
+                size="sm"
+              />
             </div>
           </div>
           
@@ -194,8 +210,8 @@ function TradingDashboard() {
           </div>
         </div>
 
-        {/* Right Sidebar - Market Data */}
-        <div className="w-96 border-l border-border bg-sidebar flex flex-col">
+        {/* Right Sidebar - Market Data (Hidden on mobile/tablet, shown on XL screens) */}
+        <div className="hidden xl:flex w-96 border-l border-border bg-sidebar flex-col">
           {/* 실시간 프로그램 매매 랭킹 */}
           <div className="flex-1 flex flex-col">
             <ProgramTradingRanking 
@@ -249,6 +265,163 @@ function TradingDashboard() {
         </div>
 
       </main>
+      
+      {/* Mobile Floating Buttons */}
+      <div className="lg:hidden fixed bottom-4 left-4 right-4 flex justify-between z-30">
+        <Button 
+          variant="default" 
+          size="sm"
+          onClick={() => setShowMobileSidebar('left')}
+          className="shadow-lg"
+        >
+          <ChevronRight className="w-4 h-4 mr-1" />
+          관심종목
+        </Button>
+        <Button 
+          variant="default" 
+          size="sm"
+          onClick={() => setShowMobileSidebar('right')}
+          className="shadow-lg"
+        >
+          매매랭킹
+          <ChevronLeft className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+      
+      {/* Mobile Sidebar Overlay - Left */}
+      {showMobileSidebar === 'left' && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+          <div className="fixed left-0 top-0 bottom-0 w-80 bg-sidebar border-r border-border overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold">관심종목 & 포트폴리오</h3>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowMobileSidebar(null)}
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            {/* Watchlist Content */}
+            <div className="p-4 border-b border-border">
+              <div className="text-center py-8 text-muted-foreground">
+                <div className="text-sm mb-2">관심종목이 없습니다</div>
+                <div className="text-xs">
+                  종목 검색에서 관심종목을 추가해보세요
+                </div>
+              </div>
+            </div>
+            
+            {/* Portfolio Section */}
+            <div className="p-4 border-b border-border">
+              <h3 className="font-semibold text-sm mb-3">포트폴리오</h3>
+              <div className="text-center py-6 text-muted-foreground">
+                <div className="text-sm mb-2">포트폴리오가 없습니다</div>
+                <div className="text-xs">
+                  거래를 시작해보세요
+                </div>
+              </div>
+            </div>
+            
+            {/* Trading Mode Section */}
+            <div className="p-4 border-b border-border">
+              <h3 className="font-semibold text-sm mb-3">트레이딩 모드</h3>
+              <TradingModeIndicator 
+                showQuickToggle={true} 
+                size="sm"
+              />
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="p-4">
+              <h3 className="font-semibold text-sm mb-3">빠른 이동</h3>
+              <div className="space-y-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => {
+                    window.location.href = '/stock';
+                    setShowMobileSidebar(null);
+                  }}
+                >
+                  종목 분석
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => {
+                    setActiveTab('news');
+                    setShowMobileSidebar(null);
+                  }}
+                >
+                  뉴스 검색
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Mobile Sidebar Overlay - Right */}
+      {showMobileSidebar === 'right' && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+          <div className="fixed right-0 top-0 bottom-0 w-80 md:w-96 bg-sidebar border-l border-border overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold">프로그램 매매 & 시장 현황</h3>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowMobileSidebar(null)}
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            {/* Program Trading Ranking */}
+            <ProgramTradingRanking 
+              className="flex-1"
+              onStockClick={(stock, name) => {
+                handleStockSelection(stock, name);
+                setShowMobileSidebar(null);
+              }}
+              maxItems={50}
+              autoRefresh={true}
+              refreshInterval={30000}
+            />
+            
+            {/* Market Indices */}
+            <div className="p-4 border-t border-border">
+              <h3 className="font-semibold text-sm mb-3">주요 지수</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm font-medium">KOSPI</div>
+                    <div className="text-xs text-muted-foreground">한국 종합주가지수</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">2,647.82</div>
+                    <div className="text-xs text-red-600">+1.23%</div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm font-medium">KOSDAQ</div>
+                    <div className="text-xs text-muted-foreground">코스닥 지수</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">742.15</div>
+                    <div className="text-xs text-blue-600">-0.84%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

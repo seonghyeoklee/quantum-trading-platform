@@ -20,6 +20,10 @@ class NaverNewsClient:
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = "https://openapi.naver.com/v1/search/news.json"
+        # 개발 모드 (API 키가 없거나 잘못된 경우 목업 데이터 사용)
+        self.dev_mode = (not client_id or not client_secret or 
+                        client_id == "" or client_secret == "" or
+                        client_id.strip() == "" or client_secret.strip() == "")
         
         self.headers = {
             'X-Naver-Client-Id': self.client_id,
@@ -48,6 +52,11 @@ class NaverNewsClient:
             검색 결과 딕셔너리
         """
         try:
+            # 개발 모드: 목업 데이터 반환
+            if self.dev_mode:
+                print(f"🔧 [DEV MODE] 네이버 API 키가 없어 목업 데이터 반환: {query}")
+                return self._get_mock_data(query, display, start)
+            
             # URL 인코딩
             encoded_query = quote(query, safe='', encoding='utf-8')
             
@@ -67,6 +76,10 @@ class NaverNewsClient:
                 
                 if response.status_code == 200:
                     return response.json()
+                elif response.status_code == 401:
+                    print(f"❌ 네이버 API 인증 오류 (401): Client ID/Secret을 확인하세요")
+                    print(f"   현재 Client ID: {self.client_id[:10]}...")
+                    return {"items": [], "total": 0, "start": start, "display": display}
                 elif response.status_code == 403:
                     print(f"❌ 네이버 API 권한 오류 (403): API 설정을 확인하세요")
                     return {"items": [], "total": 0, "start": start, "display": display}
@@ -247,6 +260,61 @@ class NaverNewsClient:
         # 상위 3개 테마 반환
         sorted_themes = sorted(theme_count.items(), key=lambda x: x[1], reverse=True)
         return [theme for theme, count in sorted_themes[:3] if count > 0]
+    
+    def _get_mock_data(self, query: str, display: int, start: int) -> Dict[str, Any]:
+        """개발 모드용 목업 데이터 생성"""
+        from datetime import datetime, timedelta
+        import random
+        
+        # 기본 목업 뉴스 템플릿
+        mock_news = [
+            {
+                "title": f"<b>{query}</b> 관련 주요 뉴스 - 실적 발표 예정",
+                "originallink": "https://example.com/news1",
+                "link": "https://search.naver.com/news1",
+                "description": f"<b>{query}</b> 기업이 올해 3분기 실적을 발표할 예정이라고 밝혔다. 시장에서는 긍정적인 실적을 기대하고 있다.",
+                "pubDate": (datetime.now() - timedelta(hours=2)).strftime("%a, %d %b %Y %H:%M:%S +0900")
+            },
+            {
+                "title": f"<b>{query}</b> 주가 상승세, 투자자들 관심 집중",
+                "originallink": "https://example.com/news2", 
+                "link": "https://search.naver.com/news2",
+                "description": f"<b>{query}</b> 주식이 최근 상승세를 보이며 투자자들의 관심이 집중되고 있다. 전문가들은 향후 전망에 대해 긍정적으로 평가했다.",
+                "pubDate": (datetime.now() - timedelta(hours=5)).strftime("%a, %d %b %Y %H:%M:%S +0900")
+            },
+            {
+                "title": f"<b>{query}</b> 신기술 개발로 미래 성장 가능성 높아져",
+                "originallink": "https://example.com/news3",
+                "link": "https://search.naver.com/news3", 
+                "description": f"<b>{query}</b>가 새로운 기술 개발에 성공하며 미래 성장 가능성이 높아졌다는 분석이 나왔다.",
+                "pubDate": (datetime.now() - timedelta(hours=8)).strftime("%a, %d %b %Y %H:%M:%S +0900")
+            },
+            {
+                "title": f"<b>{query}</b> 시장 점유율 확대, 경쟁력 강화",
+                "originallink": "https://example.com/news4",
+                "link": "https://search.naver.com/news4",
+                "description": f"<b>{query}</b>의 시장 점유율이 지속적으로 확대되고 있어 경쟁력이 강화되고 있는 것으로 나타났다.",
+                "pubDate": (datetime.now() - timedelta(hours=12)).strftime("%a, %d %b %Y %H:%M:%S +0900")
+            },
+            {
+                "title": f"<b>{query}</b> 관련 업계 동향 및 전망 분석",
+                "originallink": "https://example.com/news5",
+                "link": "https://search.naver.com/news5",
+                "description": f"<b>{query}</b> 관련 업계의 최신 동향과 향후 전망에 대한 심층 분석이 공개되었다.",
+                "pubDate": (datetime.now() - timedelta(days=1)).strftime("%a, %d %b %Y %H:%M:%S +0900")
+            }
+        ]
+        
+        # 페이지네이션 고려해서 결과 슬라이싱
+        end_index = start + display - 1
+        selected_news = mock_news[start-1:end_index] if start <= len(mock_news) else []
+        
+        return {
+            "total": len(mock_news),
+            "start": start,
+            "display": len(selected_news),
+            "items": selected_news
+        }
 
 
 # 테스트 함수

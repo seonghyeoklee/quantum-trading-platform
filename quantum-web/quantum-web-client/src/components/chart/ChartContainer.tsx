@@ -670,7 +670,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
   return (
     <div className={`flex flex-col h-full ${className || ''}`}>
       {/* 종목 검색 */}
-      <div className="p-4 border-b border-border bg-card">
+      <div className="p-2 sm:p-4 border-b border-border bg-card">
         <StockSearch
           onStockSelect={handleStockSelect}
           className="w-full"
@@ -689,7 +689,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
       />
       
       {/* 메인 차트 영역 */}
-      <div className="flex-1 p-6 bg-background relative">
+      <div className="flex-1 p-2 sm:p-4 lg:p-6 bg-background relative">
         {chartState.loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="flex items-center space-x-2">
@@ -730,29 +730,29 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
         </div>
       </div>
 
-      {/* 실시간 데이터 패널 */}
+      {/* 실시간 데이터 패널 - 모바일 최적화 */}
       {showRealtimePanel && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 border-t border-border bg-background">
-          {/* 실시간 가격 */}
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-4 border-t border-border bg-background">
+          {/* 실시간 가격 - 모바일에서 전체 너비 */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-1">
             <RealtimePrice data={realtimeQuote} />
           </div>
           
-          {/* 호가창 */}
-          <div className="lg:col-span-1">
-            <OrderBook data={realtimeOrderBook} maxLevels={10} />
+          {/* 호가창 - 모바일에서 전체 너비 */}
+          <div className="col-span-1 md:col-span-1 lg:col-span-1">
+            <OrderBook data={realtimeOrderBook} maxLevels={5} />
           </div>
           
-          {/* 체결 내역 */}
-          <div className="lg:col-span-1">
-            <TradeHistory trades={realtimeTrades} maxItems={30} />
+          {/* 체결 내역 - 모바일에서 전체 너비 */}
+          <div className="col-span-1 md:col-span-1 lg:col-span-1">
+            <TradeHistory trades={realtimeTrades} maxItems={15} />
           </div>
         </div>
       )}
       
-      {/* 하단 시장 데이터 */}
-      <div className="p-6 border-t border-border bg-muted">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* 하단 시장 데이터 - 모바일 최적화 */}
+      <div className="p-3 sm:p-4 lg:p-6 border-t border-border bg-muted">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">시가</div>
             <div className="text-sm font-medium">
@@ -779,20 +779,20 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
           </div>
         </div>
 
-        {/* 데이터 상태 정보 */}
-        <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center space-x-4">
+        {/* 데이터 상태 정보 - 모바일 최적화 */}
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground space-y-2 sm:space-y-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             <span>키움증권 API 연동</span>
             {chartState.lastUpdated && (
-              <span>마지막 업데이트: {chartState.lastUpdated.toLocaleTimeString('ko-KR')}</span>
+              <span className="hidden sm:inline">마지막 업데이트: {chartState.lastUpdated.toLocaleTimeString('ko-KR')}</span>
             )}
-            <span>•</span>
-            <span>WebSocket 실시간 연결</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">WebSocket 실시간 연결</span>
             {webSocket.status === 'reconnecting' && (
               <span>재연결 시도 중... ({webSocket.reconnectAttempts}회차)</span>
             )}
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 justify-end">
             {/* REST API 상태 */}
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${chartState.error ? 'bg-red-500' : chartState.loading ? 'bg-yellow-500' : 'bg-green-500'}`} />
@@ -815,15 +815,20 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
               }</span>
             </div>
 
-            {/* 실시간 패널 토글 */}
+            {/* 실시간 패널 토글 - 모바일에서 간단한 텍스트 */}
             <button
               onClick={() => setShowRealtimePanel(!showRealtimePanel)}
-              className="text-primary hover:text-primary/80 transition-colors"
+              className="text-primary hover:text-primary/80 transition-colors text-xs sm:text-xs"
             >
-              {showRealtimePanel ? '실시간 패널 숨기기' : '실시간 패널 표시'}
+              <span className="hidden sm:inline">
+                {showRealtimePanel ? '실시간 패널 숨기기' : '실시간 패널 표시'}
+              </span>
+              <span className="sm:hidden">
+                {showRealtimePanel ? '실시간 숨김' : '실시간 보기'}
+              </span>
             </button>
 
-            {/* TradingView 가이드: Go to Realtime 버튼 */}
+            {/* TradingView 가이드: Go to Realtime 버튼 - 모바일 숨김 */}
             <button
               onClick={() => {
                 // TradingView 차트의 실시간 스크롤 기능 활성화
@@ -833,18 +838,20 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
                   chartElement.dispatchEvent(event);
                 }
               }}
-              className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+              className="hidden sm:block px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
             >
-              📈 실시간 보기
+              📈 실시간
             </button>
 
-            {/* 수동 구독 테스트 버튼 */}
-            <button
-              onClick={handleManualSubscribe}
-              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-            >
-              구독 테스트
-            </button>
+            {/* 수동 구독 테스트 버튼 - 개발 환경에서만 표시 */}
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={handleManualSubscribe}
+                className="hidden lg:block px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                구독 테스트
+              </button>
+            )}
           </div>
         </div>
       </div>

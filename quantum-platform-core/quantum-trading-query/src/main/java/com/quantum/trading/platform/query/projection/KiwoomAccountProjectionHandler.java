@@ -44,9 +44,8 @@ public class KiwoomAccountProjectionHandler {
             KiwoomAccountView kiwoomAccountView = KiwoomAccountView.create(
                     event.userId().value(),
                     event.kiwoomAccountId().value(),
-                    event.encryptedCredentials().encryptedData(),
-                    event.encryptedCredentials().encryptedData(), // TODO: client_secret 분리 필요
-                    event.encryptedCredentials().salt(),
+                    event.clientId(),
+                    event.clientSecret(),
                     event.assignedAt()
             );
             kiwoomAccountViewRepository.save(kiwoomAccountView);
@@ -90,9 +89,8 @@ public class KiwoomAccountProjectionHandler {
                     .ifPresentOrElse(
                             kiwoomAccountView -> {
                                 kiwoomAccountView.updateCredentials(
-                                        event.newEncryptedCredentials().encryptedData(),
-                                        event.newEncryptedCredentials().encryptedData(), // TODO: client_secret 분리
-                                        event.newEncryptedCredentials().salt()
+                                        event.newClientId(),
+                                        event.newClientSecret()
                                 );
                                 kiwoomAccountViewRepository.save(kiwoomAccountView);
                                 log.info("Updated KiwoomAccountView credentials for user: {}",

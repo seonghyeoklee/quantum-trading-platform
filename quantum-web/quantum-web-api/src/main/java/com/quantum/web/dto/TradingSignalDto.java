@@ -5,9 +5,10 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
-import javax.validation.constraints.*;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * 자동매매 전략 신호 DTO
@@ -224,5 +225,129 @@ public class TradingSignalDto {
                 strategyName, symbol, signalType, 
                 confidence.doubleValue() * 100, 
                 currentPrice.toString());
+    }
+
+    /**
+     * 매매신호 수신 응답 DTO
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReceiveResponse {
+        
+        @NotBlank
+        private String signalId; // 생성된 신호 ID
+        
+        @NotBlank
+        private String status; // RECEIVED, VALIDATED, REJECTED, PROCESSED
+        
+        private String message;
+        
+        private LocalDateTime receivedAt;
+        
+        private LocalDateTime processedAt;
+        
+        // 매칭된 자동매매 설정 정보 (있는 경우)
+        private String matchedConfigId;
+        private String matchedConfigName;
+        
+        // 처리 결과 정보
+        private ProcessingResult processingResult;
+    }
+
+    /**
+     * 신호 처리 결과 내부 클래스
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProcessingResult {
+        
+        private Boolean willExecute; // 주문 실행 여부
+        
+        private String executionReason; // 실행/비실행 이유
+        
+        private BigDecimal calculatedQuantity; // 계산된 주문 수량
+        
+        private BigDecimal calculatedAmount; // 계산된 주문 금액
+        
+        // 리스크 검증 결과
+        private RiskValidationResult riskValidation;
+    }
+
+    /**
+     * 리스크 검증 결과 내부 클래스
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RiskValidationResult {
+        
+        private Boolean passed; // 리스크 검증 통과 여부
+        
+        private String riskLevel; // LOW, MEDIUM, HIGH, CRITICAL
+        
+        private BigDecimal riskScore; // 0.0 ~ 1.0
+        
+        private String[] warnings; // 경고 메시지들
+        
+        private String[] blockers; // 차단 사유들
+    }
+
+    /**
+     * 신호 통계 DTO
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SignalStatistics {
+        
+        private Long totalSignals;
+        
+        private Long processedSignals;
+        
+        private Long executedSignals;
+        
+        private Long rejectedSignals;
+        
+        private BigDecimal averageConfidence;
+        
+        private BigDecimal successRate;
+        
+        // 전략별 통계
+        private Map<String, StrategyStatistics> strategyStats;
+        
+        // 시간별 통계
+        private Map<String, Long> hourlyStats;
+        
+        private LocalDateTime lastSignalTime;
+    }
+
+    /**
+     * 전략별 통계 내부 클래스
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StrategyStatistics {
+        
+        private String strategyName;
+        
+        private Long totalSignals;
+        
+        private Long successfulSignals;
+        
+        private BigDecimal successRate;
+        
+        private BigDecimal averageConfidence;
+        
+        private BigDecimal totalProfit;
+        
+        private LocalDateTime lastSignalTime;
     }
 }

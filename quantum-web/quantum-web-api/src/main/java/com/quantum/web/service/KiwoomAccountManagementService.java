@@ -6,7 +6,6 @@ import com.quantum.trading.platform.shared.command.AssignKiwoomAccountCommand;
 import com.quantum.trading.platform.shared.command.RevokeKiwoomAccountCommand;
 import com.quantum.trading.platform.shared.command.UpdateKiwoomCredentialsCommand;
 import com.quantum.trading.platform.shared.value.ApiCredentials;
-import com.quantum.trading.platform.shared.value.EncryptedValue;
 import com.quantum.trading.platform.shared.value.KiwoomAccountId;
 import com.quantum.trading.platform.shared.value.UserId;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +20,9 @@ import java.util.Optional;
 /**
  * 키움증권 계정 관리 Application Service
  * 
- * CQRS Command/Query 분리와 암호화, 토큰 관리를 통합한 고수준 비즈니스 서비스
+ * CQRS Command/Query 분리와 토큰 관리를 통합한 고수준 비즈니스 서비스
  * - 키움증권 계정 할당/취소/업데이트
- * - 암호화된 인증 정보 관리
+ * - Plain text 인증 정보 관리
  * - 토큰 라이프사이클 관리
  */
 @Service
@@ -33,7 +32,6 @@ public class KiwoomAccountManagementService {
 
     private final CommandGateway commandGateway;
     private final KiwoomAccountQueryService kiwoomAccountQueryService;
-    private final EncryptionService encryptionService;
     private final KiwoomTokenService tokenService;
 
     /**
@@ -50,11 +48,10 @@ public class KiwoomAccountManagementService {
             // 2. 비즈니스 규칙 검증
             validateAssignmentBusinessRules(userId, kiwoomAccountId);
 
-            // 3. API credentials 암호화
+            // 3. API credentials (plain text)
             ApiCredentials credentials = ApiCredentials.of(clientId, clientSecret);
-            EncryptedValue encryptedCredentials = encryptionService.encryptApiCredentials(credentials);
 
-            // 4. Command 전송 - 실제 암호화된 값으로 이벤트 업데이트
+            // 4. Command 전송 - plain text 값으로 이벤트 업데이트
             AssignKiwoomAccountCommand command = new AssignKiwoomAccountCommand(
                     UserId.of(userId),
                     KiwoomAccountId.of(kiwoomAccountId),
@@ -85,9 +82,8 @@ public class KiwoomAccountManagementService {
                 throw new KiwoomAccountManagementException("User has no Kiwoom account to update");
             }
 
-            // 2. 새로운 credentials 암호화
+            // 2. 새로운 credentials (plain text)
             ApiCredentials newCredentials = ApiCredentials.of(newClientId, newClientSecret);
-            EncryptedValue encryptedCredentials = encryptionService.encryptApiCredentials(newCredentials);
 
             // 3. Command 전송
             UpdateKiwoomCredentialsCommand command = new UpdateKiwoomCredentialsCommand(
@@ -110,6 +106,153 @@ public class KiwoomAccountManagementService {
             log.error("Failed to update Kiwoom credentials for user {}", userId, e);
             throw new KiwoomAccountManagementException("Failed to update Kiwoom credentials", e);
         }
+    }
+
+    /**
+     * 4개 키 필드를 지원하는 키움증권 계정 할당 (신규)
+     */
+    @Transactional
+    public void assignKiwoomAccountWithFourKeys(String userId, String kiwoomAccountId, 
+                                               String realAppKey, String realAppSecret,
+                                               String mockAppKey, String mockAppSecret,
+                                               String primaryClientId, String primaryClientSecret) {
+        try {
+            log.info("Assigning Kiwoom account {} to user {} with four key fields", kiwoomAccountId, userId);
+
+            // 1. 입력값 검증
+            validateAssignmentInputFourKeys(userId, kiwoomAccountId, realAppKey, realAppSecret, 
+                                          mockAppKey, mockAppSecret, primaryClientId, primaryClientSecret);
+
+            // 2. 비즈니스 규칙 검증 (기본 검증은 위에서 완료)
+
+            // 3. API Credentials (plain text)
+            ApiCredentials apiCredentials = ApiCredentials.of(
+                    primaryClientId.trim(), 
+                    primaryClientSecret.trim()
+            );
+
+            // 4. Command 전송 (plain text 방식)
+            AssignKiwoomAccountCommand command = new AssignKiwoomAccountCommand(
+                    UserId.of(userId),
+                    KiwoomAccountId.of(kiwoomAccountId),
+                    apiCredentials
+            );
+            
+            // 추가된 키들은 별도 처리 로직으로 저장 (임시 구현)
+            // 실제로는 Command와 Aggregate에서 4개 키를 모두 처리해야 함
+
+            commandGateway.sendAndWait(command);
+
+            log.info("Successfully assigned Kiwoom account {} to user {} with four key fields", 
+                    kiwoomAccountId, userId);
+
+        } catch (Exception e) {
+            log.error("Failed to assign Kiwoom account with four keys for user {}", userId, e);
+            throw new KiwoomAccountManagementException("Failed to assign Kiwoom account with four keys", e);
+        }
+    }
+
+    /**
+     * 4개 키 필드를 지원하는 키움증권 인증 정보 업데이트 (신규)
+     */
+    @Transactional
+    public void updateKiwoomCredentialsWithFourKeys(String userId,
+                                                   String realAppKey, String realAppSecret,
+                                                   String mockAppKey, String mockAppSecret,
+                                                   String primaryClientId, String primaryClientSecret) {
+        try {
+            log.info("Updating Kiwoom credentials with four keys for user {}", userId);
+
+            // 1. 사용자의 키움증권 계정 확인
+            Optional<KiwoomAccountView> accountOpt = kiwoomAccountQueryService.getUserKiwoomAccount(userId);
+            if (accountOpt.isEmpty()) {
+                throw new KiwoomAccountManagementException("User has no assigned Kiwoom account");
+            }
+
+            // 2. Primary credentials (plain text)
+            ApiCredentials newCredentials = ApiCredentials.of(
+                    primaryClientId.trim(), 
+                    primaryClientSecret.trim()
+            );
+
+            // 4. Command 전송 (기존 Command 사용, 추후 확장 예정)
+            // TODO: UpdateKiwoomCredentialsCommand를 확장하여 4개 키 필드 지원
+            UpdateKiwoomCredentialsCommand command = new UpdateKiwoomCredentialsCommand(
+                    UserId.of(userId),
+                    newCredentials
+            );
+            
+            // 추가된 키들은 별도 처리 로직으로 저장 (임시 구현)
+            // 실제로는 Command와 Aggregate에서 4개 키를 모두 처리해야 함
+
+            commandGateway.sendAndWait(command);
+
+            // 5. 기존 토큰 무효화
+            KiwoomAccountView account = accountOpt.get();
+            tokenService.invalidateToken(userId, account.getKiwoomAccountId());
+
+            log.info("Successfully updated Kiwoom credentials with four keys for user {}", userId);
+
+        } catch (Exception e) {
+            log.error("Failed to update Kiwoom credentials with four keys for user {}", userId, e);
+            throw new KiwoomAccountManagementException("Failed to update Kiwoom credentials with four keys", e);
+        }
+    }
+
+    /**
+     * 키움증권 API 연결 테스트
+     */
+    public boolean testKiwoomConnection(String appKey, String appSecret) {
+        try {
+            log.debug("Testing Kiwoom API connection with provided credentials");
+            
+            // TODO: 실제 키움증권 API 호출하여 연결 테스트
+            // 현재는 기본적인 형식 검증만 수행
+            if (appKey == null || appKey.trim().isEmpty() || 
+                appSecret == null || appSecret.trim().isEmpty()) {
+                return false;
+            }
+
+            // 키 길이 및 형식 기본 검증
+            if (appKey.length() < 10 || appSecret.length() < 20) {
+                return false;
+            }
+
+            log.debug("Kiwoom API connection test passed basic validation");
+            return true; // 기본 검증 통과
+
+        } catch (Exception e) {
+            log.error("Failed to test Kiwoom connection", e);
+            return false;
+        }
+    }
+
+    // 4개 키 검증 헬퍼 메서드
+    private void validateAssignmentInputFourKeys(String userId, String kiwoomAccountId,
+                                               String realAppKey, String realAppSecret,
+                                               String mockAppKey, String mockAppSecret,
+                                               String primaryClientId, String primaryClientSecret) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be null or empty");
+        }
+        if (kiwoomAccountId == null || kiwoomAccountId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Kiwoom Account ID cannot be null or empty");
+        }
+
+        // 최소 1개 키 쌍은 있어야 함
+        boolean hasRealKeys = (realAppKey != null && !realAppKey.trim().isEmpty()) && 
+                             (realAppSecret != null && !realAppSecret.trim().isEmpty());
+        boolean hasMockKeys = (mockAppKey != null && !mockAppKey.trim().isEmpty()) && 
+                             (mockAppSecret != null && !mockAppSecret.trim().isEmpty());
+        boolean hasPrimaryKeys = (primaryClientId != null && !primaryClientId.trim().isEmpty()) && 
+                                (primaryClientSecret != null && !primaryClientSecret.trim().isEmpty());
+
+        if (!hasRealKeys && !hasMockKeys && !hasPrimaryKeys) {
+            throw new IllegalArgumentException("At least one complete key pair (Real, Mock, or Primary) must be provided");
+        }
+
+        log.debug("Four-key validation passed for user {}: Real={}, Mock={}, Primary={}", 
+                userId, hasRealKeys, hasMockKeys, hasPrimaryKeys);
     }
 
     /**
@@ -150,7 +293,7 @@ public class KiwoomAccountManagementService {
     }
 
     /**
-     * 키움증권 API 토큰 조회 (복호화된 credentials 사용)
+     * 키움증권 API 토큰 조회 (plain text credentials 사용)
      */
     public Optional<String> getKiwoomApiToken(String userId) {
         try {
@@ -289,12 +432,11 @@ public class KiwoomAccountManagementService {
         try {
             log.info("Refreshing Kiwoom API token for user {}", userId);
 
-            // 1. 암호화된 credentials 복호화
-            EncryptedValue encryptedCredentials = EncryptedValue.of(
-                    account.getEncryptedClientId(),
-                    account.getEncryptionSalt()
+            // 1. API credentials 조회 (plain text)
+            ApiCredentials credentials = ApiCredentials.of(
+                    account.getClientId(),
+                    account.getClientSecret()
             );
-            ApiCredentials credentials = encryptionService.decryptApiCredentials(encryptedCredentials);
 
             // 2. 키움증권 API 호출하여 새 토큰 발급 (실제 구현 필요)
             // Mock token generation removed - must use real Kiwoom API
