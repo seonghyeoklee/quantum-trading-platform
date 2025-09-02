@@ -211,7 +211,7 @@ const fetchKISData = async (endpoint: string, params: any) => {
     throw new Error('KIS token not available');
   }
   
-  const response = await fetch(`http://localhost:8002${endpoint}`, {
+  const response = await fetch(`http://localhost:8000${endpoint}`, {
     method: 'GET',
     headers: {
       'X-KIS-Token': activeToken,

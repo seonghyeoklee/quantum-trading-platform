@@ -142,7 +142,7 @@ export class TokenStorage {
 #### Direct KIS Adapter Client
 ```typescript
 export class DirectKisClient {
-  private baseURL = process.env.NEXT_PUBLIC_KIS_ADAPTER_URL || 'http://localhost:8002'
+  private baseURL = process.env.NEXT_PUBLIC_KIS_ADAPTER_URL || 'http://localhost:8000'
   private tokenStore = useKisTokenStore
   
   constructor() {
@@ -714,7 +714,7 @@ async def refresh_kis_token(
 
 2. **직접 API 호출**
    - Next.js에서 KIS Adapter로 직접 HTTP 요청
-   - `GET localhost:8002/domestic/chart/daily/005930`
+   - `GET localhost:8000/domestic/chart/daily/005930`
    - Authorization 헤더에 JWT + X-KIS-Token 헤더에 KIS 토큰 포함
 
 3. **빠른 응답 및 렌더링**

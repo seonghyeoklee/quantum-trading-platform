@@ -173,7 +173,7 @@ Response: 실시간 가격 정보 (초기 로딩 시에만)
 
 **실시간 WebSocket 연동**
 ```
-WebSocket Connection: ws://localhost:8002/ws/realtime
+WebSocket Connection: ws://localhost:8000/ws/realtime
 Subscribe Message:
 {
   "action": "subscribe",
@@ -221,7 +221,7 @@ Response: USD 기준 가격 정보 (초기 로딩 시에만)
 
 **실시간 WebSocket 연동**
 ```
-WebSocket Connection: ws://localhost:8002/ws/realtime
+WebSocket Connection: ws://localhost:8000/ws/realtime
 Subscribe Message:
 {
   "action": "subscribe",
@@ -432,7 +432,7 @@ KIS Adapter에 WebSocket 서버 기능 추가 필요:
 
 **WebSocket 엔드포인트**
 ```
-ws://localhost:8002/ws/realtime
+ws://localhost:8000/ws/realtime
 ```
 
 **구독 관리**

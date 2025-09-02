@@ -9,14 +9,14 @@ Next.js Frontend (포트 3000) - 전역 상태 관리
     ↓ HTTP/REST API
 Spring Boot Backend (포트 8080) - 시장별 라우팅
     ↓ HTTP/REST API  
-Python FastAPI KIS Adapter (포트 8002) - 국내/해외 분리 API
+Python FastAPI KIS Adapter (포트 8000) - 국내/해외 분리 API
     ↓ HTTPS API Calls
 Korea Investment & Securities API
 ```
 
 ## API 구조 설계
 
-### FastAPI 엔드포인트 구조 (포트 8002)
+### FastAPI 엔드포인트 구조 (포트 8000)
 
 #### 국내 주식 API
 ```
@@ -165,7 +165,7 @@ class WebClientConfig {
     @Bean
     fun kisWebClient(): WebClient {
         return WebClient.builder()
-            .baseUrl("http://localhost:8002")
+            .baseUrl("http://localhost:8000")
             .build()
     }
 }
@@ -250,34 +250,34 @@ class ChartController(private val chartService: ChartService) {
 ### 국내 주식 조회
 ```bash
 # 삼성전자 일봉 조회
-curl "http://localhost:8002/domestic/chart/daily/005930?period=D&count=30"
+curl "http://localhost:8000/domestic/chart/daily/005930?period=D&count=30"
 
 # 삼성전자 현재가 조회  
-curl "http://localhost:8002/domestic/price/005930"
+curl "http://localhost:8000/domestic/price/005930"
 
 # 국내 주요 종목 목록
-curl "http://localhost:8002/markets/domestic/sample-symbols"
+curl "http://localhost:8000/markets/domestic/sample-symbols"
 ```
 
 ### 해외 주식 조회
 ```bash
 # AAPL 일봉 조회 (NASDAQ)
-curl "http://localhost:8002/overseas/NAS/chart/daily/AAPL?start_date=20241201&end_date=20241231"
+curl "http://localhost:8000/overseas/NAS/chart/daily/AAPL?start_date=20241201&end_date=20241231"
 
 # TSLA 현재가 조회 (NASDAQ)
-curl "http://localhost:8002/overseas/NAS/price/TSLA"
+curl "http://localhost:8000/overseas/NAS/price/TSLA"
 
 # NASDAQ 주요 종목 목록
-curl "http://localhost:8002/markets/overseas/NAS/sample-symbols"
+curl "http://localhost:8000/markets/overseas/NAS/sample-symbols"
 ```
 
 ### 시장 정보 조회
 ```bash
 # 지원 시장 및 거래소 정보
-curl "http://localhost:8002/markets/info"
+curl "http://localhost:8000/markets/info"
 
 # API 엔드포인트 목록
-curl "http://localhost:8002/api/endpoints"
+curl "http://localhost:8000/api/endpoints"
 ```
 
 ## 에러 처리
