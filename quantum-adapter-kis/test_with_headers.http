@@ -1,0 +1,91 @@
+### KIS Adapter API Test with Headers
+### 모든 API는 X-KIS-Token 헤더를 통해 인증 토큰을 받을 수 있습니다.
+
+### 1. Health Check
+GET http://localhost:8002/health
+
+### 2. API Information
+GET http://localhost:8002/
+
+### === 국내 주식 기본 API ===
+
+### 3. 국내 주식 현재가 조회 (헤더 없이)
+GET http://localhost:8002/domestic/price/005930
+
+### 4. 국내 주식 현재가 조회 (헤더 포함)
+GET http://localhost:8002/domestic/price/005930
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 5. 국내 주식 일봉 차트 조회
+GET http://localhost:8002/domestic/chart/daily/005930?period=D&count=10
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 6. 국내 주식 분봉 차트 조회
+GET http://localhost:8002/domestic/chart/minute/005930?time_div=1&start_time=090000
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 새로 추가된 국내 주식 API ===
+
+### 7. 국내 주식 호가정보 조회
+GET http://localhost:8002/domestic/orderbook/005930
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 8. 국내 종목 기본정보 조회  
+GET http://localhost:8002/domestic/info/005930
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 9. 종목 검색 (종목코드/심볼 기반)
+GET http://localhost:8002/domestic/search?symbol=005930
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 10. 국내 시장지수 조회 (코스피)
+GET http://localhost:8002/indices/domestic?index_code=0001
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 11. 국내 시장지수 조회 (코스닥)  
+GET http://localhost:8002/indices/domestic?index_code=1001
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 12. 국내 시장지수 조회 (코스피200)
+GET http://localhost:8002/indices/domestic?index_code=2001
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 해외 주식 API ===
+
+### 13. 해외 주식 일봉 차트 조회 (AAPL)
+GET http://localhost:8002/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231&period=D
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 14. 해외 주식 분봉 차트 조회 (AAPL)
+GET http://localhost:8002/overseas/NYS/chart/minute/AAPL?nmin=1&pinc=1
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 15. 해외 주식 현재가 조회 (AAPL)
+GET http://localhost:8002/overseas/NYS/price/AAPL
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 사용 예제 ===
+
+### 16. 삼성전자 종합 정보 조회 (순서대로 실행)
+# 1) 기본정보
+GET http://localhost:8002/domestic/info/005930
+# 2) 현재가
+GET http://localhost:8002/domestic/price/005930  
+# 3) 호가정보
+GET http://localhost:8002/domestic/orderbook/005930
+# 4) 일봉차트 
+GET http://localhost:8002/domestic/chart/daily/005930?period=D
+
+###
+### 📚 사용법 가이드:
+### 1. YOUR_ACCESS_TOKEN_HERE를 실제 KIS API 액세스 토큰으로 교체하세요
+### 2. 토큰이 없으면 기본적으로 kis_devlp.yaml 파일의 설정을 사용합니다
+### 3. 모든 API는 JSON 형태로 응답하며, success, data, message, timestamp 필드를 포함합니다
+###
+### 📋 지원하는 데이터:
+### • 현재가: 실시간 가격, 등락률, 거래량, PER/PBR 등
+### • 호가: 매수/매도 10단계 호가와 잔량
+### • 종목정보: 종목명, 업종, 상장정보, 기본 데이터
+### • 차트: OHLC 캔들 데이터와 거래량
+### • 지수: 코스피/코스닥/코스피200 지수 및 등락률
+###
