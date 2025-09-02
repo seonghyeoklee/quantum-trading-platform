@@ -2,6 +2,7 @@ package com.quantum.kis.domain
 
 import com.quantum.common.BaseEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -22,29 +23,34 @@ import java.time.LocalDateTime
         Index(name = "idx_kis_token_refresh", columnList = "expires_at, status")
     ]
 )
+@Comment("KIS 액세스 토큰")
 class KisToken(
     /**
      * 사용자 ID (Foreign Key)
      */
     @Column(name = "user_id", nullable = false)
+    @Comment("사용자 ID")
     var userId: Long = 0L,
     
     /**
      * KIS 계정 ID (Foreign Key)
      */
     @Column(name = "kis_account_id", nullable = false)
+    @Comment("KIS 계정 ID")
     var kisAccountId: Long = 0L,
     
     /**
      * KIS 액세스 토큰 (암호화 저장)
      */
     @Column(name = "access_token", nullable = false, length = 2048)
+    @Comment("KIS 액세스 토큰 (암호화 저장)")
     var accessToken: String = "",
     
     /**
      * 토큰 만료 시간 (UTC)
      */
     @Column(name = "expires_at", nullable = false)
+    @Comment("토큰 만료 시간")
     var expiresAt: LocalDateTime = LocalDateTime.now().plusHours(6),
     
     /**
@@ -52,6 +58,7 @@ class KisToken(
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "environment", nullable = false, length = 20)
+    @Comment("KIS 환경 (LIVE, SANDBOX)")
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
     /**
@@ -59,30 +66,35 @@ class KisToken(
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
+    @Comment("토큰 상태 (ACTIVE, EXPIRED, REVOKED)")
     var status: TokenStatus = TokenStatus.ACTIVE,
     
     /**
      * 토큰 타입 (Bearer 고정)
      */
     @Column(name = "token_type", nullable = false, length = 20)
+    @Comment("토큰 타입 (Bearer)")
     var tokenType: String = "Bearer",
     
     /**
      * 마지막 사용 시간
      */
     @Column(name = "last_used_at")
+    @Comment("마지막 사용 시간")
     var lastUsedAt: LocalDateTime? = null,
     
     /**
      * 토큰 갱신 횟수
      */
     @Column(name = "refresh_count", nullable = false)
+    @Comment("토큰 갱신 횟수")
     var refreshCount: Int = 0,
     
     /**
      * 다음 자동 갱신 시간 (만료 1시간 전)
      */
     @Column(name = "next_refresh_at")
+    @Comment("다음 자동 갱신 시간")
     var nextRefreshAt: LocalDateTime? = null
 
 ) : BaseEntity() {

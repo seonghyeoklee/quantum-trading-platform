@@ -2,6 +2,7 @@ package com.quantum.kis.domain
 
 import com.quantum.common.BaseEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.LocalDateTime
 
 /**
@@ -17,11 +18,13 @@ import java.time.LocalDateTime
         Index(name = "idx_kis_websocket_data_type", columnList = "data_type, is_active")
     ]
 )
+@Comment("KIS 웹소켓 등록 현황")
 class KisWebsocketRegistration(
     /**
      * KIS 설정 ID (Foreign Key)
      */
     @Column(name = "kis_setting_id", nullable = false)
+    @Comment("KIS 설정 ID")
     var kisSettingId: Long = 0L,
     
     /**
@@ -29,36 +32,42 @@ class KisWebsocketRegistration(
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "data_type", nullable = false, length = 50)
+    @Comment("실시간 데이터 유형")
     var dataType: WebsocketDataType = WebsocketDataType.REAL_TIME_PRICE,
     
     /**
      * 종목코드 (체결통보 제외)
      */
-    @Column(length = 20)
+    @Column(name = "symbol", length = 20)
+    @Comment("종목코드")
     var symbol: String? = null,
     
     /**
      * HTS ID (체결통보용)
      */
     @Column(name = "hts_id", length = 50)
+    @Comment("HTS ID (체결통보용)")
     var htsId: String? = null,
     
     /**
      * 등록 활성화 상태
      */
     @Column(name = "is_active", nullable = false)
+    @Comment("등록 활성화 상태")
     var isActive: Boolean = true,
     
     /**
      * 등록 시간
      */
     @Column(name = "registered_at", nullable = false)
+    @Comment("등록 시간")
     var registeredAt: LocalDateTime = LocalDateTime.now(),
     
     /**
      * 등록 해제 시간
      */
     @Column(name = "unregistered_at")
+    @Comment("등록 해제 시간")
     var unregisteredAt: LocalDateTime? = null
 
 ) : BaseEntity() {

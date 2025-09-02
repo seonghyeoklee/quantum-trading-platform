@@ -2,6 +2,7 @@ package com.quantum.kis.domain
 
 import com.quantum.common.BaseEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.LocalDateTime
 
 /**
@@ -18,72 +19,83 @@ import java.time.LocalDateTime
         Index(name = "idx_kis_api_usage_rate_limited", columnList = "is_rate_limited, called_at")
     ]
 )
+@Comment("KIS API 호출 로그")
 class KisApiUsageLog(
     /**
      * KIS 설정 ID (Foreign Key)
      */
     @Column(name = "kis_setting_id", nullable = false)
+    @Comment("KIS 설정 ID")
     var kisSettingId: Long = 0L,
     
     /**
      * API 엔드포인트
      */
     @Column(name = "api_endpoint", nullable = false, length = 255)
+    @Comment("API 엔드포인트")
     var apiEndpoint: String = "",
     
     /**
      * HTTP 메소드
      */
     @Column(name = "http_method", nullable = false, length = 10)
+    @Comment("HTTP 메소드")
     var httpMethod: String = "",
     
     /**
      * 호출 시간
      */
     @Column(name = "called_at", nullable = false)
+    @Comment("호출 시간")
     var calledAt: LocalDateTime = LocalDateTime.now(),
     
     /**
      * HTTP 응답 상태 코드
      */
     @Column(name = "response_status")
+    @Comment("HTTP 응답 상태 코드")
     var responseStatus: Int? = null,
     
     /**
      * 응답 시간 (밀리초)
      */
     @Column(name = "response_time_ms")
+    @Comment("응답 시간 (밀리초)")
     var responseTimeMs: Int? = null,
     
     /**
      * API 환경 (LIVE/SANDBOX)
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "environment", nullable = false, length = 20)
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
     /**
      * 남은 호출 수 (응답 헤더 기반)
      */
     @Column(name = "rate_limit_remaining")
+    @Comment("남은 호출 수")
     var rateLimitRemaining: Int? = null,
     
     /**
      * 제한 리셋 시간
      */
     @Column(name = "rate_limit_reset_at")
+    @Comment("제한 리셋 시간")
     var rateLimitResetAt: LocalDateTime? = null,
     
     /**
      * 유량 제한으로 인한 거부 여부
      */
     @Column(name = "is_rate_limited", nullable = false)
+    @Comment("유량 제한 여부")
     var isRateLimited: Boolean = false,
     
     /**
      * 에러 메시지
      */
     @Column(name = "error_message", columnDefinition = "TEXT")
+    @Comment("에러 메시지")
     var errorMessage: String? = null
 
 ) : BaseEntity() {

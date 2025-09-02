@@ -3,6 +3,7 @@ package com.quantum.user.domain
 import com.quantum.common.BaseEntity
 import com.quantum.common.DomainEvent
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.LocalDateTime
 import java.util.*
 
@@ -12,18 +13,23 @@ import java.util.*
  */
 @Entity
 @Table(name = "users")
+@Comment("사용자 정보")
 class User(
-    @Column(nullable = false, unique = true)
+    @Column(name = "email", nullable = false, unique = true)
+    @Comment("이메일 주소")
     var email: String = "",
     
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false)
+    @Comment("사용자 이름")
     var name: String = "",
     
-    @Column(nullable = false)
+    @Column(name = "password", nullable = false)
+    @Comment("암호화된 비밀번호")
     var password: String = "",
     
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false)
+    @Comment("사용자 상태 (ACTIVE, INACTIVE, SUSPENDED)")
     var status: UserStatus = UserStatus.ACTIVE
 ) : BaseEntity() {
     
@@ -34,10 +40,12 @@ class User(
     @Enumerated(EnumType.STRING)
     @CollectionTable(name = "user_roles", joinColumns = [JoinColumn(name = "user_id")])
     @Column(name = "role")
+    @Comment("사용자 권한 목록")
     var roles: MutableSet<UserRole> = mutableSetOf(UserRole.USER)
         private set
     
-    @Column
+    @Column(name = "last_login_at")
+    @Comment("마지막 로그인 일시")
     var lastLoginAt: LocalDateTime? = null
         private set
     

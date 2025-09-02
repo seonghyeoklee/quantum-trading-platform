@@ -2,6 +2,7 @@ package com.quantum.kis.domain
 
 import com.quantum.common.BaseEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.LocalDateTime
 
 /**
@@ -20,73 +21,85 @@ import java.time.LocalDateTime
         )
     ]
 )
+@Comment("사용자 KIS API 설정")
 class UserKisSettings(
     /**
      * 사용자 ID (Foreign Key)
      */
     @Column(name = "user_id", nullable = false)
+    @Comment("사용자 ID")
     var userId: Long = 0L,
     
     /**
      * KIS API 환경 (실전투자/모의투자)
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "environment", nullable = false, length = 20)
+    @Comment("KIS API 환경 (실전투자/모의투자)")
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
     /**
      * KIS 앱키 (API 인증용)
      */
     @Column(name = "app_key", nullable = false, length = 100)
+    @Comment("KIS 앱키")
     var appKey: String = "",
     
     /**
      * KIS 앱시크릿 (API 인증용) - 암호화 저장 권장
      */
     @Column(name = "app_secret", nullable = false, length = 255)
+    @Comment("KIS 앱시크릿 (암호화 권장)")
     var appSecret: String = "",
     
     /**
      * HTS ID (웹소켓 체결통보용)
      */
     @Column(name = "hts_id", nullable = false, length = 50)
+    @Comment("HTS ID (웹소켓 체결통보용)")
     var htsId: String = "",
     
     /**
      * 계좌번호
      */
     @Column(name = "account_number", nullable = false, length = 20)
+    @Comment("계좌번호")
     var accountNumber: String = "",
     
     /**
      * 상품코드 (보통 "01")
      */
     @Column(name = "product_code", nullable = false, length = 10)
+    @Comment("상품코드")
     var productCode: String = "01",
     
     /**
      * 설정 목적 (기본 거래/유량 확장)
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(name = "purpose", nullable = false, length = 30)
+    @Comment("설정 목적")
     var purpose: KisSettingPurpose = KisSettingPurpose.PRIMARY_TRADING,
     
     /**
      * 설정 설명
      */
-    @Column(length = 500)
+    @Column(name = "description", length = 500)
+    @Comment("설정 설명")
     var description: String? = null,
     
     /**
      * 활성화 상태
      */
     @Column(name = "is_active", nullable = false)
+    @Comment("활성화 상태")
     var isActive: Boolean = true,
     
     /**
      * 마지막 토큰 갱신 시간
      */
     @Column(name = "last_token_refresh_at")
+    @Comment("마지막 토큰 갱신 시간")
     var lastTokenRefreshAt: LocalDateTime? = null
 
 ) : BaseEntity() {

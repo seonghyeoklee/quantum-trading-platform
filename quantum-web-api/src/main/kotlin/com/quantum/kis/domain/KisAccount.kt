@@ -2,6 +2,7 @@ package com.quantum.kis.domain
 
 import com.quantum.common.BaseEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.Comment
 import java.time.LocalDateTime
 
 /**
@@ -19,29 +20,34 @@ import java.time.LocalDateTime
         Index(name = "idx_kis_account_active", columnList = "is_active")
     ]
 )
+@Comment("KIS 계정 정보")
 class KisAccount(
     /**
      * 사용자 ID (Foreign Key)
      */
     @Column(name = "user_id", nullable = false)
+    @Comment("사용자 ID")
     var userId: Long = 0L,
     
     /**
      * KIS API App Key (암호화 저장)
      */
     @Column(name = "app_key", nullable = false, length = 500)
+    @Comment("KIS API 앱키 (암호화 저장)")
     var appKey: String = "",
     
     /**
      * KIS API App Secret (암호화 저장)
      */
     @Column(name = "app_secret", nullable = false, length = 500)
+    @Comment("KIS API 앱시크릿 (암호화 저장)")
     var appSecret: String = "",
     
     /**
      * 계좌번호 (암호화 저장)
      */
     @Column(name = "account_number", nullable = false, length = 200)
+    @Comment("계좌번호 (암호화 저장)")
     var accountNumber: String = "",
     
     /**
@@ -49,30 +55,35 @@ class KisAccount(
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "environment", nullable = false, length = 20)
+    @Comment("KIS 환경 (LIVE, SANDBOX)")
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
     /**
      * 계정 활성화 상태
      */
     @Column(name = "is_active", nullable = false)
+    @Comment("계정 활성화 상태")
     var isActive: Boolean = true,
     
     /**
      * 계정 별칭 (사용자가 구분하기 위한 이름)
      */
     @Column(name = "account_alias", length = 100)
+    @Comment("계정 별칭")
     var accountAlias: String? = null,
     
     /**
      * 마지막 토큰 발급 시간
      */
     @Column(name = "last_token_issued_at")
+    @Comment("마지막 토큰 발급 시간")
     var lastTokenIssuedAt: LocalDateTime? = null,
     
     /**
      * 마지막 검증 시간
      */
     @Column(name = "last_validated_at")
+    @Comment("마지막 검증 시간")
     var lastValidatedAt: LocalDateTime? = null
 
 ) : BaseEntity() {

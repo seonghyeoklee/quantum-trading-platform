@@ -46,6 +46,9 @@ dependencies {
     // OpenAPI Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0")
     
+    // macOS DNS 네이티브 리졸버 (WebClient 성능 최적화)
+    runtimeOnly("io.netty:netty-resolver-dns-native-macos")
+    
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

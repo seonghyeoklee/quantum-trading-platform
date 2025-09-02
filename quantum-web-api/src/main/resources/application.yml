@@ -15,7 +15,7 @@ spring:
   # JPA Configuration
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -45,6 +45,7 @@ logging:
     com.quantum: DEBUG
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
+    io.netty.resolver.dns: WARN  # DNS 네이티브 리졸버 경고 최소화
 
 ---
 # Production Profile (PostgreSQL)
