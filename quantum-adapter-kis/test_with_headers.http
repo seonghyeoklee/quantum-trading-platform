@@ -2,79 +2,153 @@
 ### 모든 API는 X-KIS-Token 헤더를 통해 인증 토큰을 받을 수 있습니다.
 
 ### 1. Health Check
-GET http://localhost:8002/health
+GET http://localhost:8000/health
 
 ### 2. API Information
-GET http://localhost:8002/
+GET http://localhost:8000/
 
 ### === 국내 주식 기본 API ===
 
 ### 3. 국내 주식 현재가 조회 (헤더 없이)
-GET http://localhost:8002/domestic/price/005930
+GET http://localhost:8000/domestic/price/005930
 
 ### 4. 국내 주식 현재가 조회 (헤더 포함)
-GET http://localhost:8002/domestic/price/005930
+GET http://localhost:8000/domestic/price/005930
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 5. 국내 주식 일봉 차트 조회
-GET http://localhost:8002/domestic/chart/daily/005930?period=D&count=10
+GET http://localhost:8000/domestic/chart/daily/005930?period=D&count=10
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 6. 국내 주식 분봉 차트 조회
-GET http://localhost:8002/domestic/chart/minute/005930?time_div=1&start_time=090000
+GET http://localhost:8000/domestic/chart/minute/005930?time_div=1&start_time=090000
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 새로 추가된 국내 주식 API ===
 
 ### 7. 국내 주식 호가정보 조회
-GET http://localhost:8002/domestic/orderbook/005930
+GET http://localhost:8000/domestic/orderbook/005930
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 8. 국내 종목 기본정보 조회  
-GET http://localhost:8002/domestic/info/005930
+GET http://localhost:8000/domestic/info/005930
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 9. 종목 검색 (종목코드/심볼 기반)
-GET http://localhost:8002/domestic/search?symbol=005930
+GET http://localhost:8000/domestic/search?symbol=005930
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 10. 국내 시장지수 조회 (코스피)
-GET http://localhost:8002/indices/domestic?index_code=0001
+GET http://localhost:8000/indices/domestic?index_code=0001
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 11. 국내 시장지수 조회 (코스닥)  
-GET http://localhost:8002/indices/domestic?index_code=1001
+GET http://localhost:8000/indices/domestic?index_code=1001
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 12. 국내 시장지수 조회 (코스피200)
-GET http://localhost:8002/indices/domestic?index_code=2001
+GET http://localhost:8000/indices/domestic?index_code=2001
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 해외 주식 API ===
 
 ### 13. 해외 주식 일봉 차트 조회 (AAPL)
-GET http://localhost:8002/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231&period=D
+GET http://localhost:8000/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231&period=D
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 14. 해외 주식 분봉 차트 조회 (AAPL)
-GET http://localhost:8002/overseas/NYS/chart/minute/AAPL?nmin=1&pinc=1
+GET http://localhost:8000/overseas/NYS/chart/minute/AAPL?nmin=1&pinc=1
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### 15. 해외 주식 현재가 조회 (AAPL)
-GET http://localhost:8002/overseas/NYS/price/AAPL
+GET http://localhost:8000/overseas/NYS/price/AAPL
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 새로 추가된 해외 주식 API ===
+
+### 16. 해외 주식 기본정보 조회 (AAPL)
+GET http://localhost:8000/overseas/NYS/info/AAPL
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 17. 해외 주식 기본정보 조회 (테슬라)
+GET http://localhost:8000/overseas/NAS/info/TSLA
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 18. 해외 주식 기본정보 조회 (일본 소니)
+GET http://localhost:8000/overseas/TSE/info/6758
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 19. 해외 주식 검색 (나스닥)
+GET http://localhost:8000/overseas/NAS/search?symbol=AAPL&rsp_tp=0
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 20. 해외 주식 검색 (뉴욕증권거래소, 필터링)
+GET http://localhost:8000/overseas/NYS/search?schz_bnti_qty=100&rsp_tp=1&start_rank=1&end_rank=10
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 해외 시장지수 API ===
+
+### 21. 해외 시장지수 조회 (S&P 500)
+GET http://localhost:8000/indices/overseas/US?index_code=SPX
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 22. 해외 시장지수 조회 (다우존스)
+GET http://localhost:8000/indices/overseas/US?index_code=DJI
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 23. 해외 시장지수 조회 (나스닥 종합)
+GET http://localhost:8000/indices/overseas/US?index_code=NDX
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 24. 해외 시장지수 조회 (니케이 225)
+GET http://localhost:8000/indices/overseas/JP?index_code=N225
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 25. 해외 시장지수 조회 (항셍지수)
+GET http://localhost:8000/indices/overseas/HK?index_code=HSI
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### === 해외 지수 차트 API ===
+
+### 26. 해외 지수 일봉 차트 (S&P 500)
+GET http://localhost:8000/indices/overseas/US/chart/daily/SPX?start_date=20241201&end_date=20241231&period=D
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 27. 해외 지수 분봉 차트 (다우존스)
+GET http://localhost:8000/indices/overseas/US/chart/minute/DJI?nmin=1&pinc=1
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 사용 예제 ===
 
-### 16. 삼성전자 종합 정보 조회 (순서대로 실행)
+### 28. 삼성전자 종합 정보 조회 (순서대로 실행)
 # 1) 기본정보
-GET http://localhost:8002/domestic/info/005930
+GET http://localhost:8000/domestic/info/005930
 # 2) 현재가
-GET http://localhost:8002/domestic/price/005930  
+GET http://localhost:8000/domestic/price/005930
 # 3) 호가정보
-GET http://localhost:8002/domestic/orderbook/005930
+GET http://localhost:8000/domestic/orderbook/005930
 # 4) 일봉차트 
-GET http://localhost:8002/domestic/chart/daily/005930?period=D
+GET http://localhost:8000/domestic/chart/daily/005930?period=D
+
+### 29. 애플(AAPL) 종합 정보 조회 (순서대로 실행)
+# 1) 기본정보
+GET http://localhost:8000/overseas/NYS/info/AAPL
+# 2) 현재가
+GET http://localhost:8000/overseas/NYS/price/AAPL
+# 3) 일봉차트
+GET http://localhost:8000/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231
+# 4) 분봉차트
+GET http://localhost:8000/overseas/NYS/chart/minute/AAPL?nmin=5
+
+### 30. 글로벌 시장지수 모니터링
+# 1) 미국 S&P 500
+GET http://localhost:8000/indices/overseas/US?index_code=SPX
+# 2) 일본 니케이
+GET http://localhost:8000/indices/overseas/JP?index_code=N225
+# 3) 홍콩 항셍
+GET http://localhost:8000/indices/overseas/HK?index_code=HSI
+# 4) 한국 코스피
+GET http://localhost:8000/indices/domestic?index_code=0001
 
 ###
 ### 📚 사용법 가이드:
@@ -83,9 +157,17 @@ GET http://localhost:8002/domestic/chart/daily/005930?period=D
 ### 3. 모든 API는 JSON 형태로 응답하며, success, data, message, timestamp 필드를 포함합니다
 ###
 ### 📋 지원하는 데이터:
-### • 현재가: 실시간 가격, 등락률, 거래량, PER/PBR 등
-### • 호가: 매수/매도 10단계 호가와 잔량
-### • 종목정보: 종목명, 업종, 상장정보, 기본 데이터
-### • 차트: OHLC 캔들 데이터와 거래량
-### • 지수: 코스피/코스닥/코스피200 지수 및 등락률
+### • 현재가: 실시간 가격, 등락률, 거래량, PER/PBR 등 (국내/해외)
+### • 호가: 매수/매도 10단계 호가와 잔량 (국내)
+### • 종목정보: 종목명, 업종, 상장정보, 기본 데이터 (국내/해외)
+### • 차트: OHLC 캔들 데이터와 거래량 (국내/해외)
+### • 지수: 코스피/코스닥/코스피200 지수 및 등락률 (국내)
+### • 해외지수: S&P500, 다우존스, 나스닥, 니케이, 항셍 등 글로벌 지수
+### • 해외주식검색: 조건부 검색 및 필터링 기능
+###
+### 🌍 지원 거래소:
+### • NYS: 뉴욕증권거래소 (NYSE)    • NAS: 나스닥 (NASDAQ)
+### • AMS: 아메렉스 (AMEX)         • TSE: 도쿄증권거래소  
+### • HKS: 홍콩증권거래소          • SHS: 중국 상해A
+### • SZS: 중국 심천A
 ###
