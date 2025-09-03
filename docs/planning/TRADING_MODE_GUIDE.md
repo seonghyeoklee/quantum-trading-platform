@@ -13,12 +13,12 @@
 ### 기본 사용법
 
 ```bash
-# 모의투자 모드 (기본값)
-curl "http://localhost:8000/domestic/price/005930"
+# 모의투자 모드 (기본값) - Spring Boot를 통한 호출
+curl "http://localhost:8080/api/v1/chart/005930/daily"
 
 # 실전투자 모드
-curl "http://localhost:8000/domestic/price/005930?trading_mode=LIVE" \
-     -H "X-KIS-Token: YOUR_ACCESS_TOKEN"
+curl "http://localhost:8080/api/v1/chart/005930/daily?trading_mode=LIVE" \
+     -H "Authorization: Bearer JWT_TOKEN"
 ```
 
 ### 지원되는 값
@@ -28,12 +28,12 @@ curl "http://localhost:8000/domestic/price/005930?trading_mode=LIVE" \
 
 ## 🏗️ 아키텍처 이해
 
-### 인증 우선순위 시스템
+### 서버 중심 인증 시스템
 
 ```
-1순위: X-KIS-Token 헤더 (외부 제공 토큰)
-   ↓ 없으면
-2순위: kis_devlp.yaml 설정 파일 토큰
+Spring Boot API → KIS Adapter (자체 토큰 관리)
+   ↓
+kis_devlp.yaml 설정 파일 토큰 사용
 ```
 
 ### 서버 매핑 규칙
@@ -55,17 +55,19 @@ SANDBOX 모드:
 #### 현재가 조회
 ```bash
 # SANDBOX (기본값)
-GET /domestic/price/005930
+GET /api/v1/stocks/005930/price
+Authorization: Bearer JWT_TOKEN
 
 # LIVE 모드
-GET /domestic/price/005930?trading_mode=LIVE
-X-KIS-Token: YOUR_LIVE_TOKEN
+GET /api/v1/stocks/005930/price?trading_mode=LIVE
+Authorization: Bearer JWT_TOKEN
 ```
 
 #### 일봉/주봉/월봉 차트
 ```bash
 # 삼성전자 최근 30일 일봉
-GET /domestic/chart/daily/005930?period=D&count=30&trading_mode=LIVE
+GET /api/v1/chart/005930/daily?period=D&count=30&trading_mode=LIVE
+Authorization: Bearer JWT_TOKEN
 ```
 
 #### 분봉 차트
@@ -167,16 +169,15 @@ GET /indices/overseas/JP?index_code=N225
 ### JavaScript/TypeScript (프론트엔드)
 
 ```typescript
-// KIS Adapter 직접 호출 패턴
+// Spring Boot API 호출 패턴
 async function fetchStockPrice(symbol: string, mode: 'LIVE' | 'SANDBOX' = 'SANDBOX') {
-  const url = `http://localhost:8000/domestic/price/${symbol}?trading_mode=${mode}`;
-  const headers: Record<string, string> = {};
+  const url = `http://localhost:8080/api/v1/stocks/${symbol}/price?trading_mode=${mode}`;
+  const token = localStorage.getItem('accessToken');
   
-  // KIS 토큰이 있으면 헤더에 추가
-  const kisToken = getKISToken();
-  if (kisToken) {
-    headers['X-KIS-Token'] = kisToken;
-  }
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
   
   try {
     const response = await fetch(url, { headers });
@@ -198,34 +199,47 @@ console.log('삼성전자 현재가:', price.data);
 ### Kotlin (백엔드)
 
 ```kotlin
+@RestController
+@RequestMapping("/api/v1/stocks")
+class StockController(
+    private val kisAdapterService: KisAdapterService
+) {
+    
+    @GetMapping("/{symbol}/price")
+    fun getStockPrice(
+        @PathVariable symbol: String,
+        @RequestParam(defaultValue = "SANDBOX") tradingMode: String,
+        @AuthenticationPrincipal userDetails: UserDetails
+    ): ResponseEntity<ApiResponse> {
+        
+        return try {
+            val result = kisAdapterService.getDomesticStockPrice(symbol, tradingMode)
+            ResponseEntity.ok(result)
+        } catch (e: Exception) {
+            logger.error("Stock price fetch failed", e)
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("주식 가격 조회 실패: ${e.message}"))
+        }
+    }
+}
+
 @Service
 class KisAdapterService(
-    private val restTemplate: RestTemplate
+    private val webClient: WebClient
 ) {
     
     fun getDomesticStockPrice(
         symbol: String, 
-        tradingMode: String = "SANDBOX",
-        kisToken: String? = null
+        tradingMode: String = "SANDBOX"
     ): ApiResponse {
         val url = "http://localhost:8000/domestic/price/{symbol}?trading_mode={mode}"
-        val headers = HttpHeaders()
         
-        kisToken?.let { headers.set("X-KIS-Token", it) }
-        
-        val entity = HttpEntity<String>(headers)
-        val uriVariables = mapOf(
-            "symbol" to symbol,
-            "mode" to tradingMode
-        )
-        
-        return try {
-            restTemplate.exchange(url, HttpMethod.GET, entity, ApiResponse::class.java, uriVariables).body
-                ?: throw RuntimeException("Empty response from KIS Adapter")
-        } catch (e: Exception) {
-            logger.error("KIS Adapter call failed", e)
-            throw KisAdapterException("Failed to fetch stock price", e)
-        }
+        return webClient.get()
+            .uri(url, symbol, tradingMode)
+            .retrieve()
+            .bodyToMono(ApiResponse::class.java)
+            .block()
+            ?: throw RuntimeException("Empty response from KIS Adapter")
     }
 }
 ```
@@ -242,15 +256,11 @@ async def get_domestic_current_price(
         description="거래 모드: LIVE(실전투자) | SANDBOX(모의투자)", 
         regex="^(LIVE|SANDBOX)$"
     ),
-    x_kis_token: Optional[str] = Header(
-        None, 
-        alias="X-KIS-Token", 
-        description="KIS API 인증 토큰 (선택사항)"
-    )
+    # X-KIS-Token 헤더 제거됨 - 서버 자체 토큰 관리
 ):
     try:
         # 통합 인증 시스템
-        server_mode = authenticate_kis(x_kis_token, trading_mode)
+        server_mode = authenticate_kis(trading_mode)
         
         # KIS API 호출
         trenv = ka.getTREnv()
@@ -346,21 +356,22 @@ async function robustKisCall(symbol: string, mode: 'LIVE' | 'SANDBOX') {
 
 ## ⚡ 성능 최적화
 
-### 1. 토큰 관리 최적화
+### 1. JWT 토큰 관리 최적화
 
 ```typescript
-class KISTokenManager {
-  private tokenCache: Map<string, string> = new Map();
+class JWTTokenManager {
+  private tokenCache: string | null = null;
   
-  async getToken(mode: 'LIVE' | 'SANDBOX'): Promise<string> {
-    const cached = this.tokenCache.get(mode);
+  async getToken(): Promise<string> {
+    const cached = this.tokenCache || localStorage.getItem('accessToken');
     if (cached && this.isTokenValid(cached)) {
       return cached;
     }
     
-    // 새 토큰 발급
-    const newToken = await this.issueNewToken(mode);
-    this.tokenCache.set(mode, newToken);
+    // 토큰 갱신
+    const newToken = await this.refreshToken();
+    this.tokenCache = newToken;
+    localStorage.setItem('accessToken', newToken);
     return newToken;
   }
   
@@ -372,6 +383,17 @@ class KISTokenManager {
     } catch {
       return false;
     }
+  }
+  
+  private async refreshToken(): Promise<string> {
+    const refreshToken = localStorage.getItem('refreshToken');
+    const response = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    const data = await response.json();
+    return data.accessToken;
   }
 }
 ```
@@ -435,8 +457,8 @@ KIS Adapter 로그에서 확인해야 할 주요 패턴:
 
 ### 1. 토큰 관리
 
-- **X-KIS-Token 헤더**: HTTPS 연결에서만 사용
-- **kis_devlp.yaml**: 파일 권한 600으로 설정
+- **JWT 토큰**: HTTPS 연결에서만 전송
+- **kis_devlp.yaml**: 파일 권한 600으로 설정 (서버에서만 접근)
 - **로그**: 토큰 값 마스킹 처리 필수
 
 ### 2. 환경 분리
@@ -464,7 +486,7 @@ A1: KIS Adapter가 최신 버전인지 확인하고, OpenAPI 문서(`/docs`)에�
 A2: kis_devlp.yaml의 LIVE 환경 설정과 실제 KIS 계좌 권한을 확인하세요.
 
 #### Q3: "토큰이 계속 만료돼요"
-A3: KIS 토큰은 6시간마다 갱신이 필요합니다. 토큰 캐싱과 자동 갱신 로직을 구현하세요.
+A3: JWT 토큰 갱신 로직을 확인하세요. KIS 토큰은 서버에서 자동 관리됩니다.
 
 ### 디버깅 체크리스트
 

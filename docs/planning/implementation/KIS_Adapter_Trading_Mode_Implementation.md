@@ -5,7 +5,7 @@
 **구현 날짜**: 2025-09-02  
 **담당 역할**: 분석가 (Analyst)  
 **구현 범위**: KIS Adapter 전체 API 엔드포인트  
-**주요 기능**: Trading Mode 파라미터 및 X-KIS-Token 헤더 인증 통합
+**주요 기능**: Trading Mode 파라미터 및 서버 중심 KIS 인증 통합
 
 ## 🎯 구현 목표
 
@@ -21,11 +21,11 @@
 
 ## 🏗️ 아키텍처 설계
 
-### 통합 인증 시스템
+### 서버 중심 인증 시스템
 ```
-인증 우선순위:
-1. X-KIS-Token (헤더) ← 최우선
-2. kis_devlp.yaml (설정 파일) ← 대체 수단
+인증 방식:
+- kis_devlp.yaml (설정 파일) ← 유일한 인증 수단
+- 서버 자체 토큰 관리 (클라이언트 토큰 관리 제거)
 
 서버 모드 매핑:
 - LIVE → prod → openapi.koreainvestment.com:9443
@@ -40,23 +40,22 @@ GET /domestic/price/005930
 # 명시적 모드 지정
 GET /domestic/price/005930?trading_mode=LIVE
 
-# 헤더 인증 포함
-GET /domestic/price/005930?trading_mode=LIVE
-X-KIS-Token: your_access_token_here
+# 서버 자체 토큰 관리 (클라이언트 헤더 불필요)
+# kis_devlp.yaml 설정 파일 기반 자동 인증
 ```
 
 ## 🔧 구현 상세
 
 ### 1. 핵심 함수: authenticate_kis()
 ```python
-def authenticate_kis(x_kis_token: Optional[str] = None, trading_mode: str = "SANDBOX") -> str:
+def authenticate_kis(trading_mode: str = "SANDBOX") -> str:
     """
-    KIS 토큰 우선순위화 통합 인증 함수
+    KIS 서버 중심 인증 함수
     
     동작 순서:
-    1. X-KIS-Token이 있으면 외부 토큰으로 설정 (최우선)
+    1. kis_devlp.yaml 설정 파일에서 토큰 로드
     2. LIVE → prod, SANDBOX → vps 매핑
-    3. KIS 인증 실행
+    3. KIS 인증 실행 (서버 자체 관리)
     """
 ```
 
@@ -68,11 +67,7 @@ trading_mode: str = Query(
     description="거래 모드: LIVE(실전투자) | SANDBOX(모의투자)", 
     regex="^(LIVE|SANDBOX)$"
 )
-x_kis_token: Optional[str] = Header(
-    None, 
-    alias="X-KIS-Token", 
-    description="KIS API 인증 토큰 (선택사항)"
-)
+# X-KIS-Token 헤더 제거됨 - 서버 자체 토큰 관리
 ```
 
 ### 3. 적용된 API 엔드포인트 (총 17개)
@@ -178,14 +173,15 @@ val response = restTemplate.getForObject(
 )
 ```
 
-### 프론트엔드 통합
-Next.js에서 직접 KIS Adapter 호출 시:
+### 백엔드 통합
+Spring Boot에서 KIS Adapter 호출 시:
 ```typescript
+// Next.js는 Spring Boot API를 통해 간접 호출
 const response = await fetch(
-  `http://localhost:8000/domestic/price/005930?trading_mode=${mode}`,
+  `http://localhost:8080/api/v1/stocks/005930/price?trading_mode=${mode}`,
   {
     headers: {
-      'X-KIS-Token': kisToken
+      'Authorization': `Bearer ${jwtToken}`
     }
   }
 );
@@ -199,8 +195,8 @@ const response = await fetch(
 - **에러 처리**: 모든 예외 상황에 대한 적절한 응답
 
 ### 성능 최적화
-- **직접 호출 지원**: 프론트엔드에서 KIS Adapter 직접 호출 가능
-- **토큰 캐싱**: 외부 토큰 설정으로 불필요한 설정 파일 읽기 최소화
+- **서버 중심 호출**: Spring Boot를 통한 안전한 API 호출 패턴
+- **토큰 자동 관리**: kis_devlp.yaml 기반 자동 토큰 갱신
 - **로깅 최적화**: 구조화된 로그로 디버깅 및 모니터링 향상
 
 ## 🎉 결론
@@ -209,7 +205,7 @@ const response = await fetch(
 
 ### 주요 달성 사항
 ✅ **17개 API 엔드포인트** 모든 trading_mode 파라미터 적용  
-✅ **통합 인증 시스템** 구축 (헤더 > 설정 파일 우선순위)  
+✅ **서버 중심 인증 시스템** 구축 (kis_devlp.yaml 기반)  
 ✅ **서버 모드 매핑** 완성 (LIVE → prod, SANDBOX → vps)  
 ✅ **완전한 검증** 및 테스트 완료  
 ✅ **문서화 완성** (API 명세서, 예시, 가이드)
