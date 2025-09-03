@@ -56,11 +56,6 @@ _DEBUG = False
 _isPaper = False
 _smartSleep = 0.1
 
-# 외부 토큰 지원을 위한 전역 변수들
-_external_token = None
-_external_refresh_token = None
-_use_external_token = False
-
 # 기본 헤더값 정의
 _base_headers = {
     "Content-Type": "application/json",
@@ -194,36 +189,9 @@ def _getResultObject(json_data):
     return _tc_(**json_data)
 
 
-# 외부 토큰 설정 함수들
-def set_external_token(access_token: str, refresh_token: str = None):
-    """외부에서 받은 토큰을 설정하는 함수 (백엔드에서 헤더로 전달받은 토큰)"""
-    global _external_token, _external_refresh_token, _use_external_token
-    _external_token = access_token
-    _external_refresh_token = refresh_token
-    _use_external_token = True
-
-def clear_external_token():
-    """외부 토큰 설정을 해제하는 함수"""
-    global _external_token, _external_refresh_token, _use_external_token
-    _external_token = None
-    _external_refresh_token = None
-    _use_external_token = False
-
-def is_using_external_token():
-    """현재 외부 토큰 사용 여부를 반환하는 함수"""
-    return _use_external_token
-
 # Token 발급, 유효기간 1일, 6시간 이내 발급시 기존 token값 유지, 발급시 알림톡 무조건 발송
 # 모의투자인 경우  svr='vps', 투자계좌(01)이 아닌경우 product='XX' 변경하세요 (계좌번호 뒤 2자리)
 def auth(svr="prod", product=_cfg["my_prod"], url=None):
-    # 외부 토큰이 설정되어 있으면 외부 토큰 사용
-    global _external_token, _use_external_token
-    if _use_external_token and _external_token:
-        # 외부 토큰을 사용하는 경우, 토큰을 TRENV에 설정
-        _cfg["my_token"] = _external_token
-        _setTRENV(_cfg)
-        return
-        
     p = {
         "grant_type": "client_credentials",
     }

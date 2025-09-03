@@ -39,9 +39,9 @@
 
     <!-- 파일 로그 설정 -->
     <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>/app/logs/quantum-web-api.log</file>
+        <file>logs/quantum-web-api.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>/app/logs/quantum-web-api.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>logs/quantum-web-api.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>30</maxHistory>
             <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>

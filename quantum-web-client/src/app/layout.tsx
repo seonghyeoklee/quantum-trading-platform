@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MarketProvider } from "@/contexts/MarketContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { TradingModeProvider } from "@/contexts/TradingModeContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,9 +40,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <MarketProvider>
-              {children}
-            </MarketProvider>
+            <TradingModeProvider>
+              <MarketProvider>
+                {children}
+              </MarketProvider>
+            </TradingModeProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

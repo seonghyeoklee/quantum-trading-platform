@@ -1,0 +1,29 @@
+apiVersion: 1
+
+datasources:
+  # Loki 데이터소스 - 로그
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus
+          matcherRegex: "traceId=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+
+  # Prometheus 데이터소스 - 메트릭
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    uid: prometheus
+    editable: true
+    jsonData:
+      timeInterval: "5s"
+      queryTimeout: "60s"
+      httpMethod: "POST"

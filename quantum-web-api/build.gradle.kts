@@ -61,6 +61,9 @@ dependencies {
     // SQL 로깅 - p6spy
     implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")
     
+    // JSON 로깅 - Logstash Encoder (Grafana 연동용)
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+    
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

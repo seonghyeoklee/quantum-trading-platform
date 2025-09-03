@@ -1,29 +1,37 @@
-# MVP 1.0 Complete Login-KIS Token Integration Flow
+# MVP 1.0 인증 아키텍처 통합 설계
 
-## 플로우 개요
+## 📖 개요
 
-사용자 로그인 → JWT 인증 → KIS 계정 확인 → KIS 토큰 발급/저장 → 클라이언트 토큰 저장 → 직접 KIS Adapter 호출
+사용자 JWT 인증과 KIS API 토큰을 통합한 하이브리드 인증 시스템 아키텍처
 
-## 기존 AuthContext 확장 설계
+**핵심 플로우**: 사용자 로그인 → JWT 인증 → KIS 계정 확인 → KIS 토큰 발급/저장 → 클라이언트 토큰 저장 → 직접 KIS Adapter 호출
 
-### 현재 AuthContext 구조 분석
-- JWT 기반 인증 (accessToken, refreshToken)
-- localStorage에 토큰 저장
-- 자동 토큰 갱신 (tryRefreshToken)
-- 사용자 정보 캐싱
+## 🏗️ 하이브리드 아키텍처
 
-### KIS 토큰 통합 확장
+### 새로운 접근법 (Performance-First)
+
+```
+실시간 데이터 (빠른 응답 필요):
+Next.js Client → (직접) → KIS Adapter → KIS API
+
+토큰 관리 & 설정 데이터:
+Next.js Client → Spring Boot → (필요시) KIS Adapter
+```
+
+**Before (서버 중심)**:
+- 모든 요청이 Spring Boot 경유 → 네트워크 홉 증가
+- 서버 부하 집중 → 성능 저하
+
+**After (하이브리드)**:
+- 실시간 데이터는 직접 호출 → 성능 향상
+- 토큰 관리는 서버 담당 → 보안 유지
+- 부하 분산 효과 → 확장성 향상
+
+## 🔐 Frontend 인증 시스템
+
+### AuthContext 확장 설계
 
 ```typescript
-interface KISTokenInfo {
-  token: string;
-  environment: 'LIVE' | 'SANDBOX';
-  expiresAt: string;
-  issuedAt: string;
-  appKey: string;
-  appSecret: string; // 암호화 저장
-}
-
 interface AuthContextType {
   // 기존 JWT 관련
   user: User | null;
@@ -31,7 +39,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   
-  // 새로운 KIS 토큰 관련
+  // KIS 토큰 통합
   kisTokens: {
     live?: KISTokenInfo;
     sandbox?: KISTokenInfo;
@@ -41,11 +49,20 @@ interface AuthContextType {
   refreshKISToken: (environment: 'LIVE' | 'SANDBOX') => Promise<void>;
   getActiveKISToken: () => string | null;
 }
+
+interface KISTokenInfo {
+  token: string;
+  environment: 'LIVE' | 'SANDBOX';
+  expiresAt: string;
+  issuedAt: string;
+  appKey: string;
+  appSecret: string; // 암호화 저장
+}
 ```
 
-## 완전한 로그인 플로우
+### 완전한 로그인 플로우
 
-### Step 1: 사용자 로그인 (기존 유지)
+**Step 1: 사용자 로그인 (기존 유지)**
 ```
 사용자 입력 (email, password) 
 → POST /api/v1/auth/login 
@@ -53,12 +70,11 @@ interface AuthContextType {
 → localStorage 저장
 ```
 
-### Step 2: KIS 계정 확인 및 토큰 처리
+**Step 2: KIS 토큰 통합 처리**
 ```typescript
-// login 함수 내부 확장
 const login = async (email: string, password: string) => {
   try {
-    // 1. JWT 로그인 (기존)
+    // 1. JWT 로그인
     const response = await apiClient.post('/api/v1/auth/login', { email, password }, false);
     const data = response.data;
     
@@ -68,13 +84,8 @@ const login = async (email: string, password: string) => {
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
       
-      // 2. KIS 토큰 확인 및 발급 (신규)
+      // 2. KIS 토큰 확인 및 발급
       await checkAndIssueKISTokens();
-      
-      setIsLoading(false);
-      const returnUrl = localStorage.getItem('returnUrl') || '/';
-      localStorage.removeItem('returnUrl');
-      router.push(returnUrl);
     }
   } catch (error) {
     // 에러 처리
@@ -82,27 +93,25 @@ const login = async (email: string, password: string) => {
 };
 ```
 
-### Step 3: KIS 토큰 확인 및 발급 로직
+**Step 3: KIS 토큰 자동 처리**
 ```typescript
 const checkAndIssueKISTokens = async () => {
   try {
-    // 3-1. 사용자 KIS 계정 정보 확인
+    // KIS 계정 정보 확인
     const kisAccountResponse = await apiClient.get('/api/v1/kis-accounts/me', true);
     
     if (kisAccountResponse.data) {
       const kisAccount = kisAccountResponse.data;
       
-      // 3-2. 각 환경별로 토큰 확인 및 발급
+      // 각 환경별 토큰 처리
       for (const env of ['LIVE', 'SANDBOX']) {
         if (kisAccount[env.toLowerCase()]) {
           const tokenInfo = await checkAndRefreshKISToken(env, kisAccount[env.toLowerCase()]);
           if (tokenInfo) {
-            // 3-3. 클라이언트에 토큰 저장
             setKISToken(env, tokenInfo);
           }
         }
       }
-      
       setHasKISAccount(true);
     } else {
       setHasKISAccount(false);
@@ -114,11 +123,12 @@ const checkAndIssueKISTokens = async () => {
 };
 ```
 
-### Step 4: KIS 토큰 검증 및 발급
+### 토큰 검증 및 갱신
+
 ```typescript
 const checkAndRefreshKISToken = async (environment: 'LIVE' | 'SANDBOX', accountInfo: any) => {
   try {
-    // 4-1. 기존 토큰 확인
+    // 기존 토큰 확인
     const existingToken = localStorage.getItem(`kisToken_${environment}`);
     
     if (existingToken) {
@@ -126,13 +136,13 @@ const checkAndRefreshKISToken = async (environment: 'LIVE' | 'SANDBOX', accountI
       const now = new Date();
       const expiryTime = new Date(tokenData.expiresAt);
       
-      // 4-2. 토큰이 유효하면 그대로 사용
+      // 토큰이 유효하면 재사용
       if (now < expiryTime) {
         return tokenData;
       }
     }
     
-    // 4-3. 토큰이 없거나 만료되면 새로 발급
+    // 새 토큰 발급
     const tokenResponse = await apiClient.post('/api/v1/kis-accounts/me/token', {
       environment: environment
     }, true);
@@ -144,12 +154,10 @@ const checkAndRefreshKISToken = async (environment: 'LIVE' | 'SANDBOX', accountI
         expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(), // 6시간
         issuedAt: new Date().toISOString(),
         appKey: accountInfo.appKey,
-        appSecret: accountInfo.appSecret // 이미 서버에서 암호화됨
+        appSecret: accountInfo.appSecret
       };
       
-      // 4-4. localStorage에 저장
       localStorage.setItem(`kisToken_${environment}`, JSON.stringify(newTokenInfo));
-      
       return newTokenInfo;
     }
   } catch (error) {
@@ -159,7 +167,7 @@ const checkAndRefreshKISToken = async (environment: 'LIVE' | 'SANDBOX', accountI
 };
 ```
 
-## Spring Boot Backend 지원 API
+## 🖥️ Backend 인증 API
 
 ### KIS 계정 정보 조회
 ```
@@ -200,9 +208,9 @@ Response:
 }
 ```
 
-## Next.js 클라이언트 토큰 사용
+## ⚡ 클라이언트 직접 API 호출
 
-### KIS Adapter 직접 호출
+### KIS Adapter 직접 호출 패턴
 ```typescript
 const fetchKISData = async (endpoint: string, params: any) => {
   const activeToken = getActiveKISToken();
@@ -243,50 +251,16 @@ const currentPrice = await fetchKISData('/domestic/price/005930', {
 });
 ```
 
-## KIS Token Context 생성
+## 🛡️ 보안 및 에러 처리
 
-```typescript
-interface KISContextType {
-  currentEnvironment: 'LIVE' | 'SANDBOX';
-  switchEnvironment: (env: 'LIVE' | 'SANDBOX') => void;
-  callKISAPI: (endpoint: string, params?: any) => Promise<any>;
-  isTokenValid: (env: 'LIVE' | 'SANDBOX') => boolean;
-}
-
-export function KISProvider({ children }: { children: ReactNode }) {
-  const { kisTokens, refreshKISToken } = useAuth();
-  const [currentEnvironment, setCurrentEnvironment] = useState<'LIVE' | 'SANDBOX'>('SANDBOX');
-  
-  const callKISAPI = async (endpoint: string, params?: any) => {
-    const token = kisTokens[currentEnvironment.toLowerCase()]?.token;
-    
-    if (!token || !isTokenValid(currentEnvironment)) {
-      await refreshKISToken(currentEnvironment);
-    }
-    
-    return fetchKISData(endpoint, params);
-  };
-  
-  return (
-    <KISContext.Provider value={{ currentEnvironment, switchEnvironment: setCurrentEnvironment, callKISAPI, isTokenValid }}>
-      {children}
-    </KISContext.Provider>
-  );
-}
-```
-
-## 에러 처리 및 복구
-
-### 토큰 만료 처리
+### 토큰 만료 자동 처리
 ```typescript
 const handleKISAPIError = async (error: any, environment: string) => {
   if (error.status === 401) {
     try {
       await refreshKISToken(environment);
-      // 원래 요청 재시도
-      return true;
+      return true; // 재시도 가능
     } catch (refreshError) {
-      // 토큰 갱신 실패 시 로그인 페이지로
       router.push('/login?reason=kis_token_expired');
       return false;
     }
@@ -311,13 +285,11 @@ const KISAccountSetup = () => {
       </div>
     );
   }
-  
   return null;
 };
 ```
 
-## 환경 전환 UI
-
+### 환경 전환 UI
 ```typescript
 const MarketEnvironmentToggle = () => {
   const { currentEnvironment, switchEnvironment } = useKIS();
@@ -341,19 +313,30 @@ const MarketEnvironmentToggle = () => {
 };
 ```
 
-## 보안 고려사항
+## 🚀 주요 장점
 
-### 클라이언트 토큰 보안
-- KIS 토큰만 클라이언트 저장 (앱키/시크릿은 서버에만)
-- localStorage 대신 sessionStorage 고려
-- 토큰 암호화 저장 옵션
+### 1. 성능 향상
+- **네트워크 홉 감소**: Next.js → KIS Adapter (1홉)
+- **서버 부하 감소**: Spring Boot가 모든 요청을 프록시하지 않음  
+- **실시간성 향상**: 중간 서버 없이 직접 데이터 조회
 
-### API 보안
-- CORS 설정으로 허용된 도메인만 접근
-- Rate Limiting 클라이언트 적용
-- 토큰 탈취 시 서버 측에서 무효화 가능
+### 2. 확장성 및 유연성
+- **수평 확장**: KIS Adapter를 여러 인스턴스로 확장 가능
+- **부하 분산**: 실시간 데이터와 비즈니스 로직 완전 분리
+- **캐싱 효율**: 클라이언트별 독립적인 브라우저 캐싱
 
-## 테스트 시나리오
+### 3. 사용자 경험
+- **빠른 응답**: 실시간 차트 데이터 즉시 로딩
+- **투명한 토큰 관리**: 사용자가 토큰 상태 직접 확인
+- **끊김 없는 서비스**: 토큰 갱신이 백그라운드에서 자동 처리
+
+### 4. 보안 및 안정성
+- **이중 토큰 인증**: JWT(사용자 인증) + KIS Token(API 인증)
+- **클라이언트 암호화**: 브라우저 저장 토큰 AES 암호화
+- **서버 측 암호화**: DB 저장 계정 정보 및 토큰 암호화
+- **자동 토큰 갱신**: 만료 전 사전 갱신으로 서비스 중단 방지
+
+## 🧪 테스트 시나리오
 
 1. **신규 사용자 로그인**: JWT → KIS 계정 없음 → 계정 연결 안내
 2. **기존 사용자 로그인**: JWT → KIS 토큰 유효 → 바로 사용 가능
@@ -361,4 +344,4 @@ const MarketEnvironmentToggle = () => {
 4. **환경 전환**: SANDBOX ↔ LIVE 토글 → 해당 환경 토큰 사용
 5. **KIS API 에러**: Rate limit, 서버 에러 → 적절한 에러 메시지
 
-이 설계로 사용자는 로그인 한 번으로 KIS API를 직접 호출할 수 있고, 토큰 관리는 자동으로 처리됩니다.
+이 하이브리드 아키텍처로 **빠른 실시간 데이터 조회**와 **안전한 토큰 관리**를 동시에 만족하는 최적의 인증 시스템을 구축할 수 있습니다.

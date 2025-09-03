@@ -128,12 +128,13 @@ python main.py
 ## Current Implementation Status
 
 ### ✅ **Completed Components**
-- **Frontend Chart System**: TradingChart.tsx with lightweight-charts integration
+- **Frontend Chart System**: TradingChart.tsx with lightweight-charts v4.1.3 integration and Korean-style colors
 - **KIS API Integration**: Full adapter with domestic/overseas stock data + **Trading Mode Support**
 - **Authentication Flow**: JWT + KIS token management with multi-environment support
-- **User Interface**: Complete login, settings, and market data display
+- **User Interface**: Complete login, settings, and market data display with responsive design
 - **Real-time Data**: WebSocket infrastructure ready for live market updates
 - **Trading Mode System**: Complete LIVE/SANDBOX environment switching across all 17 KIS APIs
+- **MVP 1.1 Planning**: Automated trading system documentation with SANDBOX/LIVE dual-mode architecture
 
 ### ❌ **Missing Critical APIs (Backend Priority)**
 - **Trading Mode Controller**: `/api/v1/trading-mode/*` endpoints not implemented
@@ -141,8 +142,10 @@ python main.py
 - **WebSocket Bridge**: Backend to KIS Adapter WebSocket relay
 
 ### 🔄 **In Development**
+- **MVP 1.1 Auto-Trading**: Golden Cross strategy implementation with SANDBOX/LIVE dual-mode support
 - **Chart Data Flow**: Frontend ready, Backend API layer needed for KIS Adapter integration
 - **Trading Signals**: Python calculation ready, Backend routing needed
+- **Database Schema Design**: Backend team handling schema for automated trading system
 
 ## Key Components & Integration Points
 
@@ -174,8 +177,9 @@ python main.py
 **Chart Data Flow:**
 ```
 KIS Adapter (8000) → Backend API (8080) → Frontend Charts (3000)
-   ↓ Historical        ↓ Token Auth       ↓ lightweight-charts
+   ↓ Historical        ↓ Server Auth      ↓ lightweight-charts
 WebSocket (ws://8000) → WebSocket Bridge → Real-time Updates
+                   ↑ Server-managed KIS tokens
 ```
 
 **Required Backend APIs (Missing):**
@@ -188,56 +192,57 @@ GET  /api/v1/chart/{symbol}/indicators   // Moving averages, RSI
 ### Context Providers (Next.js)
 ```typescript
 // Provider hierarchy in layout.tsx
-<AuthProvider>          // JWT + KIS token management
-  <TradingModeProvider> // LIVE/SANDBOX environment switching  
+<AuthProvider>          // JWT authentication (KIS tokens managed by server)
+  <TradingModeProvider> // Simplified provider (server-managed)
     <MarketProvider>    // Domestic/Overseas market routing
 ```
 
 ### Database Schema
 - **Users**: Basic auth, JWT refresh tokens
-- **KIS Accounts**: Encrypted API keys per user/environment
-- **KIS Token History**: Token usage tracking for rate limiting
+- **KIS Accounts**: Encrypted API keys per user/environment (server-side only)
+- **KIS Token History**: Server-side token usage tracking for rate limiting
 
 ## Development Patterns
 
 ### API Calling Pattern
 ```typescript
-// Frontend → KIS Adapter (direct) - Port 8000 with Trading Mode
-const response = await fetch(`http://localhost:8000/domestic/price/005930?trading_mode=LIVE`, {
-  headers: { 'X-KIS-Token': getActiveKISToken() }
-});
-
-// Frontend → KIS Adapter (SANDBOX 기본값)
+// Frontend → KIS Adapter (Server-managed authentication)
 const response = await fetch(`http://localhost:8000/domestic/price/005930`);
 
 // Frontend → Backend (JWT required)
 const response = await apiClient.get('/api/v1/auth/me', true);
+
+// Note: X-KIS-Token header and trading_mode parameters are no longer used
+// All KIS authentication and environment management is handled server-side
 ```
 
 ### Error Handling Strategy
-- **Token Expiration**: Automatic refresh for both JWT and KIS tokens
-- **Rate Limiting**: Built into KIS Adapter (20/sec LIVE, 2/sec SANDBOX)
+- **JWT Token Expiration**: Automatic refresh for JWT tokens
+- **KIS Authentication**: Server-side management with automatic retry
+- **Rate Limiting**: Built into KIS Adapter (server handles environment selection)
 - **API Failures**: Graceful fallbacks and user notification
 
 ### Component Patterns
 - **Protected Routes**: Automatic KIS setup flow for new users
-- **Context Hooks**: useAuth(), useTradingMode(), useMarket()
+- **Context Hooks**: useAuth() (simplified), useMarket()
 - **UI Components**: Radix UI + Tailwind CSS + shadcn/ui
 - **Chart Integration**: Lightweight Charts for market visualization
+- **Note**: Trading mode components are now server-managed
 
 ## Missing API Endpoints (Critical Implementation Needed)
 
-### Trading Mode Management
-**Current Issue**: `/api/v1/trading-mode/status` returns 500 error - controller not implemented
+### Server-Side KIS Management
+**New Architecture**: KIS authentication and trading mode selection is now handled entirely server-side
 
-**Required Endpoints:**
+**Backend Implementation Needed:**
 ```kotlin
-GET  /api/v1/trading-mode/status     // Current mode (LIVE/SANDBOX)
-POST /api/v1/trading-mode/toggle     // Switch between modes  
-GET  /api/v1/trading-mode/history    // Mode change history
+// Server-side KIS token management
+GET  /api/v1/kis/status              // KIS connection status
+POST /api/v1/kis/refresh             // Refresh server-side tokens
+GET  /api/v1/kis/config              // Current KIS configuration
 ```
 
-**Implementation Priority**: **CRITICAL** - Frontend is calling this API
+**Implementation Priority**: **Updated Architecture** - No longer client-facing
 
 ### Chart Data APIs  
 **Current Issue**: Frontend TradingChart.tsx calls missing backend endpoints
@@ -269,13 +274,14 @@ fun getOverseasDailyChart(exchange: String, symbol: String) // Call KIS Adapter 
 
 ### Integration Points to Test
 1. JWT authentication flow end-to-end
-2. KIS token issuance and refresh cycles  
+2. Server-side KIS token management
 3. Market data retrieval (domestic vs overseas)
-4. Trading mode switching (LIVE ↔ SANDBOX)
+4. Server-side environment configuration
 5. CORS configuration between services
 
 ## Planning Documentation
 
+### MVP 1.0 Documentation (Completed)
 Comprehensive planning documents in `docs/planning/`:
 - **MVP_1.0_Complete_Login_KIS_Token_Integration.md**: Full authentication flow
 - **MVP_1.0_Hybrid_KIS_Token_Architecture.md**: Token management architecture  
@@ -283,11 +289,18 @@ Comprehensive planning documents in `docs/planning/`:
 - **MVP_1.0_Domestic_Overseas_Chart_Integration.md**: Market separation design
 - **MVP_1.0_KIS_Rate_Limit_Policy.md**: API rate limiting implementation
 
+### MVP 1.1 Auto-Trading Documentation (In Progress)
+Automated trading system planning in `docs/planning/auto-trading/`:
+- **MVP_1.1_Auto_Trading_Overview.md**: System architecture with SANDBOX/LIVE dual-mode support
+- **MVP_1.1_Minimal_Strategy_Design.md**: Step-by-step strategy configuration wizard (5 steps)
+- **MVP_1.1_Paper_Trading_Mode.md**: Comprehensive virtual trading engine specifications
+- **MVP_1.1_Golden_Cross_Strategy.md**: Technical implementation of Golden Cross detection algorithm
+
 ## Security Considerations
 
 ### Token Management
 - **JWT Tokens**: 24-hour expiration with refresh capability
-- **KIS Tokens**: 6-hour expiration, stored client-side only
+- **KIS Tokens**: 6-hour expiration, **server-side only** (never sent to client)
 - **API Keys**: Server-side encryption, never exposed to client
 
 ### CORS Configuration
@@ -303,9 +316,10 @@ Comprehensive planning documents in `docs/planning/`:
 ## Troubleshooting
 
 ### Common Issues
-1. **KIS Token Failures**: Check kis_devlp.yaml configuration and account permissions
+1. **KIS Authentication**: Check server-side kis_devlp.yaml configuration and account permissions
 2. **Database Connection**: Verify PostgreSQL is running on correct port
 3. **CORS Errors**: Ensure all services are running and origins are configured
+4. **Server-side KIS Tokens**: Check backend logs for token refresh failures
 4. **Market Data Issues**: Verify KIS account has appropriate trading permissions
 5. **Trading Mode API 500 Errors**: TradingModeController not implemented - priority backend task
 6. **Chart Data Loading Fails**: Backend ChartController missing - needs KIS Adapter integration

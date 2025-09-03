@@ -21,9 +21,9 @@ interface KISConnectionBannerProps {
 }
 
 export function KISConnectionBanner({ variant = 'full', showDismiss = false }: KISConnectionBannerProps) {
-  const { hasKISAccount, isKISSetupRequired, forceKISSetup, skipKISSetup, kisTokens } = useAuth();
+  const { hasKISAccount, isKISSetupRequired, forceKISSetup, skipKISSetup } = useAuth();
 
-  if (hasKISAccount && kisTokens.sandbox) {
+  if (hasKISAccount) {
     return null; // KIS 연결이 완료되면 배너 숨김
   }
 

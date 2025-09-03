@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  reactStrictMode: false, // React Strict Mode 비활성화 (차트 중복 생성 방지)
   async rewrites() {
     return [
       {

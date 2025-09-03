@@ -11,14 +11,6 @@ interface User {
   last_login_at?: string;
 }
 
-interface KISTokenInfo {
-  token: string;
-  environment: 'LIVE' | 'SANDBOX';
-  expiresAt: string;
-  issuedAt: string;
-  appKey: string;
-  appSecret: string; // 암호화 저장
-}
 
 interface AuthContextType {
   // 기존 JWT 관련
@@ -29,18 +21,11 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   
-  // 새로운 KIS 토큰 관련
-  kisTokens: {
-    live?: KISTokenInfo;
-    sandbox?: KISTokenInfo;
-  };
   hasKISAccount: boolean;
   isKISSetupRequired: boolean;
   isKISSetupCompleted: boolean;
   setupKISAccount: (appKey: string, appSecret: string, accountNumber: string, accountAlias: string, environment: 'LIVE' | 'SANDBOX') => Promise<void>;
   checkKISAccountExists: (environment?: 'LIVE' | 'SANDBOX') => Promise<boolean>;
-  refreshKISToken: (environment: 'LIVE' | 'SANDBOX') => Promise<void>;
-  getActiveKISToken: () => string | null;
   skipKISSetup: () => void;
   forceKISSetup: () => void;
 }
@@ -54,7 +39,6 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [kisTokens, setKisTokens] = useState<{ live?: KISTokenInfo; sandbox?: KISTokenInfo }>({});
   const [hasKISAccount, setHasKISAccount] = useState(false);
   const [isKISSetupRequired, setIsKISSetupRequired] = useState(false);
   const [isKISSetupCompleted, setIsKISSetupCompleted] = useState(false);
@@ -94,29 +78,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
 
-      // 캐시된 KIS 토큰 정보 복원
-      const loadKISTokensFromStorage = () => {
-        const loadedTokens: { live?: KISTokenInfo; sandbox?: KISTokenInfo } = {};
-        
-        try {
-          const liveToken = localStorage.getItem('kisToken_LIVE');
-          if (liveToken) {
-            loadedTokens.live = JSON.parse(liveToken);
-          }
-          
-          const sandboxToken = localStorage.getItem('kisToken_SANDBOX');
-          if (sandboxToken) {
-            loadedTokens.sandbox = JSON.parse(sandboxToken);
-          }
-          
-          setKisTokens(loadedTokens);
-          setHasKISAccount(Object.keys(loadedTokens).length > 0);
-        } catch (parseError) {
-          console.warn('Failed to parse cached KIS tokens:', parseError);
-        }
-      };
-
-      loadKISTokensFromStorage();
+      // KIS 계정 설정 상태는 서버에서 확인
+      // 클라이언트에서는 토큰 관리하지 않음
 
       // 최신 사용자 정보로 업데이트
       await refreshUser();
@@ -160,14 +123,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const needsKISSetup = !kisAccountExists && !setupSkipped;
         setIsKISSetupRequired(needsKISSetup);
         
-        // 3. KIS 계정이 설정되어 있다면 토큰 확인 및 발급
-        if (kisAccountExists) {
-          try {
-            await checkAndIssueKISTokens();
-          } catch (tokenError) {
-            console.warn('KIS token issue failed, but continuing login:', tokenError);
-          }
-        }
+        // KIS 토큰은 서버에서 관리됨
+        console.log('KIS 계정 설정은 서버에서 처리됩니다.');
         
         setIsLoading(false);
 
@@ -291,96 +248,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
-    // KIS 토큰도 제거
-    localStorage.removeItem('kisToken_LIVE');
-    localStorage.removeItem('kisToken_SANDBOX');
+    // KIS 관련 상태 초기화 (서버 중심 관리)
     localStorage.removeItem('kisSetupSkipped');
     setUser(null);
-    setKisTokens({});
     setHasKISAccount(false);
     setIsKISSetupRequired(false);
     setIsKISSetupCompleted(false);
     setIsLoading(false);
   };
 
-  // KIS 토큰 확인 및 발급 로직
-  const checkAndIssueKISTokens = async () => {
-    try {
-      // 3-1. 사용자 KIS 계정 정보 확인
-      const kisAccount = await apiClient.get('/api/v1/kis-accounts/me', true);
-      
-      if (kisAccount.data) {
-        
-        // 3-2. 각 환경별로 토큰 확인 및 발급
-        const environments: ('LIVE' | 'SANDBOX')[] = ['LIVE', 'SANDBOX'];
-        const newTokens: { live?: KISTokenInfo; sandbox?: KISTokenInfo } = {};
-        
-        for (const env of environments) {
-          const envKey = env.toLowerCase() as 'live' | 'sandbox';
-          if (kisAccount.data[envKey]) {
-            const tokenInfo = await checkAndRefreshKISToken(env, kisAccount.data[envKey]);
-            if (tokenInfo) {
-              // 3-3. 클라이언트에 토큰 저장
-              newTokens[envKey] = tokenInfo;
-            }
-          }
-        }
-        
-        setKisTokens(newTokens);
-        setHasKISAccount(true);
-      } else {
-        setHasKISAccount(false);
-      }
-    } catch (error) {
-      console.error('KIS token check failed:', error);
-      setHasKISAccount(false);
-    }
-  };
 
-  // KIS 토큰 검증 및 발급
-  const checkAndRefreshKISToken = async (environment: 'LIVE' | 'SANDBOX', accountInfo: any): Promise<KISTokenInfo | null> => {
-    try {
-      // 4-1. 기존 토큰 확인
-      const existingToken = localStorage.getItem(`kisToken_${environment}`);
-      
-      if (existingToken) {
-        const tokenData = JSON.parse(existingToken);
-        const now = new Date();
-        const expiryTime = new Date(tokenData.expiresAt);
-        
-        // 4-2. 토큰이 유효하면 그대로 사용
-        if (now < expiryTime) {
-          return tokenData;
-        }
-      }
-      
-      // 4-3. 토큰이 없거나 만료되면 새로 발급
-      const tokenData = await apiClient.post('/api/v1/kis-accounts/me/token', {
-        environment: environment
-      }, true);
-      
-      if (tokenData.data?.success) {
-        const newTokenInfo: KISTokenInfo = {
-          token: tokenData.data.token,
-          environment: environment,
-          expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(), // 6시간
-          issuedAt: new Date().toISOString(),
-          appKey: accountInfo.appKey,
-          appSecret: accountInfo.appSecret // 이미 서버에서 암호화됨
-        };
-        
-        // 4-4. localStorage에 저장
-        localStorage.setItem(`kisToken_${environment}`, JSON.stringify(newTokenInfo));
-        
-        return newTokenInfo;
-      }
-    } catch (error) {
-      console.error(`Failed to refresh KIS token for ${environment}:`, error);
-      return null;
-    }
-    
-    return null;
-  };
 
   // KIS 계정 설정
   const setupKISAccount = async (appKey: string, appSecret: string, accountNumber: string, accountAlias: string, environment: 'LIVE' | 'SANDBOX') => {
@@ -399,8 +276,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsKISSetupCompleted(true);
         setIsKISSetupRequired(false);
         
-        // 설정 후 토큰 발급 시도
-        await checkAndIssueKISTokens();
+        // KIS 계정 설정은 서버에서 처리
         
         // 메인 페이지로 이동
         const returnUrl = localStorage.getItem('returnUrl') || '/';
@@ -413,58 +289,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // KIS 토큰 갱신
-  const refreshKISToken = async (environment: 'LIVE' | 'SANDBOX') => {
-    try {
-      const tokenData = await apiClient.post('/api/v1/kis-accounts/me/token', {
-        environment: environment
-      }, true);
-      
-      if (tokenData.data?.success) {
-        const newTokenInfo: KISTokenInfo = {
-          token: tokenData.data.token,
-          environment: environment,
-          expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-          issuedAt: new Date().toISOString(),
-          appKey: kisTokens[environment.toLowerCase() as 'live' | 'sandbox']?.appKey || '',
-          appSecret: kisTokens[environment.toLowerCase() as 'live' | 'sandbox']?.appSecret || ''
-        };
-        
-        localStorage.setItem(`kisToken_${environment}`, JSON.stringify(newTokenInfo));
-        
-        setKisTokens(prev => ({
-          ...prev,
-          [environment.toLowerCase()]: newTokenInfo
-        }));
-      }
-    } catch (error) {
-      console.error(`Failed to refresh KIS token for ${environment}:`, error);
-      throw error;
-    }
-  };
 
-  // 활성 KIS 토큰 반환 (기본적으로 SANDBOX 우선)
-  const getActiveKISToken = (): string | null => {
-    // SANDBOX 토큰을 우선으로 반환 (개발/테스트 환경)
-    if (kisTokens.sandbox?.token) {
-      const now = new Date();
-      const expiryTime = new Date(kisTokens.sandbox.expiresAt);
-      if (now < expiryTime) {
-        return kisTokens.sandbox.token;
-      }
-    }
-    
-    // SANDBOX가 없거나 만료되면 LIVE 토큰 확인
-    if (kisTokens.live?.token) {
-      const now = new Date();
-      const expiryTime = new Date(kisTokens.live.expiresAt);
-      if (now < expiryTime) {
-        return kisTokens.live.token;
-      }
-    }
-    
-    return null;
-  };
 
   // KIS 계정 존재 여부 확인
   const checkKISAccountExists = async (environment: 'LIVE' | 'SANDBOX' = 'SANDBOX'): Promise<boolean> => {
@@ -534,15 +359,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     refreshUser,
     
-    // 새로운 KIS 토큰 관련
-    kisTokens,
     hasKISAccount,
     isKISSetupRequired,
     isKISSetupCompleted,
     setupKISAccount,
     checkKISAccountExists,
-    refreshKISToken,
-    getActiveKISToken,
     skipKISSetup,
     forceKISSetup,
   };
