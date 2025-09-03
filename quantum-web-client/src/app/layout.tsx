@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { TradingModeProvider } from "@/contexts/TradingModeContext";
 import { MarketProvider } from "@/contexts/MarketContext";
-import TradingModeBodyClass from "@/components/layout/TradingModeBodyClass";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,8 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Quantum Trading Platform",
-  description: "Professional algorithmic trading platform with real-time market data and advanced analytics",
-  keywords: "trading, finance, stocks, algorithms, real-time, analytics",
+  description: "Professional algorithmic trading platform",
 };
 
 export default function RootLayout({
@@ -28,10 +25,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  console.log('🔥 Layout이 렌더링되고 있습니다');
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background font-sans`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground font-sans`}
       >
         <ThemeProvider
           attribute="class"
@@ -40,12 +39,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <TradingModeProvider>
-              <MarketProvider>
-                <TradingModeBodyClass />
-                {children}
-              </MarketProvider>
-            </TradingModeProvider>
+            <MarketProvider>
+              {children}
+            </MarketProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

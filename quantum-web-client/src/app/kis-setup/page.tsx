@@ -2,16 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { KISEnvironmentToggle } from '@/components/kis/KISEnvironmentToggle';
 import { MarketIndicator } from '@/components/market/MarketIndicator';
 import { 
   Shield, 
@@ -22,25 +20,29 @@ import {
   ArrowRight, 
   TestTube,
   Zap,
-  Clock,
-  Building2,
-  Globe,
-  BarChart3,
-  TrendingUp,
   Check,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  Building2
 } from 'lucide-react';
 
 export default function KISSetupPage() {
   const { setupKISAccount, skipKISSetup, checkKISAccountExists } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    appKey: '',
-    appSecret: '',
-    accountNumber: '',
-    accountAlias: '',
-    environments: {
+    sandbox: {
+      appKey: '',
+      appSecret: '',
+      accountNumber: '',
+      accountAlias: ''
+    },
+    live: {
+      appKey: '',
+      appSecret: '',
+      accountNumber: '',
+      accountAlias: ''
+    },
+    selectedEnvironments: {
       SANDBOX: false,
       LIVE: false
     }
@@ -80,7 +82,7 @@ export default function KISSetupPage() {
     setError(null);
 
     try {
-      const selectedEnvironments = Object.entries(formData.environments)
+      const selectedEnvironments = Object.entries(formData.selectedEnvironments)
         .filter(([_, selected]) => selected)
         .map(([env, _]) => env as 'LIVE' | 'SANDBOX');
 
@@ -91,16 +93,18 @@ export default function KISSetupPage() {
       }
 
       let successCount = 0;
-      let failedEnvironments: string[] = [];
+      const failedEnvironments: string[] = [];
 
       // 선택된 각 환경에 대해 순차적으로 설정
       for (const environment of selectedEnvironments) {
         try {
+          const envConfig = environment === 'SANDBOX' ? formData.sandbox : formData.live;
+          
           await setupKISAccount(
-            formData.appKey,
-            formData.appSecret,
-            formData.accountNumber,
-            formData.accountAlias,
+            envConfig.appKey,
+            envConfig.appSecret,
+            envConfig.accountNumber,
+            envConfig.accountAlias,
             environment
           );
           successCount++;
@@ -132,21 +136,39 @@ export default function KISSetupPage() {
     const errors: Record<string, string> = {};
     
     if (step === 1) {
-      if (!formData.appKey) errors.appKey = 'App Key를 입력해주세요';
-      if (!formData.appSecret) errors.appSecret = 'App Secret을 입력해주세요';
+      // 환경 선택 검증
+      if (!Object.values(formData.selectedEnvironments).some(env => env)) {
+        errors.environments = '최소 하나의 환경을 선택해주세요';
+      }
     }
     
     if (step === 2) {
-      if (!formData.accountNumber) errors.accountNumber = '계좌번호를 입력해주세요';
-      if (!formData.accountAlias) errors.accountAlias = '계좌별명을 입력해주세요';
-      if (!/^\d{8}-\d{2}$/.test(formData.accountNumber)) {
-        errors.accountNumber = '올바른 계좌번호 형식이 아닙니다 (예: 12345678-01)';
+      // 선택된 환경에 따른 키 검증
+      if (formData.selectedEnvironments.SANDBOX) {
+        if (!formData.sandbox.appKey) errors['sandbox.appKey'] = '모의투자 App Key를 입력해주세요';
+        if (!formData.sandbox.appSecret) errors['sandbox.appSecret'] = '모의투자 App Secret을 입력해주세요';
+      }
+      if (formData.selectedEnvironments.LIVE) {
+        if (!formData.live.appKey) errors['live.appKey'] = '실전투자 App Key를 입력해주세요';
+        if (!formData.live.appSecret) errors['live.appSecret'] = '실전투자 App Secret을 입력해주세요';
       }
     }
-
+    
     if (step === 3) {
-      if (!Object.values(formData.environments).some(env => env)) {
-        errors.environments = '최소 하나의 환경을 선택해주세요';
+      // 선택된 환경에 따른 계좌정보 검증
+      if (formData.selectedEnvironments.SANDBOX) {
+        if (!formData.sandbox.accountNumber) errors['sandbox.accountNumber'] = '모의투자 계좌번호를 입력해주세요';
+        if (!formData.sandbox.accountAlias) errors['sandbox.accountAlias'] = '모의투자 계좌별명을 입력해주세요';
+        if (formData.sandbox.accountNumber && !/^\d{8}-\d{2}$/.test(formData.sandbox.accountNumber)) {
+          errors['sandbox.accountNumber'] = '올바른 계좌번호 형식이 아닙니다 (예: 12345678-01)';
+        }
+      }
+      if (formData.selectedEnvironments.LIVE) {
+        if (!formData.live.accountNumber) errors['live.accountNumber'] = '실전투자 계좌번호를 입력해주세요';
+        if (!formData.live.accountAlias) errors['live.accountAlias'] = '실전투자 계좌별명을 입력해주세요';
+        if (formData.live.accountNumber && !/^\d{8}-\d{2}$/.test(formData.live.accountNumber)) {
+          errors['live.accountNumber'] = '올바른 계좌번호 형식이 아닙니다 (예: 12345678-01)';
+        }
       }
     }
     
@@ -168,11 +190,11 @@ export default function KISSetupPage() {
     skipKISSetup();
   };
 
-  const totalSteps = 3;
+  const totalSteps = 4; // 환경선택 → API인증 → 계좌정보 → 확인
   const progress = (currentStep / totalSteps) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-4xl space-y-6">
         {/* Header */}
         <div className="text-center space-y-4">
@@ -199,9 +221,10 @@ export default function KISSetupPage() {
         {/* Step Indicators */}
         <div className="flex justify-center space-x-4">
           {[
-            { step: 1, title: 'API 인증', icon: Shield },
-            { step: 2, title: '계좌 정보', icon: Building2 },
-            { step: 3, title: '환경 설정', icon: TestTube }
+            { step: 1, title: '환경 선택', icon: TestTube },
+            { step: 2, title: 'API 인증', icon: Shield },
+            { step: 3, title: '계좌 정보', icon: Building2 },
+            { step: 4, title: '설정 완료', icon: CheckCircle }
           ].map(({ step, title, icon: Icon }) => (
             <div
               key={step}
@@ -209,8 +232,8 @@ export default function KISSetupPage() {
                 step === currentStep
                   ? 'bg-primary text-primary-foreground'
                   : step < currentStep
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-500'
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-muted text-muted-foreground'
               }`}
             >
               {step < currentStep ? (
@@ -233,164 +256,53 @@ export default function KISSetupPage() {
               </Alert>
             )}
 
-            {/* Step 1: API 인증 */}
+            {/* Step 1: 환경 선택 */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div className="text-center space-y-2">
-                  <Shield className="w-12 h-12 text-blue-600 mx-auto" />
-                  <h2 className="text-xl font-semibold">API 인증 정보</h2>
-                  <p className="text-muted-foreground">
-                    한국투자증권 KIS OpenAPI 계정 정보를 입력해주세요
-                  </p>
-                </div>
-
-                <Alert className="border-blue-200 bg-blue-50">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    아직 KIS API 계정이 없으시나요? {' '}
-                    <a 
-                      href="https://apiportal.koreainvestment.com" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-blue-600 hover:underline font-medium"
-                    >
-                      여기서 계정을 생성하세요 <ExternalLink className="w-3 h-3 ml-1" />
-                    </a>
-                  </AlertDescription>
-                </Alert>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="appKey" className="text-sm font-medium">App Key *</Label>
-                    <Input
-                      id="appKey"
-                      type="text"
-                      placeholder="PASTE_YOUR_APP_KEY_HERE"
-                      value={formData.appKey}
-                      onChange={(e) => setFormData({ ...formData, appKey: e.target.value })}
-                      className={validationErrors.appKey ? 'border-red-500' : ''}
-                    />
-                    {validationErrors.appKey && (
-                      <p className="text-sm text-red-600">{validationErrors.appKey}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="appSecret" className="text-sm font-medium">App Secret *</Label>
-                    <Input
-                      id="appSecret"
-                      type="password"
-                      placeholder="PASTE_YOUR_APP_SECRET_HERE"
-                      value={formData.appSecret}
-                      onChange={(e) => setFormData({ ...formData, appSecret: e.target.value })}
-                      className={validationErrors.appSecret ? 'border-red-500' : ''}
-                    />
-                    {validationErrors.appSecret && (
-                      <p className="text-sm text-red-600">{validationErrors.appSecret}</p>
-                    )}
-                  </div>
-                </div>
-
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription>
-                    API 키는 암호화되어 안전하게 저장되며, 절대 제3자와 공유되지 않습니다.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
-
-            {/* Step 2: 계좌 정보 */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <div className="text-center space-y-2">
-                  <Building2 className="w-12 h-12 text-green-600 mx-auto" />
-                  <h2 className="text-xl font-semibold">계좌 정보</h2>
-                  <p className="text-muted-foreground">
-                    거래에 사용할 계좌 정보를 입력해주세요
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="accountNumber" className="text-sm font-medium">계좌번호 *</Label>
-                    <Input
-                      id="accountNumber"
-                      type="text"
-                      placeholder="12345678-01"
-                      value={formData.accountNumber}
-                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                      className={validationErrors.accountNumber ? 'border-red-500' : ''}
-                    />
-                    {validationErrors.accountNumber && (
-                      <p className="text-sm text-red-600">{validationErrors.accountNumber}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">형식: 계좌번호-01 (8자리-2자리)</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accountAlias" className="text-sm font-medium">계좌 별명 *</Label>
-                    <Input
-                      id="accountAlias"
-                      type="text"
-                      placeholder="메인 거래 계좌"
-                      value={formData.accountAlias}
-                      onChange={(e) => setFormData({ ...formData, accountAlias: e.target.value })}
-                      className={validationErrors.accountAlias ? 'border-red-500' : ''}
-                    />
-                    {validationErrors.accountAlias && (
-                      <p className="text-sm text-red-600">{validationErrors.accountAlias}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">관리하기 쉬운 이름을 지어주세요</p>
-                  </div>
-                </div>
-
-                {/* Market Preview */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <MarketIndicator variant="detailed" showStatus={true} showTime={true} />
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: 환경 설정 */}
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                <div className="text-center space-y-2">
                   <TestTube className="w-12 h-12 text-purple-600 mx-auto" />
-                  <h2 className="text-xl font-semibold">거래 환경 설정</h2>
+                  <h2 className="text-xl font-semibold">거래 환경 선택</h2>
                   <p className="text-muted-foreground">
-                    사용할 환경을 선택해주세요 (여러 환경 동시 설정 가능)
+                    설정할 환경을 먼저 선택해주세요. 각 환경마다 별도의 API 키가 필요합니다.
                   </p>
                 </div>
+
+                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    <strong>중요:</strong> 모의투자와 실전투자는 <strong>다른 API 키</strong>를 사용합니다. 
+                    각 환경별로 별도의 App Key와 App Secret이 필요합니다.
+                  </AlertDescription>
+                </Alert>
 
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div 
                       className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        formData.environments.SANDBOX 
+                        formData.selectedEnvironments.SANDBOX 
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-border hover:border-primary'
                       } ${environmentStatus.SANDBOX ? 'opacity-75' : ''}`}
                       onClick={() => !environmentStatus.SANDBOX && setFormData({
                         ...formData, 
-                        environments: {
-                          ...formData.environments,
-                          SANDBOX: !formData.environments.SANDBOX
+                        selectedEnvironments: {
+                          ...formData.selectedEnvironments,
+                          SANDBOX: !formData.selectedEnvironments.SANDBOX
                         }
                       })}
                     >
                       <div className="flex items-center space-x-2">
                         <div className={`w-5 h-5 border-2 rounded ${
-                          formData.environments.SANDBOX 
+                          formData.selectedEnvironments.SANDBOX 
                             ? 'border-blue-500 bg-blue-500' 
                             : 'border-gray-300'
                         }`}>
-                          {formData.environments.SANDBOX && (
+                          {formData.selectedEnvironments.SANDBOX && (
                             <Check className="w-3 h-3 text-white mx-auto mt-0.5" />
                           )}
                         </div>
                         <h3 className="font-semibold flex items-center">
-                          SANDBOX (테스트)
+                          모의투자 (SANDBOX)
                           <Badge className="ml-2 bg-blue-100 text-blue-700">권장</Badge>
                           {environmentStatus.SANDBOX && (
                             <Badge className="ml-2 bg-green-100 text-green-700">설정됨</Badge>
@@ -417,30 +329,30 @@ export default function KISSetupPage() {
 
                     <div 
                       className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        formData.environments.LIVE 
+                        formData.selectedEnvironments.LIVE 
                           ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
-                          : 'border-gray-200 hover:border-gray-300'
+                          : 'border-border hover:border-primary'
                       } ${environmentStatus.LIVE ? 'opacity-75' : ''}`}
                       onClick={() => !environmentStatus.LIVE && setFormData({
                         ...formData, 
-                        environments: {
-                          ...formData.environments,
-                          LIVE: !formData.environments.LIVE
+                        selectedEnvironments: {
+                          ...formData.selectedEnvironments,
+                          LIVE: !formData.selectedEnvironments.LIVE
                         }
                       })}
                     >
                       <div className="flex items-center space-x-2">
                         <div className={`w-5 h-5 border-2 rounded ${
-                          formData.environments.LIVE 
+                          formData.selectedEnvironments.LIVE 
                             ? 'border-red-500 bg-red-500' 
                             : 'border-gray-300'
                         }`}>
-                          {formData.environments.LIVE && (
+                          {formData.selectedEnvironments.LIVE && (
                             <Check className="w-3 h-3 text-white mx-auto mt-0.5" />
                           )}
                         </div>
                         <h3 className="font-semibold flex items-center">
-                          LIVE (실거래)
+                          실전투자 (LIVE)
                           {environmentStatus.LIVE && (
                             <Badge className="ml-2 bg-green-100 text-green-700">설정됨</Badge>
                           )}
@@ -471,38 +383,333 @@ export default function KISSetupPage() {
                       <AlertDescription>{validationErrors.environments}</AlertDescription>
                     </Alert>
                   )}
+                </div>
 
-                  {/* 기존 계정이 있는 환경에 대한 안내 */}
-                  {(environmentStatus.SANDBOX || environmentStatus.LIVE) && (
-                    <Alert className="border-blue-200 bg-blue-50">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-blue-800">
-                        <strong>기존 설정 발견:</strong>{' '}
-                        {environmentStatus.SANDBOX && environmentStatus.LIVE 
-                          ? '모의투자와 실전투자 환경 모두 이미 설정되어 있습니다.'
-                          : environmentStatus.SANDBOX 
-                            ? '모의투자 환경이 이미 설정되어 있습니다. 실전투자 환경을 추가로 설정할 수 있습니다.'
-                            : '실전투자 환경이 이미 설정되어 있습니다. 모의투자 환경을 추가로 설정할 수 있습니다.'
-                        }
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                <Alert className="border-primary/20 bg-primary/10">
+                  <Info className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-foreground">
+                    아직 KIS API 계정이 없으시나요? {' '}
+                    <a 
+                      href="https://apiportal.koreainvestment.com" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-primary hover:underline font-medium"
+                    >
+                      여기서 계정을 생성하세요 <ExternalLink className="w-3 h-3 ml-1" />
+                    </a>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
 
-                  {formData.environments.LIVE && !environmentStatus.LIVE && (
-                    <Alert variant="destructive">
+            {/* Step 2: API 인증 */}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <Shield className="w-12 h-12 text-blue-600 mx-auto" />
+                  <h2 className="text-xl font-semibold">API 인증 정보</h2>
+                  <p className="text-muted-foreground">
+                    선택한 환경별로 API 키를 입력해주세요
+                  </p>
+                </div>
+
+                {/* 모의투자 API 키 입력 */}
+                {formData.selectedEnvironments.SANDBOX && (
+                  <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50/30 dark:bg-blue-950/20">
+                    <div className="flex items-center space-x-2">
+                      <TestTube className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">모의투자 API 인증</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="sandboxAppKey" className="text-sm font-medium">모의투자 App Key *</Label>
+                        <Input
+                          id="sandboxAppKey"
+                          type="text"
+                          placeholder="SANDBOX_APP_KEY_HERE"
+                          value={formData.sandbox.appKey}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            sandbox: { ...formData.sandbox, appKey: e.target.value }
+                          })}
+                          className={validationErrors['sandbox.appKey'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['sandbox.appKey'] && (
+                          <p className="text-sm text-red-600">{validationErrors['sandbox.appKey']}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="sandboxAppSecret" className="text-sm font-medium">모의투자 App Secret *</Label>
+                        <Input
+                          id="sandboxAppSecret"
+                          type="password"
+                          placeholder="SANDBOX_SECRET_HERE"
+                          value={formData.sandbox.appSecret}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            sandbox: { ...formData.sandbox, appSecret: e.target.value }
+                          })}
+                          className={validationErrors['sandbox.appSecret'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['sandbox.appSecret'] && (
+                          <p className="text-sm text-red-600">{validationErrors['sandbox.appSecret']}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 실전투자 API 키 입력 */}
+                {formData.selectedEnvironments.LIVE && (
+                  <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/30 dark:bg-red-950/20">
+                    <div className="flex items-center space-x-2">
+                      <Zap className="w-5 h-5 text-red-600" />
+                      <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">실전투자 API 인증</h3>
+                    </div>
+                    
+                    <Alert variant="destructive" className="mb-4">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>주의:</strong> LIVE 환경에서는 실제 자금이 사용됩니다. 
-                        SANDBOX 환경에서 충분히 테스트한 후 사용하시기 바랍니다.
+                        <strong>주의:</strong> 실전투자 키는 실제 돈과 연결됩니다. 절대 다른 사람과 공유하지 마세요.
                       </AlertDescription>
                     </Alert>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="liveAppKey" className="text-sm font-medium">실전투자 App Key *</Label>
+                        <Input
+                          id="liveAppKey"
+                          type="text"
+                          placeholder="LIVE_APP_KEY_HERE"
+                          value={formData.live.appKey}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            live: { ...formData.live, appKey: e.target.value }
+                          })}
+                          className={validationErrors['live.appKey'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['live.appKey'] && (
+                          <p className="text-sm text-red-600">{validationErrors['live.appKey']}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="liveAppSecret" className="text-sm font-medium">실전투자 App Secret *</Label>
+                        <Input
+                          id="liveAppSecret"
+                          type="password"
+                          placeholder="LIVE_SECRET_HERE"
+                          value={formData.live.appSecret}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            live: { ...formData.live, appSecret: e.target.value }
+                          })}
+                          className={validationErrors['live.appSecret'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['live.appSecret'] && (
+                          <p className="text-sm text-red-600">{validationErrors['live.appSecret']}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <Alert>
+                  <Shield className="h-4 w-4" />
+                  <AlertDescription>
+                    모든 API 키는 암호화되어 안전하게 저장되며, 절대 제3자와 공유되지 않습니다.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {/* Step 3: 계좌 정보 */}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <Building2 className="w-12 h-12 text-green-600 mx-auto" />
+                  <h2 className="text-xl font-semibold">계좌 정보</h2>
+                  <p className="text-muted-foreground">
+                    선택한 환경별로 계좌 정보를 입력해주세요
+                  </p>
+                </div>
+
+                {/* 모의투자 계좌 정보 입력 */}
+                {formData.selectedEnvironments.SANDBOX && (
+                  <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50/30 dark:bg-blue-950/20">
+                    <div className="flex items-center space-x-2">
+                      <TestTube className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">모의투자 계좌 정보</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="sandboxAccountNumber" className="text-sm font-medium">모의투자 계좌번호 *</Label>
+                        <Input
+                          id="sandboxAccountNumber"
+                          type="text"
+                          placeholder="12345678-01"
+                          value={formData.sandbox.accountNumber}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            sandbox: { ...formData.sandbox, accountNumber: e.target.value }
+                          })}
+                          className={validationErrors['sandbox.accountNumber'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['sandbox.accountNumber'] && (
+                          <p className="text-sm text-red-600">{validationErrors['sandbox.accountNumber']}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">형식: 계좌번호-01 (8자리-2자리)</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="sandboxAccountAlias" className="text-sm font-medium">모의투자 계좌별명 *</Label>
+                        <Input
+                          id="sandboxAccountAlias"
+                          type="text"
+                          placeholder="모의투자 메인 계좌"
+                          value={formData.sandbox.accountAlias}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            sandbox: { ...formData.sandbox, accountAlias: e.target.value }
+                          })}
+                          className={validationErrors['sandbox.accountAlias'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['sandbox.accountAlias'] && (
+                          <p className="text-sm text-red-600">{validationErrors['sandbox.accountAlias']}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 실전투자 계좌 정보 입력 */}
+                {formData.selectedEnvironments.LIVE && (
+                  <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/30 dark:bg-red-950/20">
+                    <div className="flex items-center space-x-2">
+                      <Zap className="w-5 h-5 text-red-600" />
+                      <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">실전투자 계좌 정보</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="liveAccountNumber" className="text-sm font-medium">실전투자 계좌번호 *</Label>
+                        <Input
+                          id="liveAccountNumber"
+                          type="text"
+                          placeholder="12345678-01"
+                          value={formData.live.accountNumber}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            live: { ...formData.live, accountNumber: e.target.value }
+                          })}
+                          className={validationErrors['live.accountNumber'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['live.accountNumber'] && (
+                          <p className="text-sm text-red-600">{validationErrors['live.accountNumber']}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">형식: 계좌번호-01 (8자리-2자리)</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="liveAccountAlias" className="text-sm font-medium">실전투자 계좌별명 *</Label>
+                        <Input
+                          id="liveAccountAlias"
+                          type="text"
+                          placeholder="실전투자 메인 계좌"
+                          value={formData.live.accountAlias}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            live: { ...formData.live, accountAlias: e.target.value }
+                          })}
+                          className={validationErrors['live.accountAlias'] ? 'border-red-500' : ''}
+                        />
+                        {validationErrors['live.accountAlias'] && (
+                          <p className="text-sm text-red-600">{validationErrors['live.accountAlias']}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Market Preview */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MarketIndicator variant="detailed" showStatus={true} showTime={true} />
+                </div>
+
+              </div>
+            )}
+
+            {/* Step 4: 설정 완료 */}
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <CheckCircle className="w-12 h-12 text-green-600 mx-auto" />
+                  <h2 className="text-xl font-semibold">설정 완료</h2>
+                  <p className="text-muted-foreground">
+                    선택한 환경의 설정 내용을 확인해주세요
+                  </p>
+                </div>
+
+                {/* 설정 요약 */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">설정 요약</h3>
+                  
+                  {/* 모의투자 설정 요약 */}
+                  {formData.selectedEnvironments.SANDBOX && (
+                    <div className="p-4 border border-blue-200 rounded-lg bg-blue-50/30 dark:bg-blue-950/20">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <TestTube className="w-5 h-5 text-blue-600" />
+                        <h4 className="text-md font-semibold text-blue-800 dark:text-blue-200">모의투자 환경</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <strong>App Key:</strong> {formData.sandbox.appKey.slice(0, 8)}...
+                        </div>
+                        <div>
+                          <strong>계좌번호:</strong> {formData.sandbox.accountNumber}
+                        </div>
+                        <div>
+                          <strong>App Secret:</strong> ****
+                        </div>
+                        <div>
+                          <strong>계좌별명:</strong> {formData.sandbox.accountAlias}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 실전투자 설정 요약 */}
+                  {formData.selectedEnvironments.LIVE && (
+                    <div className="p-4 border border-red-200 rounded-lg bg-red-50/30 dark:bg-red-950/20">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Zap className="w-5 h-5 text-red-600" />
+                        <h4 className="text-md font-semibold text-red-800 dark:text-red-200">실전투자 환경</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <strong>App Key:</strong> {formData.live.appKey.slice(0, 8)}...
+                        </div>
+                        <div>
+                          <strong>계좌번호:</strong> {formData.live.accountNumber}
+                        </div>
+                        <div>
+                          <strong>App Secret:</strong> ****
+                        </div>
+                        <div>
+                          <strong>계좌별명:</strong> {formData.live.accountAlias}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 {/* Final Security Notice */}
-                <Alert className="border-green-200 bg-green-50">
-                  <Shield className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
+                <Alert className="border-primary/20 bg-primary/10">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-foreground">
                     <strong>설정 완료 후:</strong> 언제든지 환경을 전환하거나 계좌 정보를 수정할 수 있습니다.
                     설정된 정보는 최고 수준의 보안으로 보호됩니다.
                   </AlertDescription>
@@ -533,7 +740,7 @@ export default function KISSetupPage() {
                 <form onSubmit={handleSubmit} className="inline">
                   <Button 
                     type="submit" 
-                    disabled={isLoading || Object.values(formData.environments).every(env => !env)}
+                    disabled={isLoading || Object.values(formData.selectedEnvironments).every(env => !env)}
                     className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
                     {isLoading ? (

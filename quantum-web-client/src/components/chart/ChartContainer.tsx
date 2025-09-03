@@ -95,7 +95,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
 
   // WebSocket 연결 설정
   const webSocket = useWebSocket({
-    url: 'ws://127.0.0.1:10201/ws/realtime',
+    url: process.env.NEXT_PUBLIC_WS_URL || 'ws://adapter.quantum-trading.com:8000/ws/realtime',
     reconnectInterval: 3000,
     maxReconnectAttempts: 5,
     heartbeatInterval: 30000,
@@ -402,7 +402,7 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
   // WebSocket 연결 시작
   useEffect(() => {
     console.log('🚀 WebSocket 연결 시작:', {
-      url: 'ws://127.0.0.1:10201/ws/realtime',
+      url: process.env.NEXT_PUBLIC_WS_URL || 'ws://adapter.quantum-trading.com:8000/ws/realtime',
       currentSymbol: currentSymbol,
       status: webSocket.status
     });
@@ -716,15 +716,16 @@ const ChartContainer = forwardRef<ChartContainerRef, ChartContainerProps>(({ cla
 
         <div className="w-full h-full">
           <TradingChart
-            data={chartState.data}
-            height={400}
             symbol={currentSymbol}
-            timeframe={currentTimeframe}
-            chartType={currentChartType}
-            stockName={currentStockInfo.name}
-            realtimeData={realtimeCandle || undefined}
+            market="domestic"
+            stockInfo={currentStockInfo}
+            realtimeData={{
+              price: realtimeQuote?.currentPrice,
+              volume: realtimeQuote?.volume,
+              timestamp: realtimeQuote?.timestamp
+            }}
             onRealtimeUpdate={(data) => {
-              console.log('📊 차트에서 실시간 업데이트 콜백:', data);
+              console.log('📊 TradingChart 실시간 업데이트 콜백:', data);
             }}
           />
         </div>

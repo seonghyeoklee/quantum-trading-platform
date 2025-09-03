@@ -1,6 +1,6 @@
 // 차트 관련 타입 정의
 export interface CandlestickData {
-  time: string;
+  time: string | number;
   open: number;
   high: number;
   low: number;

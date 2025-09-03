@@ -1,7 +1,7 @@
 export function getApiBaseUrl(): string {
   // 개발 환경에서는 백엔드 서버 URL
   if (process.env.NODE_ENV === 'development') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+    return process.env.NEXT_PUBLIC_API_URL || 'http://api.quantum-trading.com:8080';
   }
   
   // 프로덕션 환경에서는 환경변수 또는 기본값

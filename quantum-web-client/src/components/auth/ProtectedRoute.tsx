@@ -47,8 +47,17 @@ export default function ProtectedRoute({ children, requiredRoles = [], requireKI
       return;
     }
 
-    // KIS 설정이 필요한 상태면 설정 페이지로
+    // KIS 설정이 필요한 상태면 설정 페이지로 (단, 로그인 직후가 아닌 경우에만)
+    // 로그인 직후에는 AuthContext.login()에서 이미 라우팅을 처리했으므로 중복 리다이렉트 방지
     if (isKISSetupRequired && pathname !== '/kis-setup' && pathname !== '/login') {
+      // 세션 스토리지로 로그인 직후인지 확인 (로그인 후 첫 페이지 로드에서는 리다이렉트 하지 않음)
+      const isLoginRedirect = sessionStorage.getItem('loginRedirect');
+      if (isLoginRedirect) {
+        sessionStorage.removeItem('loginRedirect');
+        return; // 로그인 직후이므로 리다이렉트하지 않음
+      }
+      
+      console.log('🔄 KIS 설정이 필요하여 설정 페이지로 리다이렉트');
       router.push('/kis-setup');
       return;
     }

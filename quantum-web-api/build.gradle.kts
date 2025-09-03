@@ -49,6 +49,18 @@ dependencies {
     // macOS DNS 네이티브 리졸버 (WebClient 성능 최적화)
     runtimeOnly("io.netty:netty-resolver-dns-native-macos")
     
+    // Spring Boot Actuator (모니터링/헬스체크)
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    
+    // Micrometer Prometheus (메트릭 수집)
+    implementation("io.micrometer:micrometer-registry-prometheus")
+    
+    // HTTP 로깅 - Logbook
+    implementation("org.zalando:logbook-spring-boot-starter:3.5.0")
+    
+    // SQL 로깅 - p6spy
+    implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")
+    
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

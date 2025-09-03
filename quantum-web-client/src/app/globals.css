@@ -7,7 +7,7 @@
   
   /* Light Mode - Clean Professional */
   --background: 255 255 255;           /* Pure white #ffffff */
-  --foreground: 36 41 47;              /* Clean dark text #24292f */
+  --foreground: 15 23 42;              /* Darker text for better contrast #0f172a */
   --card: 255 255 255;                 /* White cards #ffffff */
   --card-foreground: 36 41 47;         /* Clean card text */
   --popover: 255 255 255;
@@ -66,12 +66,12 @@
 
 .dark {
   /* Dark Mode - Pure Black & Cool Gray */
-  --background: 32 33 36;              /* Discord dark background #202124 */
-  --foreground: 220 221 222;           /* Pure light text #dcddde */
-  --card: 54 57 63;                    /* Cool dark card #36393f */
-  --card-foreground: 220 221 222;      /* Clean card text */
-  --popover: 54 57 63;
-  --popover-foreground: 220 221 222;
+  --background: 15 23 42;              /* Very dark background #0f172a */
+  --foreground: 248 250 252;           /* Very light text #f8fafc */
+  --card: 30 41 59;                    /* Darker card #1e293b */
+  --card-foreground: 248 250 252;      /* Light card text */
+  --popover: 30 41 59;
+  --popover-foreground: 248 250 252;
   
   /* Primary - Discord Blue */
   --primary: 88 101 242;               /* Discord blue #5865f2 */

@@ -4,14 +4,14 @@ server:
 spring:
   application:
     name: quantum-web-api
-  
+
   # Database Configuration - PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5433/quantum_trading
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:p6spy:postgresql://localhost:5433/quantum_trading
+    driver-class-name: com.p6spy.engine.spy.P6SpyDriver
     username: quantum
     password: quantum123
-  
+
   # JPA Configuration
   jpa:
     hibernate:
@@ -20,8 +20,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-  
+        format_sql: false
+
   # H2 Console (개발용) - PostgreSQL 사용으로 비활성화
   h2:
     console:
@@ -39,13 +39,61 @@ quantum:
       - http://localhost:3000
       - http://localhost:8080
 
-# Logging
+# Actuator 설정 (모니터링 및 헬스체크)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  info:
+    env:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging - INFO 레벨로 통일 (모든 환경)
 logging:
   level:
-    com.quantum: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    io.netty.resolver.dns: WARN  # DNS 네이티브 리졸버 경고 최소화
+    com.quantum: INFO
+    org.springframework.security: INFO
+    io.netty.resolver.dns: WARN # DNS 네이티브 리졸버 경고 최소화
+
+    # Logbook 로깅 레벨
+    org.zalando.logbook: INFO
+
+    # HTTP 요청/응답 로깅 (Logbook이 처리)
+    org.springframework.web: WARN
+
+    # p6spy SQL 로깅 (Hibernate SQL 로깅 대신 사용)
+    com.p6spy: INFO
+    org.hibernate.SQL: WARN # p6spy가 처리하므로 비활성화
+
+# Logbook 설정 (개발용)
+logbook:
+  filter:
+    enabled: true
+  write:
+    chunk-size: 1000
+  exclude:
+    - /actuator/**
+    - /health
+    - /error
+  minimum-status: 200 # 모든 요청 로깅 (개발용)
+  obfuscate:
+    headers:
+      - Authorization
+      - X-API-KEY
+      - X-KIS-Token
+  format:
+    style: json # JSON 형태로 출력
 
 ---
 # Production Profile (PostgreSQL)
@@ -53,13 +101,13 @@ spring:
   config:
     activate:
       on-profile: production
-  
+
   datasource:
     url: jdbc:postgresql://localhost:5432/quantum_trading
     driver-class-name: org.postgresql.Driver
     username: ${DB_USERNAME:quantum}
     password: ${DB_PASSWORD:quantum123}
-  
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -67,7 +115,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  
+
   h2:
     console:
       enabled: false
@@ -76,7 +124,22 @@ spring:
 jwt:
   secret: ${JWT_SECRET:please-change-this-secret-key-in-production}
 
+# Actuator 설정 (운영환경)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+    prometheus:
+      enabled: true
+
 logging:
   level:
     com.quantum: INFO
-    org.springframework.security: WARN
+    org.springframework.security: INFO
+    org.zalando.logbook: INFO
+    com.p6spy: INFO
+    org.hibernate.SQL: WARN

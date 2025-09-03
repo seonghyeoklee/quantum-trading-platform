@@ -1,31 +1,63 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from "@/components/layout/Header"
 import ProtectedRoute from "@/components/auth/ProtectedRoute"
 import { useMarket } from '@/contexts/MarketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TradingChart } from "@/components/chart/TradingChart"
+// Remove import and add dynamic import below
 import { Button } from "@/components/ui/button"
 import { KISConnectionBanner } from "@/components/kis/KISConnectionBanner"
+import { kisDomesticClient } from '@/lib/services/kis-domestic-client'
+import { KISDomesticIndices } from '@/lib/types/kis-domestic-types'
 import { 
   BarChart3, 
-  TrendingUp, 
-  DollarSign, 
   Activity, 
   Star, 
   Building2, 
   ChevronRight,
   ChevronLeft,
   X,
-  Globe
+  Globe,
+  Loader2,
+  AlertCircle
 } from "lucide-react"
+
+
 
 export default function Home() {
   const [showMobileSidebar, setShowMobileSidebar] = useState<'left' | 'right' | null>(null)
-  const { currentMarket, switchMarket, getMarketDisplayName } = useMarket()
+  const { currentMarket, switchMarket } = useMarket()
   const { hasKISAccount } = useAuth()
+  
+  // 시장지수 상태
+  const [indices, setIndices] = useState<KISDomesticIndices | null>(null)
+  const [indicesLoading, setIndicesLoading] = useState(true)
+  const [indicesError, setIndicesError] = useState<string | null>(null)
+
+  // 시장지수 조회
+  useEffect(() => {
+    const loadIndices = async () => {
+      try {
+        setIndicesLoading(true)
+        setIndicesError(null)
+        console.log('📊 메인페이지 시장지수 조회 시작')
+        
+        const data = await kisDomesticClient.getDomesticIndices()
+        setIndices(data)
+        console.log('✅ 메인페이지 시장지수 조회 완료')
+        
+      } catch (error) {
+        console.error('❌ 메인페이지 시장지수 조회 실패:', error)
+        setIndicesError('시장지수 로딩 실패')
+      } finally {
+        setIndicesLoading(false)
+      }
+    }
+
+    loadIndices()
+  }, [])
 
   return (
     <ProtectedRoute>
@@ -121,7 +153,12 @@ export default function Home() {
                   <CardTitle>차트 분석</CardTitle>
                 </CardHeader>
                 <CardContent className="h-full pb-4">
-                  <TradingChart />
+                  <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-sm">차트 기능이 일시적으로 비활성화되었습니다</p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -132,40 +169,87 @@ export default function Home() {
         <div className="hidden lg:flex w-80 border-l border-border bg-card flex-col">
           <div className="p-4 border-b border-border">
             <h3 className="font-semibold text-sm mb-3">주요 지수</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-medium">KOSPI</div>
-                  <div className="text-xs text-muted-foreground">한국 종합주가지수</div>
+            
+            {indicesLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <span className="text-xs text-muted-foreground">지수 로딩 중...</span>
+              </div>
+            ) : indicesError ? (
+              <div className="flex items-center justify-center py-6 text-red-600">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                <span className="text-xs">{indicesError}</span>
+              </div>
+            ) : indices ? (
+              <div className="space-y-3">
+                {/* KOSPI */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm font-medium">KOSPI</div>
+                    <div className="text-xs text-muted-foreground">한국 종합주가지수</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">{indices.kospi.value.toFixed(2)}</div>
+                    <div className={`text-xs ${indices.kospi.changePercent >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                      {indices.kospi.changePercent >= 0 ? '+' : ''}{indices.kospi.changePercent.toFixed(2)}%
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">2,647.82</div>
-                  <div className="text-xs text-red-600">+1.23%</div>
+                
+                {/* KOSDAQ */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm font-medium">KOSDAQ</div>
+                    <div className="text-xs text-muted-foreground">코스닥 지수</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">{indices.kosdaq.value.toFixed(2)}</div>
+                    <div className={`text-xs ${indices.kosdaq.changePercent >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                      {indices.kosdaq.changePercent >= 0 ? '+' : ''}{indices.kosdaq.changePercent.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+                
+                {/* KOSPI200 또는 KRX300 */}
+                {(indices.kospi200 || indices.krx300) && (
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="text-sm font-medium">
+                        {indices.kospi200?.name || indices.krx300?.name || 'KRX 300'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {indices.kospi200 ? '코스피200' : 'KRX300'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium">
+                        {(indices.kospi200?.value || indices.krx300?.value || 0).toFixed(2)}
+                      </div>
+                      <div className={`text-xs ${(indices.kospi200?.changePercent || indices.krx300?.changePercent || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {(indices.kospi200?.changePercent || indices.krx300?.changePercent || 0) >= 0 ? '+' : ''}
+                        {(indices.kospi200?.changePercent || indices.krx300?.changePercent || 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 원달러 환율 - 고정값 (8000포트에 환율 API가 없으므로) */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm font-medium">USD/KRW</div>
+                    <div className="text-xs text-muted-foreground">원달러 환율</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">1,347.50</div>
+                    <div className="text-xs text-red-600">+0.32%</div>
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-medium">KOSDAQ</div>
-                  <div className="text-xs text-muted-foreground">코스닥 지수</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">742.15</div>
-                  <div className="text-xs text-blue-600">-0.84%</div>
-                </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <span className="text-xs">지수 데이터를 불러올 수 없습니다</span>
               </div>
-              
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-medium">USD/KRW</div>
-                  <div className="text-xs text-muted-foreground">원달러 환율</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">1,347.50</div>
-                  <div className="text-xs text-red-600">+0.32%</div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
           
           <div className="p-4 border-b border-border">

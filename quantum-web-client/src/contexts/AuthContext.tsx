@@ -147,22 +147,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         setUser(data.user);
         
-        // 2. KIS 설정 상태 확인
-        await checkKISSetupStatus();
+        // 2. KIS 설정 상태 확인 (직접 확인하여 즉시 라우팅)
+        const setupSkipped = localStorage.getItem('kisSetupSkipped');
+        const sandboxExists = await checkKISAccountExists('SANDBOX');
+        const liveExists = await checkKISAccountExists('LIVE');
+        const kisAccountExists = sandboxExists || liveExists;
+        
+        // 상태 업데이트
+        setHasKISAccount(kisAccountExists);
+        setIsKISSetupCompleted(kisAccountExists);
+        
+        const needsKISSetup = !kisAccountExists && !setupSkipped;
+        setIsKISSetupRequired(needsKISSetup);
         
         // 3. KIS 계정이 설정되어 있다면 토큰 확인 및 발급
-        if (hasKISAccount) {
-          await checkAndIssueKISTokens();
+        if (kisAccountExists) {
+          try {
+            await checkAndIssueKISTokens();
+          } catch (tokenError) {
+            console.warn('KIS token issue failed, but continuing login:', tokenError);
+          }
         }
         
         setIsLoading(false);
 
+        console.log('🚀 로그인 후 라우팅 결정:', {
+          kisAccountExists,
+          needsKISSetup,
+          setupSkipped: !!setupSkipped
+        });
+
         // 4. KIS 설정이 필요한 경우 설정 페이지로, 아니면 원래 페이지로
-        if (isKISSetupRequired) {
+        // 로그인 직후라는 플래그 설정 (ProtectedRoute에서 중복 리다이렉트 방지용)
+        sessionStorage.setItem('loginRedirect', 'true');
+        
+        if (needsKISSetup) {
+          console.log('📝 KIS 설정 페이지로 이동');
           router.push('/kis-setup');
         } else {
           const returnUrl = localStorage.getItem('returnUrl') || '/';
           localStorage.removeItem('returnUrl');
+          console.log(`🏠 메인 화면으로 이동: ${returnUrl}`);
           router.push(returnUrl);
         }
       }
@@ -446,7 +471,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await apiClient.get(`/api/v1/kis-accounts/me/exists?environment=${environment}`, true);
       
-      return response.data?.exists || false;
+      return response.data?.hasAccount || false;
     } catch (error) {
       console.error(`KIS account exists check failed for ${environment}:`, error);
       return false;

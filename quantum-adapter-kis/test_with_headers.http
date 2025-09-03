@@ -1,5 +1,7 @@
 ### KIS Adapter API Test with Headers
-### 모든 API는 X-KIS-Token 헤더를 통해 인증 토큰을 받을 수 있습니다.
+### 모든 API는 X-KIS-Token 헤더와 trading_mode 파라미터를 지원합니다.
+### 🔑 X-KIS-Token: 우선순위 높은 인증 토큰 (헤더로 전달)
+### 📊 trading_mode: LIVE(실전투자) | SANDBOX(모의투자, 기본값)
 
 ### 1. Health Check
 GET http://localhost:8000/health
@@ -9,20 +11,24 @@ GET http://localhost:8000/
 
 ### === 국내 주식 기본 API ===
 
-### 3. 국내 주식 현재가 조회 (헤더 없이)
+### 3. 국내 주식 현재가 조회 (기본값: SANDBOX)
 GET http://localhost:8000/domestic/price/005930
 
-### 4. 국내 주식 현재가 조회 (헤더 포함)
-GET http://localhost:8000/domestic/price/005930
-X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+### 4. 국내 주식 현재가 조회 (LIVE 모드 + 토큰)
+GET http://localhost:8000/domestic/price/005930?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
 
-### 5. 국내 주식 일봉 차트 조회
-GET http://localhost:8000/domestic/chart/daily/005930?period=D&count=10
-X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+### 4-1. 국내 주식 현재가 조회 (SANDBOX 모드 + 토큰)
+GET http://localhost:8000/domestic/price/005930?trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
 
-### 6. 국내 주식 분봉 차트 조회
-GET http://localhost:8000/domestic/chart/minute/005930?time_div=1&start_time=090000
-X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+### 5. 국내 주식 일봉 차트 조회 (LIVE 모드)
+GET http://localhost:8000/domestic/chart/daily/005930?period=D&count=10&trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
+
+### 6. 국내 주식 분봉 차트 조회 (SANDBOX 모드)
+GET http://localhost:8000/domestic/chart/minute/005930?time_div=1&start_time=090000&trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
 
 ### === 새로 추가된 국내 주식 API ===
 
@@ -50,77 +56,129 @@ X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 GET http://localhost:8000/indices/domestic?index_code=2001
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
+### === 새로 추가된 국내 지수 차트 API ===
+
+### 13. 국내 지수 일봉 차트 조회 (코스피)
+GET http://localhost:8000/indices/domestic/chart/daily/0001?start_date=20241201&end_date=20241231&period=D
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 14. 국내 지수 주봉 차트 조회 (코스닥)
+GET http://localhost:8000/indices/domestic/chart/daily/1001?start_date=20241201&end_date=20241231&period=W
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 15. 국내 지수 월봉 차트 조회 (코스피200)
+GET http://localhost:8000/indices/domestic/chart/daily/2001?start_date=20241101&end_date=20241231&period=M
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 16. 국내 지수 분봉 차트 조회 (코스피 30분봉)
+GET http://localhost:8000/indices/domestic/chart/minute/0001?time_div=30&include_past=Y
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
+### 17. 국내 지수 분봉 차트 조회 (코스닥 1시간봉)
+GET http://localhost:8000/indices/domestic/chart/minute/1001?time_div=60&include_past=Y
+X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
+
 ### === 해외 주식 API ===
 
-### 13. 해외 주식 일봉 차트 조회 (AAPL)
+### 18. 해외 주식 일봉 차트 조회 (AAPL)
 GET http://localhost:8000/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231&period=D
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 14. 해외 주식 분봉 차트 조회 (AAPL)
+### 19. 해외 주식 분봉 차트 조회 (AAPL)
 GET http://localhost:8000/overseas/NYS/chart/minute/AAPL?nmin=1&pinc=1
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 15. 해외 주식 현재가 조회 (AAPL)
+### 20. 해외 주식 현재가 조회 (AAPL)
 GET http://localhost:8000/overseas/NYS/price/AAPL
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 새로 추가된 해외 주식 API ===
 
-### 16. 해외 주식 기본정보 조회 (AAPL)
+### 21. 해외 주식 기본정보 조회 (AAPL)
 GET http://localhost:8000/overseas/NYS/info/AAPL
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 17. 해외 주식 기본정보 조회 (테슬라)
+### 22. 해외 주식 기본정보 조회 (테슬라)
 GET http://localhost:8000/overseas/NAS/info/TSLA
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 18. 해외 주식 기본정보 조회 (일본 소니)
+### 23. 해외 주식 기본정보 조회 (일본 소니)
 GET http://localhost:8000/overseas/TSE/info/6758
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 19. 해외 주식 검색 (나스닥)
+### 24. 해외 주식 검색 (나스닥)
 GET http://localhost:8000/overseas/NAS/search?symbol=AAPL&rsp_tp=0
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 20. 해외 주식 검색 (뉴욕증권거래소, 필터링)
+### 25. 해외 주식 검색 (뉴욕증권거래소, 필터링)
 GET http://localhost:8000/overseas/NYS/search?schz_bnti_qty=100&rsp_tp=1&start_rank=1&end_rank=10
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 해외 시장지수 API ===
 
-### 21. 해외 시장지수 조회 (S&P 500)
+### 26. 해외 시장지수 조회 (S&P 500)
 GET http://localhost:8000/indices/overseas/US?index_code=SPX
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 22. 해외 시장지수 조회 (다우존스)
+### 27. 해외 시장지수 조회 (다우존스)
 GET http://localhost:8000/indices/overseas/US?index_code=DJI
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 23. 해외 시장지수 조회 (나스닥 종합)
+### 28. 해외 시장지수 조회 (나스닥 종합)
 GET http://localhost:8000/indices/overseas/US?index_code=NDX
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 24. 해외 시장지수 조회 (니케이 225)
+### 29. 해외 시장지수 조회 (니케이 225)
 GET http://localhost:8000/indices/overseas/JP?index_code=N225
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 25. 해외 시장지수 조회 (항셍지수)
+### 30. 해외 시장지수 조회 (항셍지수)
 GET http://localhost:8000/indices/overseas/HK?index_code=HSI
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 해외 지수 차트 API ===
 
-### 26. 해외 지수 일봉 차트 (S&P 500)
+### 31. 해외 지수 일봉 차트 (S&P 500)
 GET http://localhost:8000/indices/overseas/US/chart/daily/SPX?start_date=20241201&end_date=20241231&period=D
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
-### 27. 해외 지수 분봉 차트 (다우존스)
+### 32. 해외 지수 분봉 차트 (다우존스)
 GET http://localhost:8000/indices/overseas/US/chart/minute/DJI?nmin=1&pinc=1
 X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
 
 ### === 사용 예제 ===
 
-### 28. 삼성전자 종합 정보 조회 (순서대로 실행)
+### === 🚀 토큰 우선순위화 테스트 시나리오 ===
+
+### 33. 삼성전자 LIVE 모드 종합 정보 조회 (실전투자)
+# 1) 기본정보
+GET http://localhost:8000/domestic/info/005930?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
+# 2) 현재가
+GET http://localhost:8000/domestic/price/005930?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
+# 3) 호가정보
+GET http://localhost:8000/domestic/orderbook/005930?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
+# 4) 일봉차트 
+GET http://localhost:8000/domestic/chart/daily/005930?period=D&trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
+
+### 33-1. 삼성전자 SANDBOX 모드 종합 정보 조회 (모의투자)
+# 1) 기본정보
+GET http://localhost:8000/domestic/info/005930?trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
+# 2) 현재가
+GET http://localhost:8000/domestic/price/005930?trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
+# 3) 호가정보
+GET http://localhost:8000/domestic/orderbook/005930?trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
+# 4) 일봉차트 
+GET http://localhost:8000/domestic/chart/daily/005930?period=D&trading_mode=SANDBOX
+X-KIS-Token: YOUR_SANDBOX_ACCESS_TOKEN_HERE
+
+### 33-2. 삼성전자 기본값 테스트 (config 파일 토큰, SANDBOX 모드)
 # 1) 기본정보
 GET http://localhost:8000/domestic/info/005930
 # 2) 현재가
@@ -130,25 +188,41 @@ GET http://localhost:8000/domestic/orderbook/005930
 # 4) 일봉차트 
 GET http://localhost:8000/domestic/chart/daily/005930?period=D
 
-### 29. 애플(AAPL) 종합 정보 조회 (순서대로 실행)
+### 34. 애플(AAPL) LIVE 모드 종합 정보 조회
 # 1) 기본정보
-GET http://localhost:8000/overseas/NYS/info/AAPL
+GET http://localhost:8000/overseas/NYS/info/AAPL?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
 # 2) 현재가
-GET http://localhost:8000/overseas/NYS/price/AAPL
+GET http://localhost:8000/overseas/NYS/price/AAPL?trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
 # 3) 일봉차트
-GET http://localhost:8000/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231
+GET http://localhost:8000/overseas/NYS/chart/daily/AAPL?start_date=20241201&end_date=20241231&trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
 # 4) 분봉차트
-GET http://localhost:8000/overseas/NYS/chart/minute/AAPL?nmin=5
+GET http://localhost:8000/overseas/NYS/chart/minute/AAPL?nmin=5&trading_mode=LIVE
+X-KIS-Token: YOUR_LIVE_ACCESS_TOKEN_HERE
 
-### 30. 글로벌 시장지수 모니터링
+### 35. 글로벌 시장지수 모니터링 (차트 포함)
 # 1) 미국 S&P 500
 GET http://localhost:8000/indices/overseas/US?index_code=SPX
-# 2) 일본 니케이
-GET http://localhost:8000/indices/overseas/JP?index_code=N225
-# 3) 홍콩 항셍
-GET http://localhost:8000/indices/overseas/HK?index_code=HSI
-# 4) 한국 코스피
+# 2) S&P 500 일봉 차트
+GET http://localhost:8000/indices/overseas/US/chart/daily/SPX?start_date=20241201&end_date=20241231
+# 3) 한국 코스피
 GET http://localhost:8000/indices/domestic?index_code=0001
+# 4) 코스피 일봉 차트
+GET http://localhost:8000/indices/domestic/chart/daily/0001?start_date=20241201&end_date=20241231&period=D
+
+### 36. 국내 지수 차트 종합 분석
+# 1) 코스피 현재가
+GET http://localhost:8000/indices/domestic?index_code=0001
+# 2) 코스피 일봉 차트
+GET http://localhost:8000/indices/domestic/chart/daily/0001?start_date=20241201&end_date=20241231&period=D
+# 3) 코스피 30분봉 차트
+GET http://localhost:8000/indices/domestic/chart/minute/0001?time_div=30&include_past=Y
+# 4) 코스닥 현재가
+GET http://localhost:8000/indices/domestic?index_code=1001
+# 5) 코스닥 일봉 차트
+GET http://localhost:8000/indices/domestic/chart/daily/1001?start_date=20241201&end_date=20241231&period=D
 
 ###
 ### 📚 사용법 가이드:
@@ -160,9 +234,11 @@ GET http://localhost:8000/indices/domestic?index_code=0001
 ### • 현재가: 실시간 가격, 등락률, 거래량, PER/PBR 등 (국내/해외)
 ### • 호가: 매수/매도 10단계 호가와 잔량 (국내)
 ### • 종목정보: 종목명, 업종, 상장정보, 기본 데이터 (국내/해외)
-### • 차트: OHLC 캔들 데이터와 거래량 (국내/해외)
+### • 차트: OHLC 캔들 데이터와 거래량 (국내/해외 주식)
 ### • 지수: 코스피/코스닥/코스피200 지수 및 등락률 (국내)
+### • 지수차트: 국내 지수 일/주/월/년봉 및 분봉 차트 (NEW!)
 ### • 해외지수: S&P500, 다우존스, 나스닥, 니케이, 항셍 등 글로벌 지수
+### • 해외지수차트: 해외 주요 지수 일봉/분봉 차트 데이터
 ### • 해외주식검색: 조건부 검색 및 필터링 기능
 ###
 ### 🌍 지원 거래소:

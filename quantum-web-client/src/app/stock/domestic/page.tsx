@@ -1,12 +1,32 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Header from "@/components/layout/Header"
 import ProtectedRoute from "@/components/auth/ProtectedRoute"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useMarket } from '@/contexts/MarketContext'
+import dynamic from 'next/dynamic'
+
+// KISChart를 동적으로 로드 (SSR 방지)
+const KISChart = dynamic(
+  () => import('@/components/chart/KISChart'),
+  { 
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center h-[400px] border border-border rounded-lg">
+      <div className="text-sm text-muted-foreground">차트 로딩중...</div>
+    </div>
+  }
+)
+import { kisDomesticClient } from '@/lib/services/kis-domestic-client'
+import { kisChartService } from '@/lib/services/kis-chart-service'
+import { 
+  KISDomesticIndices, 
+  KISDomesticPrice, 
+  KISDomesticSearchResult,
+  TradingViewCandle 
+} from '@/lib/types/kis-domestic-types'
 import { 
   Search, 
   Building2, 
@@ -15,16 +35,137 @@ import {
   Star,
   BarChart3,
   Filter,
-  ArrowUpDown
+  ArrowUpDown,
+  Loader2,
+  AlertCircle
 } from "lucide-react"
 
 export default function DomesticStockPage() {
   const { switchMarket } = useMarket()
+  
+  // State
+  const [indices, setIndices] = useState<KISDomesticIndices | null>(null)
+  const [selectedSymbol, setSelectedSymbol] = useState('005930') // 삼성전자
+  const [stockPrice, setStockPrice] = useState<KISDomesticPrice | null>(null)
+  const [chartData, setChartData] = useState<TradingViewCandle[]>([])
+  const [chartType, setChartType] = useState<'daily' | 'minute'>('daily')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<KISDomesticSearchResult | null>(null)
+  
+  // Loading states
+  const [indicesLoading, setIndicesLoading] = useState(true)
+  const [stockLoading, setStockLoading] = useState(false)
+  const [chartLoading, setChartLoading] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  
+  // Error states
+  const [indicesError, setIndicesError] = useState<string | null>(null)
+  const [stockError, setStockError] = useState<string | null>(null)
+  const [chartError, setChartError] = useState<string | null>(null)
 
   // 페이지 진입 시 마켓 상태를 국내로 변경
   useEffect(() => {
     switchMarket('domestic')
+  }, [switchMarket])
+
+  // 시장지수 조회
+  useEffect(() => {
+    const loadIndices = async () => {
+      try {
+        setIndicesLoading(true)
+        setIndicesError(null)
+        console.log('📊 국내 시장지수 조회 시작')
+        
+        const data = await kisDomesticClient.getDomesticIndices()
+        setIndices(data)
+        console.log('✅ 국내 시장지수 조회 완료')
+        
+      } catch (error) {
+        console.error('❌ 국내 시장지수 조회 실패:', error)
+        setIndicesError('시장지수를 불러올 수 없습니다')
+      } finally {
+        setIndicesLoading(false)
+      }
+    }
+
+    loadIndices()
   }, [])
+
+  // 선택된 종목 현재가 조회
+  useEffect(() => {
+    const loadStockPrice = async () => {
+      if (!selectedSymbol) return
+      
+      try {
+        setStockLoading(true)
+        setStockError(null)
+        console.log('💰 종목 현재가 조회:', selectedSymbol)
+        
+        const data = await kisDomesticClient.getDomesticPrice(selectedSymbol)
+        setStockPrice(data)
+        console.log('✅ 종목 현재가 조회 완료')
+        
+      } catch (error) {
+        console.error('❌ 종목 현재가 조회 실패:', error)
+        setStockError('종목 정보를 불러올 수 없습니다')
+      } finally {
+        setStockLoading(false)
+      }
+    }
+
+    loadStockPrice()
+  }, [selectedSymbol])
+
+  // 차트 데이터 조회
+  useEffect(() => {
+    const loadChartData = async () => {
+      if (!selectedSymbol) return
+      
+      try {
+        setChartLoading(true)
+        setChartError(null)
+        console.log('📈 차트 데이터 조회:', selectedSymbol, chartType)
+        
+        const data = await kisChartService.getTradingViewCandles(selectedSymbol, chartType)
+        setChartData(data)
+        console.log('✅ 차트 데이터 조회 완료')
+        
+      } catch (error) {
+        console.error('❌ 차트 데이터 조회 실패:', error)
+        setChartError('차트 데이터를 불러올 수 없습니다')
+      } finally {
+        setChartLoading(false)
+      }
+    }
+
+    loadChartData()
+  }, [selectedSymbol, chartType])
+
+  // 종목 검색
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+    
+    try {
+      setSearchLoading(true)
+      console.log('🔍 종목 검색:', searchQuery)
+      
+      const data = await kisDomesticClient.searchDomestic(searchQuery.trim())
+      setSearchResults(data)
+      console.log('✅ 종목 검색 완료')
+      
+    } catch (error) {
+      console.error('❌ 종목 검색 실패:', error)
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // 종목 선택
+  const handleStockSelect = (symbol: string) => {
+    setSelectedSymbol(symbol)
+    setSearchResults(null) // 검색 결과 닫기
+    setSearchQuery('')
+  }
 
   return (
     <ProtectedRoute>
@@ -60,10 +201,26 @@ export default function DomesticStockPage() {
                 <Input 
                   placeholder="종목명 또는 종목코드를 입력하세요 (예: 삼성전자, 005930)"
                   className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
               
               <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleSearch}
+                  disabled={searchLoading}
+                >
+                  {searchLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  검색
+                </Button>
                 <Button variant="outline" size="sm">
                   <Filter className="w-4 h-4 mr-2" />
                   필터
@@ -74,184 +231,271 @@ export default function DomesticStockPage() {
                 </Button>
               </div>
             </div>
+
+            {/* 검색 결과 */}
+            {searchResults && (
+              <div className="mt-4 border rounded-lg p-4 bg-muted/50">
+                <h3 className="font-medium mb-3">검색 결과 ({searchResults.total}개)</h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {searchResults.items.map((item, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-center justify-between p-2 hover:bg-background rounded cursor-pointer"
+                      onClick={() => handleStockSelect(item.symbol)}
+                    >
+                      <div>
+                        <div className="font-medium">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.symbol} • {item.market}</div>
+                      </div>
+                      {item.price && (
+                        <div className="text-right">
+                          <div className="font-medium">{item.price.toLocaleString()}원</div>
+                          {item.changePercent && (
+                            <div className={`text-xs ${item.changePercent >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                              {item.changePercent >= 0 ? '+' : ''}{item.changePercent.toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* 주요 지수 */}
+        {/* 시장지수 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">KOSPI</p>
-                  <p className="text-2xl font-bold">2,647.82</p>
+          {indicesLoading ? (
+            <Card className="col-span-3">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  <span>시장지수를 불러오는 중...</span>
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center text-red-600">
-                    <TrendingUp className="w-4 h-4 mr-1" />
-                    <span className="font-semibold">+32.45</span>
+              </CardContent>
+            </Card>
+          ) : indicesError ? (
+            <Card className="col-span-3">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-center text-red-600">
+                  <AlertCircle className="w-6 h-6 mr-2" />
+                  <span>{indicesError}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ) : indices ? (
+            <>
+              {/* KOSPI */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">KOSPI</p>
+                      <p className="text-2xl font-bold">{indices.kospi.value.toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`flex items-center ${indices.kospi.change >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {indices.kospi.change >= 0 ? (
+                          <TrendingUp className="w-4 h-4 mr-1" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 mr-1" />
+                        )}
+                        <span className="font-semibold">
+                          {indices.kospi.change >= 0 ? '+' : ''}{indices.kospi.change.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className={`text-sm ${indices.kospi.changePercent >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {indices.kospi.changePercent >= 0 ? '+' : ''}{indices.kospi.changePercent.toFixed(2)}%
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-red-600">+1.23%</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">KOSDAQ</p>
-                  <p className="text-2xl font-bold">742.15</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center text-blue-600">
-                    <TrendingDown className="w-4 h-4 mr-1" />
-                    <span className="font-semibold">-6.23</span>
+              {/* KOSDAQ */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">KOSDAQ</p>
+                      <p className="text-2xl font-bold">{indices.kosdaq.value.toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`flex items-center ${indices.kosdaq.change >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {indices.kosdaq.change >= 0 ? (
+                          <TrendingUp className="w-4 h-4 mr-1" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 mr-1" />
+                        )}
+                        <span className="font-semibold">
+                          {indices.kosdaq.change >= 0 ? '+' : ''}{indices.kosdaq.change.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className={`text-sm ${indices.kosdaq.changePercent >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {indices.kosdaq.changePercent >= 0 ? '+' : ''}{indices.kosdaq.changePercent.toFixed(2)}%
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-blue-600">-0.84%</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">KRX 300</p>
-                  <p className="text-2xl font-bold">1,245.67</p>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center text-red-600">
-                    <TrendingUp className="w-4 h-4 mr-1" />
-                    <span className="font-semibold">+5.32</span>
+              {/* KOSPI200 또는 KRX300 */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {indices.kospi200?.name || indices.krx300?.name || 'KRX 300'}
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {(indices.kospi200?.value || indices.krx300?.value || 1245.67).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center text-red-600">
+                        <TrendingUp className="w-4 h-4 mr-1" />
+                        <span className="font-semibold">
+                          +{(indices.kospi200?.change || indices.krx300?.change || 5.32).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-red-600">
+                        +{(indices.kospi200?.changePercent || indices.krx300?.changePercent || 0.43).toFixed(2)}%
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-red-600">+0.43%</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 인기 종목 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                인기 종목
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { name: '삼성전자', code: '005930', price: '71,900', change: '+1,200', changeRate: '+1.69%', isUp: true },
-                  { name: 'SK하이닉스', code: '000660', price: '135,500', change: '-2,500', changeRate: '-1.81%', isUp: false },
-                  { name: 'LG에너지솔루션', code: '373220', price: '412,000', change: '+8,000', changeRate: '+1.98%', isUp: true },
-                  { name: '삼성바이오로직스', code: '207940', price: '891,000', change: '+15,000', changeRate: '+1.71%', isUp: true },
-                  { name: 'NAVER', code: '035420', price: '189,500', change: '-3,000', changeRate: '-1.56%', isUp: false }
-                ].map((stock, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="p-1 h-auto">
-                        <Star className="w-4 h-4" />
-                      </Button>
-                      <div>
-                        <div className="font-medium text-sm">{stock.name}</div>
-                        <div className="text-xs text-muted-foreground">{stock.code}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-sm">{stock.price}</div>
-                      <div className={`text-xs ${stock.isUp ? 'text-red-600' : 'text-blue-600'}`}>
-                        {stock.change} ({stock.changeRate})
-                      </div>
-                    </div>
+        {/* 선택된 종목 정보 및 차트 */}
+        {selectedSymbol && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            {/* 종목 정보 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>종목 정보</span>
+                  <Button variant="ghost" size="sm">
+                    <Star className="w-4 h-4" />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stockLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                    <span>종목 정보 로딩 중...</span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                ) : stockError ? (
+                  <div className="flex items-center justify-center py-8 text-red-600">
+                    <AlertCircle className="w-6 h-6 mr-2" />
+                    <span>{stockError}</span>
+                  </div>
+                ) : stockPrice ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{stockPrice.name}</h3>
+                      <p className="text-sm text-muted-foreground">{stockPrice.symbol}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>현재가</span>
+                        <span className="font-bold text-lg">{stockPrice.price.toLocaleString()}원</span>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span>전일대비</span>
+                        <div className={`${stockPrice.change >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                          <span className="font-medium">
+                            {stockPrice.change >= 0 ? '+' : ''}{stockPrice.change.toLocaleString()}원
+                          </span>
+                          <span className="ml-2">
+                            ({stockPrice.changePercent >= 0 ? '+' : ''}{stockPrice.changePercent.toFixed(2)}%)
+                          </span>
+                        </div>
+                      </div>
 
-          {/* 상승률 상위 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-red-600" />
-                상승률 상위
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { name: '셀트리온', code: '068270', price: '163,500', change: '+14,800', changeRate: '+9.95%' },
-                  { name: '카카오', code: '035720', price: '45,250', change: '+3,750', changeRate: '+9.03%' },
-                  { name: 'LG화학', code: '051910', price: '543,000', change: '+39,000', changeRate: '+7.74%' },
-                  { name: '현대차', code: '005380', price: '198,500', change: '+13,500', changeRate: '+7.30%' },
-                  { name: 'POSCO홀딩스', code: '005490', price: '387,000', change: '+25,500', changeRate: '+7.05%' }
-                ].map((stock, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="p-1 h-auto">
-                        <Star className="w-4 h-4" />
-                      </Button>
-                      <div>
-                        <div className="font-medium text-sm">{stock.name}</div>
-                        <div className="text-xs text-muted-foreground">{stock.code}</div>
+                      <div className="flex justify-between">
+                        <span>거래량</span>
+                        <span>{stockPrice.volume.toLocaleString()}주</span>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-sm">{stock.price}</div>
-                      <div className="text-xs text-red-600">
-                        {stock.change} ({stock.changeRate})
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* 거래량 상위 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-primary" />
-                거래량 상위
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { name: '삼성전자', code: '005930', volume: '24,567,832', price: '71,900', changeRate: '+1.69%', isUp: true },
-                  { name: 'SK하이닉스', code: '000660', volume: '8,945,621', price: '135,500', changeRate: '-1.81%', isUp: false },
-                  { name: '카카오뱅크', code: '323410', volume: '7,234,567', price: '28,350', changeRate: '+2.34%', isUp: true },
-                  { name: 'NAVER', code: '035420', volume: '5,678,432', price: '189,500', changeRate: '-1.56%', isUp: false },
-                  { name: 'LG에너지솔루션', code: '373220', volume: '4,567,891', price: '412,000', changeRate: '+1.98%', isUp: true }
-                ].map((stock, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-b-0">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" className="p-1 h-auto">
-                        <Star className="w-4 h-4" />
-                      </Button>
-                      <div>
-                        <div className="font-medium text-sm">{stock.name}</div>
-                        <div className="text-xs text-muted-foreground">{stock.volume}주</div>
+                      <div className="flex justify-between">
+                        <span>고가</span>
+                        <span>{stockPrice.high.toLocaleString()}원</span>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-sm">{stock.price}</div>
-                      <div className={`text-xs ${stock.isUp ? 'text-red-600' : 'text-blue-600'}`}>
-                        {stock.changeRate}
+
+                      <div className="flex justify-between">
+                        <span>저가</span>
+                        <span>{stockPrice.low.toLocaleString()}원</span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>시가</span>
+                        <span>{stockPrice.open.toLocaleString()}원</span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {/* 차트 */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>차트</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={chartType === 'daily' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setChartType('daily')}
+                    >
+                      일봉
+                    </Button>
+                    <Button
+                      variant={chartType === 'minute' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setChartType('minute')}
+                    >
+                      분봉
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {chartLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                    <span>차트 데이터를 불러오는 중...</span>
+                  </div>
+                ) : chartError ? (
+                  <div className="flex items-center justify-center py-20 text-red-600">
+                    <AlertCircle className="w-8 h-8 mr-2" />
+                    <span>{chartError}</span>
+                  </div>
+                ) : chartData.length > 0 ? (
+                  <KISChart
+                    data={chartData}
+                    symbol={selectedSymbol}
+                    chartType={chartType}
+                    width={600}
+                    height={400}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center py-20 text-muted-foreground">
+                    <span>차트 데이터가 없습니다</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </main>
       </div>
     </ProtectedRoute>
