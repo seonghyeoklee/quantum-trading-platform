@@ -60,31 +60,6 @@ export class KISChartService {
   private readonly baseUrl = 'http://localhost:8000';
   
   /**
-   * KIS 토큰 가져오기 (localStorage에서)
-   */
-  private getKISToken(): string | null {
-    try {
-      // SANDBOX 토큰 우선, 없으면 LIVE 토큰
-      const sandboxToken = localStorage.getItem('kisToken_SANDBOX');
-      const liveToken = localStorage.getItem('kisToken_LIVE');
-      
-      if (sandboxToken) {
-        const tokenData = JSON.parse(sandboxToken);
-        return tokenData.token;
-      }
-      
-      if (liveToken) {
-        const tokenData = JSON.parse(liveToken);
-        return tokenData.token;
-      }
-      
-      return null;
-    } catch (error) {
-      console.warn('KIS 토큰 가져오기 실패:', error);
-      return null;
-    }
-  }
-  /**
    * 국내 주식 일봉 차트 데이터 조회 (8000포트 직접 호출)
    * @param symbol 종목코드 (6자리)
    * @param count 조회 개수 (기본 100일)
@@ -101,12 +76,6 @@ export class KISChartService {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
-      // KIS 토큰이 있으면 헤더에 추가
-      const kisToken = this.getKISToken();
-      if (kisToken) {
-        headers['X-KIS-Token'] = kisToken;
-      }
       
       // API 호출
       const response = await fetch(url, {
@@ -154,12 +123,6 @@ export class KISChartService {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
-      // KIS 토큰이 있으면 헤더에 추가
-      const kisToken = this.getKISToken();
-      if (kisToken) {
-        headers['X-KIS-Token'] = kisToken;
-      }
       
       // API 호출
       const response = await fetch(url, {

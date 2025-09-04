@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { CandlestickData } from './ChartTypes';
 
@@ -23,7 +23,7 @@ export default function TradingChart({
   chartType = 'daily',
   stockName
 }: TradingChartProps) {
-  console.log('TradingChart 시작:', { 데이터길이: data.length, symbol, chartType, stockName });
+  console.log('TradingChart v5 시작:', { 데이터길이: data.length, symbol, chartType, stockName });
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chart = useRef<any>(null);
@@ -42,13 +42,13 @@ export default function TradingChart({
     const initChart = async () => {
       if (!chartContainerRef.current) return;
       
-      console.log('차트 초기화 시작 (v4), 데이터 길이:', data.length);
+      console.log('차트 초기화 시작 (v5), 데이터 길이:', data.length);
       
       try {
-        // lightweight-charts v4 방식
-        const { createChart, ColorType } = await import('lightweight-charts');
+        // lightweight-charts v5 방식
+        const { createChart, ColorType, CandlestickSeries } = await import('lightweight-charts');
         
-        console.log('lightweight-charts v4 로드 완료');
+        console.log('lightweight-charts v5 로드 완료');
         
         // 기존 차트 제거
         if (chart.current) {
@@ -57,56 +57,54 @@ export default function TradingChart({
 
         const isDark = resolvedTheme === 'dark';
         
-        console.log('차트 생성 시도 (v4)...');
+        console.log('차트 생성 시도 (v5)...');
         
-        // v4 방식으로 차트 생성
+        // v5 방식으로 차트 생성 (TradingView 스타일)
         chart.current = createChart(chartContainerRef.current, {
           width: chartContainerRef.current.clientWidth,
           height: height,
           layout: {
             background: {
               type: ColorType.Solid,
-              color: isDark ? '#0c0a09' : '#ffffff'
+              color: isDark ? '#131722' : '#ffffff'  // TradingView 다크 색상
             },
-            textColor: isDark ? '#fafaf9' : '#0c0a09',
+            textColor: isDark ? '#d1d4dc' : '#191919',  // TradingView 텍스트 색상
             fontSize: 12,
-            fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif',
           },
           grid: {
             vertLines: { 
-              color: isDark ? '#292524' : '#e7e5e4',
-              style: 1, // 점선
+              color: isDark ? '#2a2e39' : '#f0f3fa',
+              style: 0,
             },
             horzLines: { 
-              color: isDark ? '#292524' : '#e7e5e4',
-              style: 1, // 점선
+              color: isDark ? '#2a2e39' : '#f0f3fa', 
+              style: 0,
             },
           },
           crosshair: {
-            mode: 1, // Normal crosshair mode
+            mode: 1,
             vertLine: {
               width: 1,
-              color: isDark ? '#78716c' : '#57534e',
-              style: 0, // 실선
+              color: isDark ? '#758696' : '#9598a1',
+              style: 3, // 점선
             },
             horzLine: {
               width: 1,
-              color: isDark ? '#78716c' : '#57534e',
-              style: 0, // 실선
+              color: isDark ? '#758696' : '#9598a1',
+              style: 3, // 점선
             },
           },
           rightPriceScale: {
-            borderColor: isDark ? '#44403c' : '#d6d3d1',
+            borderColor: isDark ? '#2a2e39' : '#f0f3fa',
             autoScale: true,
             scaleMargins: {
               top: 0.1,
               bottom: 0.1,
             },
-            ticksVisible: true,
-            entireTextOnly: false,
           },
           timeScale: {
-            borderColor: isDark ? '#44403c' : '#d6d3d1',
+            borderColor: isDark ? '#2a2e39' : '#f0f3fa',
             timeVisible: true,
             secondsVisible: false,
           },
@@ -123,19 +121,18 @@ export default function TradingChart({
           },
         });
 
-        console.log('차트 인스턴스 생성 완료 (v4):', {
+        console.log('차트 인스턴스 생성 완료 (v5):', {
           chartExists: !!chart.current,
-          addCandlestickSeries: typeof chart.current?.addCandlestickSeries
+          addSeries: typeof chart.current?.addSeries
         });
 
-        // v4 방식으로 캔들스틱 시리즈 생성 (한국식 색상: 빨강=상승, 파랑=하락)
-        series.current = chart.current.addCandlestickSeries({
-          upColor: '#ef4444',      // 상승: 빨강
-          downColor: '#3b82f6',    // 하락: 파랑
-          borderDownColor: '#3b82f6',  // 하락 테두리: 파랑
-          borderUpColor: '#ef4444',    // 상승 테두리: 빨강
-          wickDownColor: '#3b82f6',    // 하락 심지: 파랑
-          wickUpColor: '#ef4444',      // 상승 심지: 빨강
+        // v5 방식으로 캔들스틱 시리즈 생성 (TradingView 기본 색상)
+        series.current = chart.current.addSeries(CandlestickSeries, {
+          upColor: '#26a69a',      // TradingView 상승 색상 (청록색)
+          downColor: '#ef5350',    // TradingView 하락 색상 (빨강)
+          borderVisible: false,
+          wickUpColor: '#26a69a',
+          wickDownColor: '#ef5350',
           priceFormat: {
             type: 'price',
             precision: 0,
@@ -143,7 +140,7 @@ export default function TradingChart({
           },
         });
 
-        console.log('캔들스틱 시리즈 생성 완료 (v4):', !!series.current);
+        console.log('캔들스틱 시리즈 생성 완료 (v5):', !!series.current);
 
         // 데이터가 있으면 설정
         if (data.length > 0) {

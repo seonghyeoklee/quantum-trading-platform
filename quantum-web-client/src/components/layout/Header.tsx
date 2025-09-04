@@ -34,11 +34,10 @@ export default function Header({ className }: HeaderProps) {
   const { currentMarket } = useMarket();
   const { hasKISAccount, isKISSetupRequired, forceKISSetup } = useAuth();
 
-  // 현재 페이지 확인 - MVP 1.0 핵심 페이지만
+  // 현재 페이지 확인 - 새로운 구조
   const isHomePage = pathname === '/';
-  const isDomesticStockPage = pathname === '/stock/domestic';
-  const isOverseasStockPage = pathname === '/stock/overseas';
-  const isAnyStockPage = isDomesticStockPage || isOverseasStockPage;
+  const isDomesticPage = pathname === '/domestic';
+  const isOverseasPage = pathname === '/overseas';
   const isProfilePage = pathname === '/profile';
   const isSettingsPage = pathname === '/settings';
 
@@ -68,7 +67,7 @@ export default function Header({ className }: HeaderProps) {
               <span className="font-bold text-sm sm:text-lg">Quantum Trading</span>
             </a>
             
-            {/* Navigation Menu - MVP 1.0 핵심 메뉴만 */}
+            {/* Navigation Menu - 새로운 구조 */}
             <nav className="hidden md:flex items-center space-x-6">
               <a 
                 href="/" 
@@ -77,27 +76,27 @@ export default function Header({ className }: HeaderProps) {
                 }`}
               >
                 <Home className="w-4 h-4" />
-                <span className="text-sm">차트</span>
+                <span className="text-sm">홈</span>
               </a>
               
               <a 
-                href="/stock/domestic" 
+                href="/domestic" 
                 className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
-                  isDomesticStockPage ? 'text-primary font-medium' : ''
+                  isDomesticPage ? 'text-primary font-medium' : ''
                 }`}
               >
                 <Building className="w-4 h-4" />
-                <span className="text-sm">국내종목</span>
+                <span className="text-sm">국내시장</span>
               </a>
               
               <a 
-                href="/stock/overseas" 
+                href="/overseas" 
                 className={`flex items-center space-x-1 cursor-pointer hover:text-primary transition-colors ${
-                  isOverseasStockPage ? 'text-primary font-medium' : ''
+                  isOverseasPage ? 'text-primary font-medium' : ''
                 }`}
               >
                 <Globe className="w-4 h-4" />
-                <span className="text-sm">해외종목</span>
+                <span className="text-sm">해외시장</span>
               </a>
 
               {/* 향후 구현 예정 메뉴들 (주석 처리) */}
@@ -252,16 +251,16 @@ export default function Header({ className }: HeaderProps) {
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               <Globe className="w-4 h-4" />
               <span>{hasKISAccount ? '실시간 데이터' : '제한된 데이터'}</span>
-            {isDomesticStockPage && (
+            {isDomesticPage && (
               <>
                 <span>•</span>
-                <span className="text-primary font-medium">국내 종목</span>
+                <span className="text-primary font-medium">국내 시장</span>
               </>
             )}
-            {isOverseasStockPage && (
+            {isOverseasPage && (
               <>
                 <span>•</span>
-                <span className="text-primary font-medium">해외 종목</span>
+                <span className="text-primary font-medium">해외 시장</span>
               </>
             )}
             {isProfilePage && (
@@ -281,7 +280,7 @@ export default function Header({ className }: HeaderProps) {
         </div>
       </div>
 
-      {/* Mobile Navigation - MVP 1.0 핵심 메뉴만 */}
+      {/* Mobile Navigation - 새로운 구조 */}
       <div className="md:hidden px-4 py-2 border-b border-border bg-muted/50">
         <div className="flex items-center justify-between">
           <div className="flex space-x-4 overflow-x-auto">
@@ -292,25 +291,25 @@ export default function Header({ className }: HeaderProps) {
               }`}
             >
               <Home className="w-3 h-3" />
-              <span className="text-xs">차트</span>
+              <span className="text-xs">홈</span>
             </a>
             <a 
-              href="/stock/domestic" 
+              href="/domestic" 
               className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
-                isDomesticStockPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                isDomesticPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
               }`}
             >
               <Building className="w-3 h-3" />
-              <span className="text-xs">국내종목</span>
+              <span className="text-xs">국내시장</span>
             </a>
             <a 
-              href="/stock/overseas" 
+              href="/overseas" 
               className={`flex items-center space-x-1 px-3 py-1 rounded whitespace-nowrap ${
-                isOverseasStockPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+                isOverseasPage ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
               }`}
             >
               <Globe className="w-3 h-3" />
-              <span className="text-xs">해외종목</span>
+              <span className="text-xs">해외시장</span>
             </a>
           </div>
           

@@ -1,0 +1,111 @@
+# 2025년 유망 섹터별 투자 종목 설정
+
+sectors:
+  조선:
+    sector_name: "조선업 (K-조선 르네상스)"
+    theme: "친환경선박, 가스운반선, 수주잔고 호조"
+    target_weight: 16.67  # 6개 섹터 균등배분
+    stocks:
+      primary:
+        symbol: "009540"
+        name: "HD한국조선해양"
+        reason: "세계 조선업계 1위, 친환경선박 선도, 수주잔고 풍부"
+        market_cap: "대형주"
+      secondary:
+        symbol: "042660" 
+        name: "대우조선해양"
+        reason: "LNG선 특화 기술력, 친환경선박 전환 수혜"
+        market_cap: "중형주"
+      
+  방산:
+    sector_name: "방산 (지정학적 리스크 + K-방산 수출)"
+    theme: "KF-21 양산, 폴란드 수출, 방산 수출 확대"
+    target_weight: 16.67
+    stocks:
+      primary:
+        symbol: "012450"
+        name: "한화에어로스페이스"
+        reason: "KF-21 핵심업체, 엔진 기술력, 폴란드 수출"
+        market_cap: "중형주"
+      secondary:
+        symbol: "047810"
+        name: "KAI"
+        reason: "완성기체 제조, KF-21/수리온, 정부 수주"
+        market_cap: "중형주"
+
+  원자력:
+    sector_name: "원자력 (SMR + 원전 재개)"
+    theme: "SMR 기술개발, 체코 원전 수주, 탄소중립"
+    target_weight: 16.67
+    stocks:
+      primary:
+        symbol: "034020"
+        name: "두산에너빌리티"
+        reason: "원전 핵심장비 독점, SMR 개발, 해외수주"
+        market_cap: "대형주"
+      secondary:
+        symbol: "051600"
+        name: "한전KPS"
+        reason: "원전 정비 전문, 신규 원전 수혜"
+        market_cap: "중형주"
+
+  AI:
+    sector_name: "인공지능 (생성형AI + 데이터센터)"
+    theme: "생성형AI 경쟁력, 데이터센터 확장, AI 서비스화"
+    target_weight: 16.67
+    stocks:
+      primary:
+        symbol: "035420"
+        name: "NAVER"
+        reason: "하이퍼클로바X, 국내 AI 1위, 클라우드 확장"
+        market_cap: "대형주"
+      secondary:
+        symbol: "035720"
+        name: "카카오"
+        reason: "카카오브레인, AI 서비스 통합, 플랫폼 경쟁력"
+        market_cap: "대형주"
+
+  반도체:
+    sector_name: "반도체 (AI칩 + HBM)"
+    theme: "AI칩 수요폭증, HBM 독점공급, 메모리 사이클 상승"
+    target_weight: 16.67
+    stocks:
+      primary:
+        symbol: "005930"
+        name: "삼성전자"
+        reason: "HBM3E 기술 선도, AI칩 협력, 메모리 1위"
+        market_cap: "초대형주"
+      secondary:
+        symbol: "000660"
+        name: "SK하이닉스"
+        reason: "HBM 시장 80% 점유, 엔비디아 핵심파트너"
+        market_cap: "대형주"
+
+  바이오:
+    sector_name: "바이오 (K-바이오벨트 + 신약)"
+    theme: "CDMO 성장, 바이오시밀러, 신약 파이프라인"
+    target_weight: 16.67
+    stocks:
+      primary:
+        symbol: "207940"
+        name: "삼성바이오로직스"
+        reason: "CDMO 세계 3위, 생산능력 확장, 안정적 수주"
+        market_cap: "대형주"
+      secondary:
+        symbol: "068270"
+        name: "셀트리온"
+        reason: "바이오시밀러 글로벌 진출, 신약 개발 활발"
+        market_cap: "대형주"
+
+# 전체 투자 설정
+portfolio_config:
+  total_sectors: 6
+  allocation_method: "equal_weight"  # 균등배분
+  rebalancing_frequency: "monthly"   # 월별 리밸런싱
+  
+# 리스크 관리
+risk_management:
+  max_single_stock_weight: 20.0  # 단일종목 최대 20%
+  max_sector_weight: 25.0        # 단일섹터 최대 25%
+  sector_stop_loss: -8.0         # 섹터별 손절 -8%
+  portfolio_stop_loss: -12.0     # 전체 포트폴리오 손절 -12%

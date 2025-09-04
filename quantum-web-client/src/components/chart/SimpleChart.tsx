@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { CandlestickData, ChartConfig } from './types';
-import { createChartTheme, calculateSMA, convertToVolumeData, calculateMultipleMA } from './utils';
+import { createChartTheme, calculateSMA, convertToVolumeData } from './utils';
 import ChartTooltip from './ChartTooltip';
 
 interface SimpleChartProps {
