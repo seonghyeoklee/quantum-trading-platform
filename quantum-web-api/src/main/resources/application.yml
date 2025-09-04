@@ -27,6 +27,15 @@ spring:
     console:
       enabled: false
 
+  # Spring AI Configuration
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:your-api-key-here}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.1
+
 # JWT Configuration
 jwt:
   secret: quantum-trading-platform-jwt-secret-key-for-mvp-development-only-change-in-production
@@ -91,7 +100,6 @@ logbook:
     headers:
       - Authorization
       - X-API-KEY
-      - X-KIS-Token
   format:
     style: json # JSON 형태로 출력
 

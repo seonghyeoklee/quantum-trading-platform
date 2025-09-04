@@ -17,6 +17,9 @@ java {
 
 repositories {
     mavenCentral()
+    // Spring AI 마일스톤 및 스냅샷 레포지토리
+    maven { url = uri("https://repo.spring.io/milestone") }
+    maven { url = uri("https://repo.spring.io/snapshot") }
 }
 
 dependencies {
@@ -27,6 +30,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-cache")
+    
+    // Spring AI - 더 안정적인 버전 사용
+    implementation("org.springframework.ai:spring-ai-openai:0.8.1")
+    implementation("org.springframework.ai:spring-ai-spring-boot-autoconfigure:0.8.1")
     
     // Kotlin Support
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")

@@ -2,28 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Team Collaboration Framework
-
-**IMPORTANT: This is a 4-person development team project. Always identify your role when starting:**
-
-1. **기획자 (Planner)** - Requirements definition, user stories, project roadmap, MVP scope
-2. **백엔드 (Backend)** - Spring Boot API development, database design, system architecture  
-3. **프론트엔드 (Frontend)** - Next.js UI/UX development, user interface implementation
-4. **분석가 (Analyst)** - Trading algorithms, data analysis, automated trading logic
-
-**Collaboration Guidelines:**
-- State your role at the beginning of each session
-- Focus on your domain expertise while considering team integration
-- Coordinate on shared interfaces and APIs
-- Maintain consistency with team decisions and architectural patterns
-
 ## Project Overview
 
 **Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication and multi-environment KIS token management for both live and sandbox trading.
-
-**Mission**: Building an automated stock trading platform (MVP)
-**Target**: Support both live trading and paper trading environments  
-**Developer**: Single developer managing multiple specialized roles
 
 ## Architecture Overview
 
@@ -33,365 +14,277 @@ Frontend (Port 3000) ← → Backend (Port 8080) ← → KIS Adapter (Port 8000)
 Next.js 15 + React 19      Spring Boot 3.5 + Kotlin    FastAPI + Python 3.13
 ```
 
-### Role-Based Component Architecture
-- **quantum-web-client** - Next.js 15 TypeScript frontend (Frontend role)
-- **quantum-web-api** - Spring Boot Kotlin backend API (Backend role)
-- **quantum-adapter-kis** - FastAPI Python adapter for KIS API (Analyst role)
-- **docs/planning/** - MVP specifications and requirements (Planner role)
-
 ### Key Architectural Decisions
-- **Hybrid Token Management**: Client-side KIS tokens for direct API calls, server-side JWT for authentication
-- **Multi-Environment Support**: LIVE (production) and SANDBOX (demo) trading environments  
-- **Domestic/Overseas Market Separation**: Header toggle UI with separate API routing
-- **Real-time Data**: WebSocket integration at ws://localhost:8000/ws/realtime
-- **Chart System**: MVP 1.0 implementation with lightweight-charts library
-- **Data Analysis**: Python handles calculations, Backend handles data routing
-
-### Chart System Technical Notes (CRITICAL)
-
-**⚠️ IMPORTANT: Always refer to official documentation for third-party libraries**
-
-**Lightweight Charts Integration**: 
-- Library: `lightweight-charts@5.0.8`
-- **Official Docs**: https://tradingview.github.io/lightweight-charts/docs
-- **Tutorials**: https://tradingview.github.io/lightweight-charts/tutorials
-- **Demo Examples**: https://tradingview.github.io/lightweight-charts/tutorials/demos/realtime-updates
-
-**Common Issues & Solutions**:
-1. **API Changes**: `addCandlestickSeries()` → `addSeries(CandlestickSeries, options)`
-2. **Import Method**: Use destructuring from module: `const { createChart, CandlestickSeries } = LightweightCharts`
-3. **SSR Issues**: Always use dynamic import in Next.js with `ssr: false`
-4. **Korean Colors**: Red=#FF0000 (상승), Blue=#0000FF (하락)
-
-**Critical Rule**: When encountering library-specific errors, ALWAYS check official documentation FIRST before attempting fixes.
+- **Server-side KIS Token Management**: All KIS authentication handled by backend
+- **Multi-Environment Support**: LIVE (production) and SANDBOX (demo) trading  
+- **Real-time Data**: WebSocket at ws://localhost:8000/ws/realtime
+- **Chart System**: lightweight-charts v5.0.8 integration
 
 ## Development Commands
 
 ### Frontend (quantum-web-client/)
 ```bash
-# Development with custom host
-npm run dev              # Runs on quantum-trading.com (configured host)
+npm run dev              # Runs on quantum-trading.com (custom host)
 npm run dev:local        # Runs on localhost:3000
-
-# Production
 npm run build
 npm run start
-
-# Linting
 npm run lint
 ```
 
 ### Backend (quantum-web-api/)  
 ```bash
-# Development
 ./gradlew bootRun
-
-# Build and test
 ./gradlew build
 ./gradlew test
+./gradlew test --tests="*Auth*"   # Specific test filtering
 
-# Database schema
-./gradlew flywayMigrate  # If using Flyway (check build.gradle.kts)
+# Spring AI requires OpenAI API key
+export OPENAI_API_KEY=sk-your-api-key-here
 ```
 
 ### KIS Adapter (quantum-adapter-kis/)
 ```bash
-# Using uv (recommended)
-uv sync
-uv run python main.py
+uv sync                  # Install dependencies with uv
+uv run python main.py    # Run FastAPI server on port 8000
+# Test files pattern: chk_*.py for individual API testing
+```
 
-# Traditional approach
-pip install -r requirements.txt
-python main.py
+### Infrastructure & Monitoring (quantum-infrastructure/)
+```bash
+docker-compose -f docker-compose.monitoring.yml up -d  # Start monitoring stack
+./start-monitoring.sh    # Helper script to start all services
+# Grafana: http://localhost:3001 (admin/quantum2024)
+# Prometheus: http://localhost:9090
 ```
 
 ## Configuration Requirements
 
 ### Environment Setup
-1. **PostgreSQL Database**: Default port 5433 for development, 5432 for production
+1. **PostgreSQL Database**: Port 5433 (dev), 5432 (prod)
    - Database: `quantum_trading`
    - Username: `quantum` 
    - Password: `quantum123`
 
-2. **KIS API Configuration**: Create `kis_devlp.yaml` in quantum-adapter-kis/ root
-   - Contains API keys, account numbers for LIVE/SANDBOX environments
+2. **KIS API Configuration**: Create `kis_devlp.yaml` in quantum-adapter-kis/
    - Required for KIS API authentication
+   - Contains LIVE/SANDBOX API keys
 
-3. **JWT Secret**: Default development key in application.yml, change for production
+3. **JWT Secret**: Configured in application.yml
 
 ### Port Configuration
-- **Frontend**: 3000 (Next.js dev server)
-- **Backend**: 8080 (Spring Boot)
-- **KIS Adapter**: 8000 (FastAPI) ← **Updated from 8002**
-- **Database**: 5433 (PostgreSQL dev), 5432 (production)
+- **Frontend**: 3000 (Next.js)
+- **Backend**: 8080 (Spring Boot)  
+- **KIS Adapter**: 8000 (FastAPI)
+- **Database**: 5433 (dev), 5432 (prod)
+- **Monitoring**: Grafana (3001), Prometheus (9090), Loki (3100)
+
+## High-Level Architecture
+
+### Backend Architecture Pattern (Hexagonal + DDD)
+```
+quantum-web-api follows Domain-Driven Design with Hexagonal Architecture:
+
+domain/                 # Business logic, entities, domain services
+├── User.kt            # Aggregate root with domain events
+├── KisAccount.kt      # KIS trading accounts
+└── KisToken.kt        # Server-side token management
+
+application/           # Use cases and port definitions  
+├── port/
+│   ├── incoming/      # Primary ports (use cases)
+│   └── outgoing/      # Secondary ports (repositories)
+└── usecase/           # Application services implementation
+
+infrastructure/        # Technical implementations
+├── persistence/       # JPA repositories and database adapters
+├── security/          # JWT, Spring Security adapters
+├── client/            # External API clients (KIS)
+└── ai/                # Spring AI integration
+
+presentation/          # Controllers and DTOs
+├── web/              # REST controllers
+└── dto/              # Request/response objects
+```
+
+### Authentication Flow
+1. User Login → JWT tokens (access/refresh)
+2. Backend validates JWT and manages KIS tokens server-side
+3. Frontend makes authenticated requests to backend
+4. Backend proxies to KIS Adapter with server-managed tokens
+
+### Data Flow Architecture
+```
+User Request → Frontend → Backend API → KIS Adapter → KIS OpenAPI
+                  ↑           ↓             ↓
+                JWT Auth   Server KIS    Market Data
+                            ↓
+                      AI Analysis ← Stock Analysis DB
+```
+
+### Analysis Database Schema
+- **stock_master**: 종목 마스터 (국내/해외 종목 기본 정보)
+- **stock_analysis**: 주식 분석 결과 (투자 점수, 신호, 백테스팅, 기술적 지표)
+  - `raw_analysis` JSONB field contains original analysis data
+- **analysis_summary**: 섹터/시장별 집계 데이터
+- **stock_popularity**: 종목 관심도/인기도 데이터
+
+### Critical Backend APIs (Implementation Priority)
+
+**Available AI APIs:**
+```kotlin
+// AITestController.kt - Spring AI integration testing
+GET /api/v1/ai/test                    # Environment configuration test
+POST /api/v1/ai/chat                   # Basic AI chat functionality
+```
+
+**Missing Controllers (URGENT):**
+```kotlin
+// ChartController.kt - Frontend is calling these endpoints
+GET /api/v1/chart/{symbol}/daily       
+GET /api/v1/chart/{symbol}/current     
+GET /api/v1/chart/{symbol}/overseas    
+
+// TradingModeController.kt - Frontend expects these
+GET /api/v1/trading-mode/status
+POST /api/v1/trading-mode/switch
+```
+
+### KIS Adapter API Pattern
+```python
+# Core domestic endpoints
+GET /domestic/price/{symbol}           # Current price
+GET /domestic/chart/{symbol}           # Chart data (D/W/M/Y periods)
+GET /domestic/index/{index_code}       # Index prices
+GET /domestic/ranking/top-interest-stock # Popular stocks
+
+# Core overseas endpoints  
+GET /overseas/{exchange}/price/{symbol}        # Current price
+GET /overseas/{exchange}/chart/{symbol}        # Chart data
+GET /overseas/{exchange}/index/{index_code}    # Index prices
+
+# Utility endpoints
+POST /auth/refresh-token?environment=prod|vps # Token management
+GET /health                                    # Health check
+WebSocket /ws/realtime                         # Real-time data stream
+```
+
+### WebSocket Integration
+- **KIS Adapter WebSocket**: ws://localhost:8000/ws/realtime
+- **Backend Bridge**: Needs implementation to relay to frontend
+- **Data Format**: JSON with real-time price/volume updates
+
+## Technology Stack & Dependencies
+
+### Frontend (quantum-web-client/)
+- **Next.js 15.5.2** + React 19.1.0
+- **UI Components**: Radix UI primitives + Tailwind CSS
+- **Forms**: React Hook Form + Zod validation
+- **Charts**: lightweight-charts v5.0.8
+- **Themes**: next-themes for dark/light mode
+
+### Backend (quantum-web-api/)
+- **Spring Boot 3.5.5** + Kotlin 1.9.25 + Java 21
+- **Database**: PostgreSQL + Spring Data JPA
+- **Security**: JWT authentication + Spring Security
+- **HTTP Client**: WebFlux WebClient for KIS API calls
+- **AI Integration**: Spring AI 0.8.1 + OpenAI GPT models
+- **Monitoring**: Actuator + Prometheus metrics + Logbook HTTP logging
+
+### KIS Adapter (quantum-adapter-kis/)
+- **FastAPI** + Python 3.13 + uvicorn
+- **Dependencies**: pandas, requests, websockets, pycryptodome
+- **Architecture**: 17 REST endpoints + WebSocket real-time data
+
+## Chart System Technical Notes
+
+**Library**: lightweight-charts v5.0.8
+- **Official Docs**: https://tradingview.github.io/lightweight-charts/docs
+- **Korean Market Colors**: Red (#FF0000) for up, Blue (#0000FF) for down
+- **SSR**: Always use dynamic import with `ssr: false` in Next.js
+
+**Common Issues**:
+1. API changes in v5: Use `addSeries(CandlestickSeries, options)`
+2. Import: `const { createChart, CandlestickSeries } = LightweightCharts`
+
+## Development Workflow
+
+### Standard Startup Sequence
+1. **Database**: Start PostgreSQL database (port 5433 for dev)
+2. **Backend**: `cd quantum-web-api && ./gradlew bootRun`
+3. **KIS Adapter**: `cd quantum-adapter-kis && uv run python main.py`
+4. **Frontend**: `cd quantum-web-client && npm run dev`
+5. **Optional Monitoring**: `cd quantum-infrastructure && docker-compose -f docker-compose.monitoring.yml up -d`
+
+### Testing & Debugging
+- **Backend Tests**: `./gradlew test` (all) or `./gradlew test --tests="*Auth*"` (filtered)
+- **KIS API Testing**: Individual API test files in `chk_*.py` pattern
+- **Integration Testing**: JWT authentication, KIS token refresh, market data flow
+- **API Documentation**: KIS Adapter includes comprehensive FastAPI docs at `/docs`
+- **Health Checks**: `/health` endpoints on all services
+- **Monitoring**: Grafana dashboards for logs, metrics, and performance
 
 ## Current Implementation Status
 
-### ✅ **Completed Components**
-- **Frontend Chart System**: TradingChart.tsx with lightweight-charts v4.1.3 integration and Korean-style colors
-- **KIS API Integration**: Full adapter with domestic/overseas stock data + **Trading Mode Support**
-- **Authentication Flow**: JWT + KIS token management with multi-environment support
-- **User Interface**: Complete login, settings, and market data display with responsive design
-- **Real-time Data**: WebSocket infrastructure ready for live market updates
-- **Trading Mode System**: Complete LIVE/SANDBOX environment switching across all 17 KIS APIs
-- **MVP 1.1 Planning**: Automated trading system documentation with SANDBOX/LIVE dual-mode architecture
+### ✅ Completed
+- **Frontend**: Next.js app with chart system (TradingChart.tsx), Radix UI components
+- **KIS Adapter**: FastAPI server with 17 endpoints, WebSocket real-time data, automatic data splitting
+- **Backend**: Spring Boot API with JWT auth, KIS token management, PostgreSQL integration
+- **AI Integration**: Spring AI 0.8.1 with basic OpenAI GPT support and test endpoints
+- **Infrastructure**: Grafana + Loki + Prometheus monitoring stack
+- **Database**: JPA entities, PostgreSQL schema, and analysis data tables
 
-### ❌ **Missing Critical APIs (Backend Priority)**
-- **Trading Mode Controller**: `/api/v1/trading-mode/*` endpoints not implemented
-- **Chart Data Controller**: `/api/v1/chart/*` endpoints missing
-- **WebSocket Bridge**: Backend to KIS Adapter WebSocket relay
+### 🔧 In Progress  
+- **Backend Controllers**: ChartController, TradingModeController implementations
+- **WebSocket Bridge**: Backend relay from KIS Adapter to Frontend
+- **MVP 1.1**: Auto-trading features and signal processing
 
-### 🔄 **In Development**
-- **MVP 1.1 Auto-Trading**: Golden Cross strategy implementation with SANDBOX/LIVE dual-mode support
-- **Chart Data Flow**: Frontend ready, Backend API layer needed for KIS Adapter integration
-- **Trading Signals**: Python calculation ready, Backend routing needed
-- **Database Schema Design**: Backend team handling schema for automated trading system
+### 📋 Pending
+- **Real-time Integration**: Complete WebSocket data flow
+- **Trading Engine**: Signal calculations and automated execution
+- **Advanced Features**: Portfolio management, risk controls
 
-## Key Components & Integration Points
+## Important Notes
 
-### Authentication Flow
-1. **User Login** → JWT tokens (access/refresh)
-2. **KIS Account Check** → Verify LIVE/SANDBOX account setup
-3. **KIS Token Issuance** → 6-hour tokens for direct API calls
-4. **Client Storage** → KIS tokens cached in localStorage
-5. **Direct API Access** → Next.js calls KIS Adapter with X-KIS-Token header
+### Rate Limiting & Performance
+- **KIS LIVE API**: 20 calls/second per account
+- **KIS SANDBOX API**: 2 calls/second per account  
+- **WebSocket Limits**: Max 41 concurrent registrations
+- **Chart Data**: Automatic 90-day splitting for large date ranges
+- **Real-time Data**: 1-second polling interval with 0.2s per symbol
 
-### Market Data Architecture
-- **Domestic Stocks**: `/domestic/` endpoints with optional date parameters
-- **Overseas Stocks**: `/overseas/{exchange}/` endpoints with required date parameters
-- **Supported Exchanges**: NYS, NAS, AMS, HKS, SHS, SZS, TSE, HSX, HNX
-
-### Chart System Architecture (MVP 1.0)
-
-**Data Loading Strategy:**
-1. **Initial Load**: KIS API → 1 year historical data (365 days)
-2. **Real-time Updates**: WebSocket → live price/volume data
-3. **Hybrid Synchronization**: Historical base + real-time overlay
-
-**Chart Components Implementation:**
-- **TradingChart.tsx**: Completed with lightweight-charts integration
-- **Moving Averages**: 5-day (pink), 20-day (yellow), 60-day (white)  
-- **Volume Chart**: Korean style color coding (red=up, blue=down)
-- **Real-time Integration**: WebSocket updates current candle data
-
-**Chart Data Flow:**
-```
-KIS Adapter (8000) → Backend API (8080) → Frontend Charts (3000)
-   ↓ Historical        ↓ Server Auth      ↓ lightweight-charts
-WebSocket (ws://8000) → WebSocket Bridge → Real-time Updates
-                   ↑ Server-managed KIS tokens
-```
-
-**Required Backend APIs (Missing):**
-```kotlin
-GET  /api/v1/chart/{symbol}/daily        // Daily OHLCV data
-GET  /api/v1/chart/{symbol}/current      // Current price info
-GET  /api/v1/chart/{symbol}/indicators   // Moving averages, RSI
-```
-
-### Context Providers (Next.js)
-```typescript
-// Provider hierarchy in layout.tsx
-<AuthProvider>          // JWT authentication (KIS tokens managed by server)
-  <TradingModeProvider> // Simplified provider (server-managed)
-    <MarketProvider>    // Domestic/Overseas market routing
-```
-
-### Database Schema
-- **Users**: Basic auth, JWT refresh tokens
-- **KIS Accounts**: Encrypted API keys per user/environment (server-side only)
-- **KIS Token History**: Server-side token usage tracking for rate limiting
-
-## Development Patterns
-
-### API Calling Pattern
-```typescript
-// Frontend → KIS Adapter (Server-managed authentication)
-const response = await fetch(`http://localhost:8000/domestic/price/005930`);
-
-// Frontend → Backend (JWT required)
-const response = await apiClient.get('/api/v1/auth/me', true);
-
-// Note: X-KIS-Token header and trading_mode parameters are no longer used
-// All KIS authentication and environment management is handled server-side
-```
-
-### Error Handling Strategy
-- **JWT Token Expiration**: Automatic refresh for JWT tokens
-- **KIS Authentication**: Server-side management with automatic retry
-- **Rate Limiting**: Built into KIS Adapter (server handles environment selection)
-- **API Failures**: Graceful fallbacks and user notification
-
-### Component Patterns
-- **Protected Routes**: Automatic KIS setup flow for new users
-- **Context Hooks**: useAuth() (simplified), useMarket()
-- **UI Components**: Radix UI + Tailwind CSS + shadcn/ui
-- **Chart Integration**: Lightweight Charts for market visualization
-- **Note**: Trading mode components are now server-managed
-
-## Missing API Endpoints (Critical Implementation Needed)
-
-### Server-Side KIS Management
-**New Architecture**: KIS authentication and trading mode selection is now handled entirely server-side
-
-**Backend Implementation Needed:**
-```kotlin
-// Server-side KIS token management
-GET  /api/v1/kis/status              // KIS connection status
-POST /api/v1/kis/refresh             // Refresh server-side tokens
-GET  /api/v1/kis/config              // Current KIS configuration
-```
-
-**Implementation Priority**: **Updated Architecture** - No longer client-facing
-
-### Chart Data APIs  
-**Current Issue**: Frontend TradingChart.tsx calls missing backend endpoints
-
-**Required Implementation:**
-```kotlin
-// ChartController.kt
-GET  /api/v1/chart/{symbol}/daily         // Proxy to KIS Adapter
-GET  /api/v1/chart/{symbol}/overseas      // Handle exchange routing
-GET  /api/v1/chart/{symbol}/current       // Current price data
-
-// KisChartService.kt  
-fun getDomesticDailyChart(symbol: String)  // Call http://localhost:8000/domestic/chart/daily/{symbol}
-fun getOverseasDailyChart(exchange: String, symbol: String) // Call KIS Adapter overseas endpoints
-```
-
-## Testing Strategy
-
-### Backend Testing
-```bash
-./gradlew test                    # All tests
-./gradlew test --tests="*Auth*"   # Authentication tests only
-```
-
-### API Testing
-- KIS Adapter includes test files: `chk_*.py` pattern
-- Postman collections in quantum-adapter-kis/legacy/postman/
-- Example API calls in docs/planning/*.md files
-
-### Integration Points to Test
-1. JWT authentication flow end-to-end
-2. Server-side KIS token management
-3. Market data retrieval (domestic vs overseas)
-4. Server-side environment configuration
-5. CORS configuration between services
-
-## Planning Documentation
-
-### MVP 1.0 Documentation (Completed)
-Comprehensive planning documents in `docs/planning/`:
-- **MVP_1.0_Complete_Login_KIS_Token_Integration.md**: Full authentication flow
-- **MVP_1.0_Hybrid_KIS_Token_Architecture.md**: Token management architecture  
-- **MVP_1.0_Chart_System_Specification.md**: Complete chart system MVP design with Kiwoom-style UI
-- **MVP_1.0_Domestic_Overseas_Chart_Integration.md**: Market separation design
-- **MVP_1.0_KIS_Rate_Limit_Policy.md**: API rate limiting implementation
-
-### MVP 1.1 Auto-Trading Documentation (In Progress)
-Automated trading system planning in `docs/planning/auto-trading/`:
-- **MVP_1.1_Auto_Trading_Overview.md**: System architecture with SANDBOX/LIVE dual-mode support
-- **MVP_1.1_Minimal_Strategy_Design.md**: Step-by-step strategy configuration wizard (5 steps)
-- **MVP_1.1_Paper_Trading_Mode.md**: Comprehensive virtual trading engine specifications
-- **MVP_1.1_Golden_Cross_Strategy.md**: Technical implementation of Golden Cross detection algorithm
-
-## Security Considerations
-
-### Token Management
+### Security & Authentication
 - **JWT Tokens**: 24-hour expiration with refresh capability
-- **KIS Tokens**: 6-hour expiration, **server-side only** (never sent to client)
-- **API Keys**: Server-side encryption, never exposed to client
+- **KIS Tokens**: Server-side only, 6-hour expiration, auto-refresh
+- **API Keys**: Never exposed to client, stored in `kis_devlp.yaml`
+- **Monitoring**: Sensitive data automatically masked in logs
 
-### CORS Configuration
-- Whitelisted origins: localhost:3000 (frontend), localhost:8080 (backend)
-- Credentials allowed for cookie/token handling
-- All HTTP methods permitted for development
+### Configuration Notes
+- **CORS**: Allows localhost:3000, localhost:8080 for development
+- **Database**: p6spy enabled for SQL logging in development
+- **Logging**: JSON format with Logbook for HTTP requests
+- **Frontend Rewrites**: `/api/kis/*` proxied to `adapter.quantum-trading.com:8000`
+- **Spring AI**: OpenAI API key required via `OPENAI_API_KEY` environment variable
+- **Auto-Configuration**: Spring Cloud Function excluded to prevent conflicts
 
-### Rate Limiting
-- **LIVE Environment**: 20 calls/second per account
-- **SANDBOX Environment**: 2 calls/second per account  
-- **WebSocket**: Maximum 41 concurrent registrations
+## Architecture Decision Records
 
-## Troubleshooting
+### Why Separate KIS Adapter?
+- **Isolation**: KIS API complexity isolated from main business logic
+- **Language Optimization**: Python better suited for pandas data processing
+- **Rate Limiting**: Dedicated service for managing API quotas
+- **Real-time**: WebSocket implementation optimized for streaming data
 
-### Common Issues
-1. **KIS Authentication**: Check server-side kis_devlp.yaml configuration and account permissions
-2. **Database Connection**: Verify PostgreSQL is running on correct port
-3. **CORS Errors**: Ensure all services are running and origins are configured
-4. **Server-side KIS Tokens**: Check backend logs for token refresh failures
-4. **Market Data Issues**: Verify KIS account has appropriate trading permissions
-5. **Trading Mode API 500 Errors**: TradingModeController not implemented - priority backend task
-6. **Chart Data Loading Fails**: Backend ChartController missing - needs KIS Adapter integration
+### Why Server-side Token Management?
+- **Security**: KIS tokens never exposed to browser
+- **Reliability**: Centralized token refresh and error handling  
+- **Rate Limiting**: Single point of control for API quota management
+- **Compliance**: Meets securities trading security requirements
 
-### Development Workflow
-1. Start PostgreSQL database
-2. Run Spring Boot backend: `./gradlew bootRun` (Port 8080)
-3. Run KIS Adapter: `uv run python main.py` (Port 8000) ← **Critical for chart data**
-4. Run Next.js frontend: `npm run dev` (Port 3000)
-5. Access application at configured host or localhost:3000
+## Component Collaboration  
 
-### Backend Development Priority
-1. **URGENT**: Implement TradingModeController - Frontend calling `/api/v1/trading-mode/status`
-2. **HIGH**: Implement ChartController + KisChartService for chart data routing
-3. **MEDIUM**: WebSocket bridge for real-time chart updates
-
-## KIS Adapter Trading Mode Implementation (완료)
-
-### ✅ **구현 완료된 기능**
-- **17개 API 엔드포인트** 모든 trading_mode 파라미터 적용 완료
-- **통합 인증 시스템** 구축 (X-KIS-Token 헤더 > 설정 파일 우선순위)
-- **서버 모드 매핑** 완성 (LIVE → prod, SANDBOX → vps)
-- **OpenAPI 스펙** 자동 생성 및 Swagger UI 지원
-
-### 🔧 **API 호출 패턴 (업데이트됨)**
-```bash
-# 기본 호출 (SANDBOX 모드, 기본값)
-GET http://localhost:8000/domestic/price/005930
-
-# 명시적 모드 지정
-GET http://localhost:8000/domestic/price/005930?trading_mode=LIVE
-X-KIS-Token: YOUR_ACCESS_TOKEN_HERE
-
-# 지원되는 API 엔드포인트 (17개 전체)
-- 국내 주식: price, chart/daily, chart/minute, orderbook, info, search (6개)
-- 국내 지수: domestic, chart/daily, chart/minute (3개)  
-- 해외 주식: price, chart/daily, chart/minute, info, search (5개)
-- 해외 지수: overseas, chart/daily, chart/minute (3개)
-```
-
-### 🌐 **백엔드 API 연동 준비 완료**
-```kotlin
-// Spring Boot에서 KIS Adapter 호출 패턴
-val response = restTemplate.getForObject(
-    "http://localhost:8000/domestic/price/{symbol}?trading_mode={mode}",
-    ApiResponse::class.java,
-    mapOf(
-        "symbol" to "005930",
-        "mode" to tradingMode // LIVE | SANDBOX
-    )
-)
-```
-
-### 📱 **프론트엔드 통합 패턴**
-```typescript
-// 우선순위 기반 이중 인증 시스템
-const response = await fetch(
-  `http://localhost:8000/domestic/price/005930?trading_mode=${mode}`,
-  {
-    headers: {
-      'X-KIS-Token': kisToken  // 1순위: 헤더 토큰
-      // 2순위: 설정 파일 토큰 (자동 대체)
-    }
-  }
-);
-```
-
-### 📋 **검증 완료 사항**
-- ✅ 파라미터 유효성 검증 (LIVE|SANDBOX)
-- ✅ 서버 모드 매핑 (LIVE→prod, SANDBOX→vps)  
-- ✅ 토큰 우선순위화 (헤더 > 설정파일)
-- ✅ OpenAPI 스펙 자동 생성
-- ✅ 17개 API 전체 적용 완료
-
-**참고 문서**: `docs/planning/MVP_1.0_KIS_Adapter_Trading_Mode_Implementation.md`
+When working on this project, identify your primary focus area:
+- **Frontend**: Next.js components, UI/UX, chart integration, TypeScript
+- **Backend**: Spring Boot APIs, Kotlin services, database, authentication
+- **KIS Adapter**: Python FastAPI, KIS API integration, real-time WebSocket data  
+- **Infrastructure**: Docker monitoring, Grafana dashboards, PostgreSQL
+- **Integration**: Cross-service communication, JWT flows, WebSocket bridges
