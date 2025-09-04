@@ -8,20 +8,24 @@ import sys
 import logging
 from datetime import datetime, timedelta
 from typing import Tuple, List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 import pandas as pd
+import asyncio
+import json
+from typing import Set
 
 # examples_llm 경로 추가
-sys.path.extend(['examples_llm', '.'])
+sys.path.extend(['examples_llm', '.', 'examples_user'])
 import kis_auth as ka
 
 # KIS API 함수들 import
 from domestic_stock.inquire_daily_itemchartprice.inquire_daily_itemchartprice import inquire_daily_itemchartprice
 from domestic_stock.inquire_price.inquire_price import inquire_price
 from domestic_stock.inquire_index_price.inquire_index_price import inquire_index_price
+from domestic_stock.top_interest_stock.top_interest_stock import top_interest_stock
 
 # 해외주식 API 함수들 import
 from overseas_stock.price.price import price as overseas_price
@@ -175,6 +179,71 @@ async def root():
 async def health_check():
     """서버 헬스 체크"""
     return {"status": "healthy"}
+
+# 토큰 재발행 API
+@app.post("/auth/refresh-token")
+async def refresh_token(
+    environment: str = "prod"  # prod(실전) 또는 vps(모의)
+):
+    """KIS API 토큰 재발행
+    
+    Args:
+        environment (str): 환경 설정 (prod: 실전, vps: 모의)
+    
+    Returns:
+        Dict: 토큰 재발행 결과
+    """
+    import os
+    from datetime import datetime
+    
+    try:
+        # 기존 토큰 캐시 파일 삭제
+        token_file = os.path.join(
+            os.path.expanduser("~"), 
+            "KIS", 
+            "config", 
+            f"KIS{datetime.today().strftime('%Y%m%d')}"
+        )
+        if os.path.exists(token_file):
+            os.remove(token_file)
+            logger.info(f"기존 토큰 캐시 파일 삭제: {token_file}")
+        
+        # 새 토큰 발행
+        if environment.lower() == "prod":
+            ka.auth(svr="prod", product="01")
+            env_name = "실전(LIVE)"
+        elif environment.lower() == "vps":
+            ka.auth(svr="vps", product="01")
+            env_name = "모의(SANDBOX)"
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="environment는 'prod' 또는 'vps'만 가능합니다"
+            )
+        
+        logger.info(f"✅ {env_name} 토큰 재발행 성공")
+        
+        # 토큰 유효기간 확인
+        valid_date = None
+        if os.path.exists(token_file):
+            with open(token_file, 'r') as f:
+                lines = f.readlines()
+                for line in lines:
+                    if 'valid-date' in line:
+                        valid_date = line.split(':')[1].strip()
+                        break
+        
+        return {
+            "status": "success",
+            "message": f"{env_name} 토큰 재발행 완료",
+            "environment": environment,
+            "valid_until": valid_date,
+            "note": "토큰은 6시간 유효, 1분당 1회만 발급 가능"
+        }
+        
+    except Exception as e:
+        logger.error(f"토큰 재발행 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"토큰 재발행 실패: {str(e)}")
 
 # ==================== 국내 주식 API ====================
 
@@ -351,6 +420,63 @@ async def get_domestic_index(index_code: str):
         
     except Exception as e:
         logger.error(f"국내 지수 조회 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/domestic/ranking/top-interest-stock")
+async def get_top_interest_stock(
+    market_code: str = "0000",  # 0000:전체, 0001:거래소, 1001:코스닥, 2001:코스피200
+    div_cls_code: str = "0",    # 0:전체, 1:관리종목, 2:투자주의, 3:투자경고, 4:투자위험예고, 5:투자위험, 6:보통주, 7:우선주
+    start_rank: str = "1"       # 순위검색 시작값 (1:1위부터, 10:10위부터)
+):
+    """국내 주식 관심종목 등록 상위 조회
+    
+    Args:
+        market_code (str): 시장 구분 (0000:전체, 0001:거래소, 1001:코스닥, 2001:코스피200)
+        div_cls_code (str): 분류 구분 (0:전체, 1:관리종목, 2:투자주의, 3:투자경고, 4:투자위험예고, 5:투자위험, 6:보통주, 7:우선주)
+        start_rank (str): 순위 시작값 (1:1위부터, 10:10위부터)
+    
+    Returns:
+        Dict: 관심종목 등록 상위 데이터
+    """
+    try:
+        logger.info(f"관심종목 조회 시작 - market_code: {market_code}")
+        
+        # API 호출
+        logger.info("top_interest_stock API 호출 시작")
+        result = top_interest_stock(
+            fid_input_iscd_2="000000",  # 필수값
+            fid_cond_mrkt_div_code="J",  # 조건 시장 분류 코드 (주식: J)
+            fid_cond_scr_div_code="20180",  # 조건 화면 분류 코드 (Unique key)
+            fid_input_iscd=market_code,  # 입력 종목코드
+            fid_trgt_cls_code="0",  # 대상 구분 코드 (전체)
+            fid_trgt_exls_cls_code="0",  # 대상 제외 구분 코드 (전체)
+            fid_input_price_1="0",  # 입력 가격1 (전체)
+            fid_input_price_2="0",  # 입력 가격2 (전체)
+            fid_vol_cnt="0",  # 거래량 수 (전체)
+            fid_div_cls_code=div_cls_code,  # 분류 구분 코드
+            fid_input_cnt_1=start_rank  # 입력 수1
+        )
+        
+        logger.info(f"API 호출 완료 - result type: {type(result)}, empty: {result is None or (hasattr(result, 'empty') and result.empty)}")
+        
+        if result is None or result.empty:
+            logger.warning("조회된 관심종목 데이터가 없습니다.")
+            return create_success_response(
+                data=[],
+                message="조회된 관심종목 데이터가 없습니다."
+            )
+        
+        logger.info(f"조회 성공 - 데이터 건수: {len(result)}")
+        return create_success_response(
+            data=result.to_dict(orient="records"),
+            message="관심종목 등록 상위 조회 완료"
+        )
+        
+    except ValueError as ve:
+        logger.error(f"파라미터 오류: {str(ve)}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"관심종목 조회 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== 해외 주식 API ====================
@@ -694,6 +820,242 @@ async def get_overseas_index_chart(
     except Exception as e:
         logger.error(f"해외 지수 차트 조회 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# WebSocket 연결 관리
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self.kis_ws = None
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.add(websocket)
+        logger.info(f"WebSocket 연결됨: {len(self.active_connections)}개 활성")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.discard(websocket)
+        logger.info(f"WebSocket 연결해제: {len(self.active_connections)}개 활성")
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        try:
+            await websocket.send_text(message)
+        except:
+            self.disconnect(websocket)
+
+    async def broadcast(self, message: dict):
+        if not self.active_connections:
+            return
+        
+        message_str = json.dumps(message, ensure_ascii=False)
+        disconnected = set()
+        
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message_str)
+            except:
+                disconnected.add(connection)
+        
+        for connection in disconnected:
+            self.disconnect(connection)
+
+    async def start_kis_realtime_polling(self):
+        """KIS REST API를 통한 실시간 데이터 폴링 (하이브리드 방식)"""
+        if hasattr(self, 'polling_task') and self.polling_task is not None:
+            return
+            
+        try:
+            async def poll_kis_data():
+                """KIS REST API에서 실시간 데이터 폴링"""
+                # 모니터링할 종목 리스트 (국내 주식)
+                domestic_symbols = {
+                    "005930": "삼성전자",
+                    "000660": "SK하이닉스", 
+                    "035420": "NAVER",
+                    "035720": "카카오",
+                    "051910": "LG화학",
+                    "006400": "삼성SDI"
+                }
+                
+                while True:
+                    try:
+                        for symbol, name in domestic_symbols.items():
+                            # 현재가 조회
+                            try:
+                                result = inquire_price(
+                                    env_dv="real",
+                                    fid_cond_mrkt_div_code="J",
+                                    fid_input_iscd=symbol
+                                )
+                                
+                                if not result.empty:
+                                    row = result.iloc[0]
+                                    
+                                    # 실시간 호가 데이터 포맷
+                                    quote_data = {
+                                        "type": "realtime_data",
+                                        "tr_id": "HDFSASP0",  # 실시간 호가
+                                        "data": {
+                                            "symb": symbol,
+                                            "name": name,
+                                            "pbid1": str(row.get('stck_bspr', 0)),  # 매수호가
+                                            "pask1": str(row.get('stck_sdpr', 0)),  # 매도호가
+                                            "vbid1": str(row.get('bidp_rsqn', 0)),  # 매수잔량
+                                            "vask1": str(row.get('askp_rsqn', 0)),  # 매도잔량
+                                            "prpr": str(row.get('stck_prpr', 0)),   # 현재가
+                                            "prdy_vrss": str(row.get('prdy_vrss', 0)), # 전일대비
+                                            "prdy_vrss_sign": str(row.get('prdy_vrss_sign', 0)), # 전일대비부호
+                                            "prdy_ctrt": str(row.get('prdy_ctrt', 0)), # 전일대비율
+                                            "acml_vol": str(row.get('acml_vol', 0)),   # 누적거래량
+                                            "acml_tr_pbmn": str(row.get('acml_tr_pbmn', 0)) # 누적거래대금
+                                        },
+                                        "timestamp": datetime.now().isoformat()
+                                    }
+                                    
+                                    # 브로드캐스트
+                                    await self.broadcast(quote_data)
+                                    
+                                    logger.info(f"📊 실시간 데이터 전송: {name}({symbol}) - 현재가: {row.get('stck_prpr', 0)}")
+                                    
+                            except Exception as e:
+                                logger.error(f"종목 {symbol} 조회 실패: {str(e)}")
+                            
+                            await asyncio.sleep(0.2)  # API 호출 제한 고려
+                        
+                        # 1초마다 전체 종목 갱신
+                        await asyncio.sleep(1)
+                        
+                    except Exception as e:
+                        logger.error(f"실시간 데이터 폴링 오류: {str(e)}")
+                        await asyncio.sleep(1)
+            
+            # 백그라운드 태스크로 실행
+            self.polling_task = asyncio.create_task(poll_kis_data())
+            logger.info("✅ KIS 실시간 데이터 폴링 시작")
+            
+        except Exception as e:
+            logger.error(f"실시간 데이터 폴링 시작 오류: {str(e)}")
+    
+    async def start_demo_data_generator(self):
+        """데모 데이터 생성기 시작"""
+        if hasattr(self, 'demo_task') and self.demo_task is not None:
+            return
+            
+        try:
+            import random
+            
+            async def generate_demo_data():
+                """데모 실시간 데이터 생성"""
+                base_prices = {
+                    "RBAQAAPL": 175.00,
+                    "RBAQMSFT": 420.00,
+                    "RBAQTSLA": 250.00,
+                    "RBAQNVDA": 880.00,
+                    "RBAQGOOGL": 2800.00,
+                    "RBAQAMZN": 3400.00
+                }
+                
+                while True:
+                    try:
+                        for symbol, base_price in base_prices.items():
+                            # 랜덤한 가격 변동 (-2% ~ +2%)
+                            price_change = random.uniform(-0.02, 0.02)
+                            new_price = base_price * (1 + price_change)
+                            
+                            # 실시간 호가 데이터 시뮬레이션
+                            bid_price = new_price * 0.999
+                            ask_price = new_price * 1.001
+                            
+                            quote_data = {
+                                "type": "realtime_data",
+                                "tr_id": "HDFSASP0",  # 실시간 호가
+                                "data": {
+                                    "symb": symbol,
+                                    "pbid1": str(int(bid_price)),
+                                    "pask1": str(int(ask_price)),
+                                    "vbid1": str(random.randint(100, 1000)),
+                                    "vask1": str(random.randint(100, 1000))
+                                },
+                                "timestamp": datetime.now().isoformat()
+                            }
+                            
+                            # 체결 데이터 시뮬레이션
+                            trade_data = {
+                                "type": "realtime_data",
+                                "tr_id": "H0GSCNI0",  # 체결통보
+                                "data": {
+                                    "STCK_SHRN_ISCD": symbol,
+                                    "CNTG_QTY": str(random.randint(1, 100)),
+                                    "CNTG_UNPR": str(int(new_price)),
+                                    "PRDY_VRSS": str(int(new_price - base_price)),
+                                    "PRDY_VRSS_SIGN": "2" if new_price > base_price else "4"
+                                },
+                                "timestamp": datetime.now().isoformat()
+                            }
+                            
+                            # 브로드캐스트
+                            await self.broadcast(quote_data)
+                            await asyncio.sleep(0.1)  # 100ms 간격
+                            
+                            await self.broadcast(trade_data)
+                            await asyncio.sleep(0.1)
+                            
+                            # 가격 업데이트 (변동성 추가)
+                            base_prices[symbol] = new_price
+                            
+                        await asyncio.sleep(1)  # 1초 간격으로 전체 루프
+                        
+                    except Exception as e:
+                        logger.error(f"데모 데이터 생성 오류: {str(e)}")
+                        await asyncio.sleep(1)
+            
+            # 백그라운드 태스크로 실행
+            self.demo_task = asyncio.create_task(generate_demo_data())
+            logger.info("✅ 데모 데이터 생성기 시작")
+            
+        except Exception as e:
+            logger.error(f"데모 데이터 생성기 시작 오류: {str(e)}")
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/realtime")
+async def websocket_endpoint(websocket: WebSocket):
+    """실시간 데이터 WebSocket 엔드포인트"""
+    await manager.connect(websocket)
+    
+    # KIS 실시간 데이터 폴링이 시작되지 않았다면 시작 (실제 데이터)
+    if not hasattr(manager, 'polling_task') or manager.polling_task is None:
+        asyncio.create_task(manager.start_kis_realtime_polling())
+    
+    # 데모 모드 사용시 (주석 처리됨)
+    # if not hasattr(manager, 'demo_task') or manager.demo_task is None:
+    #     asyncio.create_task(manager.start_demo_data_generator())
+    
+    try:
+        while True:
+            # 클라이언트로부터 메시지 수신 (연결 유지용)
+            data = await websocket.receive_text()
+            
+            # 핑/퐁 또는 구독 요청 처리
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_text(json.dumps({
+                        "type": "pong",
+                        "timestamp": datetime.now().isoformat()
+                    }))
+                elif message.get("type") == "subscribe":
+                    # 구독 요청 처리 (데모에서는 로그만 출력)
+                    symbol = message.get("symbol", "")
+                    logger.info(f"📊 종목 구독 요청: {symbol}")
+                elif message.get("type") == "unsubscribe":
+                    # 구독 해제 요청 처리
+                    symbol = message.get("symbol", "")
+                    logger.info(f"📊 종목 구독 해제: {symbol}")
+            except:
+                pass  # JSON이 아닌 메시지는 무시
+                
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
 
 if __name__ == "__main__":
     uvicorn.run(
