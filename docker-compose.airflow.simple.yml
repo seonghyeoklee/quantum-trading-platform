@@ -5,7 +5,9 @@
 
 x-airflow-common:
   &airflow-common
-  image: apache/airflow:2.8.2
+  build: 
+    context: ./airflow
+    dockerfile: Dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://quantum:quantum123@postgres:5432/airflow_db

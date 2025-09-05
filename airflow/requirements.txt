@@ -3,26 +3,27 @@
 # ================================================================
 
 # Core analysis packages
-pandas>=2.0.0
-numpy>=1.24.0
-psycopg2-binary>=2.9.0
+pandas
+numpy
+psycopg2-binary
 
 # Market data packages
-pykrx>=1.3.0
-FinanceDataReader>=0.9.50
-yfinance>=0.2.0
+pykrx
+finance-datareader
+plotly  # Required for FinanceDataReader
+yfinance==0.1.87  # Python 3.8 compatible version
 
 # Technical analysis
-backtrader>=1.9.76.123
-pandas-ta>=0.3.14b0
+backtrader
+pandas-ta
 
 # Analysis packages  
-scikit-learn>=1.3.0
-ta-lib>=0.4.25
+scikit-learn
+# ta-lib  # Optional - requires system libraries
 
 # Notification packages
-holidays>=0.34
+holidays
 
 # Additional utilities
-requests>=2.31.0
-aiohttp>=3.8.0
+requests
+aiohttp
