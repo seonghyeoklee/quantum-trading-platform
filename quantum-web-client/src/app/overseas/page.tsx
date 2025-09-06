@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +74,10 @@ export default function OverseasPage() {
   // 패널 토글 상태 (오른쪽만 유지)
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // 로딩 상태
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const formatPrice = (price: number, currency: string = 'USD') => {
     return `$${price.toFixed(2)}`;
@@ -108,6 +111,33 @@ export default function OverseasPage() {
     setIsFullscreen(!isFullscreen);
   };
 
+  // 로딩 효과
+  useEffect(() => {
+    // 프로그레스 시뮬레이션
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(progressInterval)
+          return 100
+        }
+        return prev + Math.random() * 25
+      })
+    }, 120)
+
+    // 로딩 완료
+    const timer = setTimeout(() => {
+      setLoadingProgress(100)
+      setTimeout(() => {
+        setIsLoading(false)
+      }, 300)
+    }, 900)
+
+    return () => {
+      clearTimeout(timer)
+      clearInterval(progressInterval)
+    }
+  }, [])
+
   // ESC 키로 전체화면 종료
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -125,10 +155,57 @@ export default function OverseasPage() {
     };
   }, [isFullscreen]);
 
+  // 로딩 화면 렌더링
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-8 max-w-md mx-auto px-6">
+          {/* 로고 애니메이션 */}
+          <div className="flex items-center justify-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg animate-pulse">
+              <Globe className="w-8 h-8 text-white animate-pulse" />
+            </div>
+          </div>
+          
+          {/* 브랜드명 */}
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">
+              해외 시장
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              글로벌 주식 데이터를 불러오는 중...
+            </p>
+          </div>
+          
+          {/* 세련된 프로그레스 바 */}
+          <div className="space-y-3">
+            <div className="w-full bg-muted rounded-full h-1 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-500 to-green-600 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${Math.min(loadingProgress, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {Math.min(Math.round(loadingProgress), 100)}% 완료
+            </p>
+          </div>
+          
+          {/* 로딩 메시지 */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>NASDAQ, NYSE 실시간 데이터 연결 중...</p>
+            <div className="flex justify-center space-x-1">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {!isFullscreen && <Header />}
-      
       {/* 전체화면 모드 */}
       {isFullscreen ? (
         <div className="fixed inset-0 z-50 bg-background">

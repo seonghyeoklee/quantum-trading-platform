@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { MarketProvider } from "@/contexts/MarketContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TradingModeProvider } from "@/contexts/TradingModeContext";
+import Header from "@/components/layout/Header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
           <AuthProvider>
             <TradingModeProvider>
               <MarketProvider>
+                <Header />
                 {children}
               </MarketProvider>
             </TradingModeProvider>
