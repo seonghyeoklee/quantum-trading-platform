@@ -7,18 +7,27 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import org.zalando.logbook.*
 import org.zalando.logbook.core.DefaultSink
-import org.zalando.logbook.json.JsonHttpLogFormatter
+import org.zalando.logbook.core.DefaultHttpLogFormatter
+import org.zalando.logbook.core.Conditions.*
 
 @Configuration
 class LogbookConfig {
 
     @Bean
-    @Profile("!production") // 개발 환경에서만 사용
     fun logbook(): Logbook {
         return Logbook.builder()
+                .condition(exclude(
+                    // Actuator 엔드포인트 완전 제외
+                    requestTo("/actuator/**"),
+                    requestTo("/health"),
+                    requestTo("/error"),
+                    requestTo("/favicon.ico"),
+                    requestTo("/swagger-ui/**"),
+                    requestTo("/v3/api-docs/**"),
+                ))
                 .sink(
                         DefaultSink(
-                                JsonHttpLogFormatter(), // JSON 형태
+                                DefaultHttpLogFormatter(), // 개발자 친화적 HTTP 형태
                                 CustomHttpLogWriter() // 커스텀 로그 작성기
                         )
                 )

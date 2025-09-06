@@ -15,38 +15,59 @@ import java.util.*
 @Table(name = "users")
 @Comment("사용자 정보")
 class User(
+    // ========== 기본 식별 정보 (테이블 앞부분) ==========
+    /**
+     * 이메일 주소 (로그인 ID)
+     */
     @Column(name = "email", nullable = false, unique = true)
     @Comment("이메일 주소")
     var email: String = "",
     
+    /**
+     * 사용자 이름
+     */
     @Column(name = "name", nullable = false)
     @Comment("사용자 이름")
     var name: String = "",
     
+    // ========== 인증 정보 ==========
+    /**
+     * 암호화된 비밀번호
+     */
     @Column(name = "password", nullable = false)
     @Comment("암호화된 비밀번호")
     var password: String = "",
     
+    // ========== 상태 정보 ==========
+    /**
+     * 사용자 상태
+     */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Comment("사용자 상태 (ACTIVE, INACTIVE, SUSPENDED)")
-    var status: UserStatus = UserStatus.ACTIVE
+    var status: UserStatus = UserStatus.ACTIVE,
+    
+    // ========== 활동 정보 (테이블 끝부분) ==========
+    /**
+     * 마지막 로그인 일시
+     */
+    @Column(name = "last_login_at")
+    @Comment("마지막 로그인 일시")
+    var lastLoginAt: LocalDateTime? = null
 ) : BaseEntity() {
     
     // JPA를 위한 기본 생성자
-    protected constructor() : this("", "", "", UserStatus.ACTIVE)
+    protected constructor() : this("", "", "", UserStatus.ACTIVE, null)
     
+    /**
+     * 사용자 권한 목록 (별도 테이블)
+     */
     @ElementCollection(fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
     @CollectionTable(name = "user_roles", joinColumns = [JoinColumn(name = "user_id")])
     @Column(name = "role")
     @Comment("사용자 권한 목록")
     var roles: MutableSet<UserRole> = mutableSetOf(UserRole.USER)
-        private set
-    
-    @Column(name = "last_login_at")
-    @Comment("마지막 로그인 일시")
-    var lastLoginAt: LocalDateTime? = null
         private set
     
     // 도메인 이벤트를 위한 필드

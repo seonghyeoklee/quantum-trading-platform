@@ -21,6 +21,7 @@ import java.time.LocalDateTime
 )
 @Comment("KIS API 호출 로그")
 class KisApiUsageLog(
+    // ========== 기본 식별 정보 (테이블 앞부분) ==========
     /**
      * KIS 설정 ID (Foreign Key)
      */
@@ -43,12 +44,21 @@ class KisApiUsageLog(
     var httpMethod: String = "",
     
     /**
+     * API 환경 (LIVE/SANDBOX)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "environment", nullable = false, length = 20)
+    var environment: KisEnvironment = KisEnvironment.SANDBOX,
+    
+    // ========== 시간 정보 ==========
+    /**
      * 호출 시간
      */
     @Column(name = "called_at", nullable = false)
     @Comment("호출 시간")
     var calledAt: LocalDateTime = LocalDateTime.now(),
     
+    // ========== 응답 정보 ==========
     /**
      * HTTP 응답 상태 코드
      */
@@ -63,13 +73,7 @@ class KisApiUsageLog(
     @Comment("응답 시간 (밀리초)")
     var responseTimeMs: Int? = null,
     
-    /**
-     * API 환경 (LIVE/SANDBOX)
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "environment", nullable = false, length = 20)
-    var environment: KisEnvironment = KisEnvironment.SANDBOX,
-    
+    // ========== 유량 제한 정보 ==========
     /**
      * 남은 호출 수 (응답 헤더 기반)
      */
@@ -91,6 +95,7 @@ class KisApiUsageLog(
     @Comment("유량 제한 여부")
     var isRateLimited: Boolean = false,
     
+    // ========== 에러 정보 (테이블 끝부분) ==========
     /**
      * 에러 메시지
      */

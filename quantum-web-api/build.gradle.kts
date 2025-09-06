@@ -1,8 +1,8 @@
 plugins {
     kotlin("jvm") version "1.9.25"
     kotlin("plugin.spring") version "1.9.25"
-    id("org.springframework.boot") version "3.5.5"
-    id("io.spring.dependency-management") version "1.1.7"
+    id("org.springframework.boot") version "3.3.4"
+    id("io.spring.dependency-management") version "1.1.6"
 }
 
 group = "com.quantum"
@@ -25,15 +25,15 @@ repositories {
 dependencies {
     // Spring Boot Starters
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-webflux") // WebClient for KIS API
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     
-    // Spring AI - 더 안정적인 버전 사용
-    implementation("org.springframework.ai:spring-ai-openai:0.8.1")
-    implementation("org.springframework.ai:spring-ai-spring-boot-autoconfigure:0.8.1")
+    // Spring AI - Spring Boot 3.3과 호환되는 안정 버전
+    implementation("org.springframework.ai:spring-ai-openai:1.0.0-M2")
+    implementation("org.springframework.ai:spring-ai-spring-boot-autoconfigure:1.0.0-M2")
     
     // Kotlin Support
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -50,26 +50,24 @@ dependencies {
     implementation("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2") // 개발용
     
-    // OpenAPI Documentation
+    // OpenAPI Documentation - Spring Boot 3.3과 확실히 호환되는 검증된 버전
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0")
     
     // macOS DNS 네이티브 리졸버 (WebClient 성능 최적화)
     runtimeOnly("io.netty:netty-resolver-dns-native-macos")
     
-    // Spring Boot Actuator (모니터링/헬스체크)
+    // Spring Boot Actuator (헬스체크만 사용)
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     
     // Micrometer Prometheus (메트릭 수집)
     implementation("io.micrometer:micrometer-registry-prometheus")
     
-    // HTTP 로깅 - Logbook
-    implementation("org.zalando:logbook-spring-boot-starter:3.5.0")
-    
-    // SQL 로깅 - p6spy
-    implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")
-    
     // JSON 로깅 - Logstash Encoder (Grafana 연동용)
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+    
+    // 개발 필수 도구만 활성화
+    implementation("org.zalando:logbook-spring-boot-starter:3.5.0")  // HTTP 로깅 (개발용)
+    implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")  // SQL 로깅 (개발용)
     
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")

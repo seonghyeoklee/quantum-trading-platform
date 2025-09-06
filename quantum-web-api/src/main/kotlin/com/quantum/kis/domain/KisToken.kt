@@ -25,6 +25,7 @@ import java.time.LocalDateTime
 )
 @Comment("KIS 액세스 토큰")
 class KisToken(
+    // ========== 기본 식별 정보 (테이블 앞부분) ==========
     /**
      * 사용자 ID (Foreign Key)
      */
@@ -40,20 +41,6 @@ class KisToken(
     var kisAccountId: Long = 0L,
     
     /**
-     * KIS 액세스 토큰 (암호화 저장)
-     */
-    @Column(name = "access_token", nullable = false, length = 2048)
-    @Comment("KIS 액세스 토큰 (암호화 저장)")
-    var accessToken: String = "",
-    
-    /**
-     * 토큰 만료 시간 (UTC)
-     */
-    @Column(name = "expires_at", nullable = false)
-    @Comment("토큰 만료 시간")
-    var expiresAt: LocalDateTime = LocalDateTime.now().plusHours(6),
-    
-    /**
      * KIS 환경 (LIVE, SANDBOX)
      */
     @Enumerated(EnumType.STRING)
@@ -61,6 +48,7 @@ class KisToken(
     @Comment("KIS 환경 (LIVE, SANDBOX)")
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
+    // ========== 토큰 상태 정보 ==========
     /**
      * 토큰 상태 (ACTIVE, EXPIRED, REVOKED 등)
      */
@@ -76,6 +64,21 @@ class KisToken(
     @Comment("토큰 타입 (Bearer)")
     var tokenType: String = "Bearer",
     
+    // ========== 시간 정보 ==========
+    /**
+     * 토큰 만료 시간 (UTC)
+     */
+    @Column(name = "expires_at", nullable = false)
+    @Comment("토큰 만료 시간")
+    var expiresAt: LocalDateTime = LocalDateTime.now().plusHours(6),
+    
+    /**
+     * 다음 자동 갱신 시간 (만료 1시간 전)
+     */
+    @Column(name = "next_refresh_at")
+    @Comment("다음 자동 갱신 시간")
+    var nextRefreshAt: LocalDateTime? = null,
+    
     /**
      * 마지막 사용 시간
      */
@@ -83,6 +86,7 @@ class KisToken(
     @Comment("마지막 사용 시간")
     var lastUsedAt: LocalDateTime? = null,
     
+    // ========== 통계 정보 ==========
     /**
      * 토큰 갱신 횟수
      */
@@ -90,12 +94,13 @@ class KisToken(
     @Comment("토큰 갱신 횟수")
     var refreshCount: Int = 0,
     
+    // ========== 민감 데이터 (테이블 끝부분) ==========
     /**
-     * 다음 자동 갱신 시간 (만료 1시간 전)
+     * KIS 액세스 토큰 (암호화 저장)
      */
-    @Column(name = "next_refresh_at")
-    @Comment("다음 자동 갱신 시간")
-    var nextRefreshAt: LocalDateTime? = null
+    @Column(name = "access_token", nullable = false, length = 2048)
+    @Comment("KIS 액세스 토큰 (암호화 저장)")
+    var accessToken: String = ""
 
 ) : BaseEntity() {
     

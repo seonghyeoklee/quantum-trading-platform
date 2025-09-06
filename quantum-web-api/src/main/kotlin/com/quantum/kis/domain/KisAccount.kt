@@ -22,26 +22,13 @@ import java.time.LocalDateTime
 )
 @Comment("KIS 계정 정보")
 class KisAccount(
+    // ========== 기본 식별 정보 (테이블 앞부분) ==========
     /**
      * 사용자 ID (Foreign Key)
      */
     @Column(name = "user_id", nullable = false)
     @Comment("사용자 ID")
     var userId: Long = 0L,
-    
-    /**
-     * KIS API App Key (암호화 저장)
-     */
-    @Column(name = "app_key", nullable = false, length = 500)
-    @Comment("KIS API 앱키 (암호화 저장)")
-    var appKey: String = "",
-    
-    /**
-     * KIS API App Secret (암호화 저장)
-     */
-    @Column(name = "app_secret", nullable = false, length = 500)
-    @Comment("KIS API 앱시크릿 (암호화 저장)")
-    var appSecret: String = "",
     
     /**
      * 계좌번호 (암호화 저장)
@@ -58,6 +45,7 @@ class KisAccount(
     @Comment("KIS 환경 (LIVE, SANDBOX)")
     var environment: KisEnvironment = KisEnvironment.SANDBOX,
     
+    // ========== 계정 상태 정보 ==========
     /**
      * 계정 활성화 상태
      */
@@ -72,6 +60,7 @@ class KisAccount(
     @Comment("계정 별칭")
     var accountAlias: String? = null,
     
+    // ========== 시간 정보 ==========
     /**
      * 마지막 토큰 발급 시간
      */
@@ -84,7 +73,22 @@ class KisAccount(
      */
     @Column(name = "last_validated_at")
     @Comment("마지막 검증 시간")
-    var lastValidatedAt: LocalDateTime? = null
+    var lastValidatedAt: LocalDateTime? = null,
+    
+    // ========== 민감 데이터 (테이블 끝부분) ==========
+    /**
+     * KIS API App Key (암호화 저장)
+     */
+    @Column(name = "app_key", nullable = false, length = 500)
+    @Comment("KIS API 앱키 (암호화 저장)")
+    var appKey: String = "",
+    
+    /**
+     * KIS API App Secret (암호화 저장)
+     */
+    @Column(name = "app_secret", nullable = false, length = 500)
+    @Comment("KIS API 앱시크릿 (암호화 저장)")
+    var appSecret: String = ""
 
 ) : BaseEntity() {
     

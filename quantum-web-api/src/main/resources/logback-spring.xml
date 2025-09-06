@@ -69,13 +69,16 @@
         </encoder>
     </appender>
 
-    <!-- Development profile: Console logging -->
+    <!-- Development profile: Console logging - 개발 집중 모드 -->
     <springProfile name="development,default">
-        <root level="INFO">
+        <root level="WARN">
             <appender-ref ref="CONSOLE"/>
         </root>
         <logger name="com.quantum" level="DEBUG"/>
-        <logger name="org.springframework.web" level="DEBUG"/>
+        <logger name="org.springframework.web" level="WARN"/>
+        <logger name="org.springframework.security" level="WARN"/>
+        <logger name="org.springframework.boot.actuate" level="OFF"/>
+        <logger name="io.micrometer" level="OFF"/>
     </springProfile>
 
     <!-- Docker profile: JSON logging -->

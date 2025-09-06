@@ -57,6 +57,9 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests { authorize ->
                 authorize
+                    // 루트 경로 - Swagger 리다이렉트
+                    .requestMatchers("/").permitAll()
+                    // 인증 관련 엔드포인트
                     .requestMatchers("/api/v1/auth/login").permitAll()
                     .requestMatchers("/api/v1/auth/register").permitAll()
                     .requestMatchers("/h2-console/**").permitAll()
@@ -65,11 +68,10 @@ class SecurityConfig(
                     .requestMatchers("/api/v1/kis-accounts/me/credentials").permitAll()
                     .requestMatchers("/api/v1/kis-accounts/register").permitAll()
                     // Actuator 엔드포인트 - 모니터링용
-                    .requestMatchers("/actuator/health").permitAll()
-                    .requestMatchers("/actuator/info").permitAll()
-                    .requestMatchers("/actuator/metrics").permitAll()
-                    .requestMatchers("/actuator/prometheus").permitAll()
+                    .requestMatchers("/actuator/**").permitAll()
                     // Swagger/OpenAPI 문서화
+                    .requestMatchers("/docs/**").permitAll()
+                    .requestMatchers("/docs").permitAll()
                     .requestMatchers("/swagger-ui/**").permitAll()
                     .requestMatchers("/swagger-ui.html").permitAll()
                     .requestMatchers("/v3/api-docs/**").permitAll()
