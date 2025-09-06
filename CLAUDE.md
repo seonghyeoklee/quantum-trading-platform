@@ -82,9 +82,9 @@ uv run python test_system.py        # Basic system test
 
 ### Airflow Analysis Pipeline
 ```bash
-# Start Airflow with simplified LocalExecutor setup (VERIFIED WORKING)
-cd quantum-infrastructure/airflow
-docker-compose -f docker-compose.airflow.simple.yml --env-file .env.airflow up -d
+# Start unified infrastructure with Airflow, monitoring, and database (VERIFIED WORKING)
+cd quantum-infrastructure
+./start-infrastructure.sh
 
 # Access Airflow UI
 # URL: http://localhost:8081
@@ -110,10 +110,10 @@ curl -X POST "http://localhost:8081/api/v1/dags/quantum_daily_stock_analysis/dag
 ### Infrastructure & Monitoring
 ```bash
 cd quantum-infrastructure
-docker-compose -f docker-compose.monitoring.yml up -d  # Start monitoring stack
-./start-monitoring.sh    # Helper script to start all services
+./start-infrastructure.sh    # Start unified infrastructure (Airflow, monitoring, database)
 # Grafana: http://localhost:3001 (admin/quantum2024)
 # Prometheus: http://localhost:9090
+# Airflow: http://localhost:8081 (admin/quantum123)
 ```
 
 ## Configuration Requirements
@@ -148,8 +148,8 @@ docker-compose -f docker-compose.monitoring.yml up -d  # Start monitoring stack
 - **Frontend**: 3000 (Next.js)
 - **Backend**: 8080 (Spring Boot)  
 - **KIS Adapter**: 8000 (FastAPI)
-- **Database**: 5433 (dev), 5432 (prod)
-- **Airflow**: 8081 (Web UI), 5434 (Airflow PostgreSQL metadata)
+- **Database**: 5432 (PostgreSQL - unified for trading platform & Airflow)
+- **Airflow**: 8081 (Web UI)
 - **Monitoring**: Grafana (3001), Prometheus (9090), Loki (3100)
 
 ## Comprehensive DAG Analysis System
@@ -306,7 +306,7 @@ WebSocket /ws/realtime                         # Real-time data stream
 - **Airflow 2.8.2** with LocalExecutor setup
 - **Core Dependencies**: pandas, numpy, psycopg2-binary, pykrx, pandas-ta, backtrader
 - **Analysis Modules**: ComprehensiveBatchAnalyzer, AI data collection, ML signal generation
-- **Database**: PostgreSQL (port 5434) for Airflow metadata, separate from trading DB
+- **Database**: PostgreSQL (port 5432) - unified database for both trading platform and Airflow metadata
 
 ## Sector Trading System Details
 
@@ -336,12 +336,12 @@ PATIENT: 1.0% discount/premium for high volatility
 ## Development Workflow
 
 ### Standard Startup Sequence
-1. **Database**: Start PostgreSQL database (port 5433 for dev)
+1. **Infrastructure**: Start unified infrastructure stack with `cd quantum-infrastructure && ./start-infrastructure.sh`
 2. **Backend**: `cd quantum-web-api && ./gradlew bootRun`
 3. **KIS Adapter**: `cd quantum-adapter-kis && uv run python main.py`
 4. **Frontend**: `cd quantum-web-client && npm run dev`
 5. **Sector Trading** (optional): `cd quantum-adapter-kis/sector_trading_test && uv run python manual_trader.py`
-6. **Airflow** (optional): `cd quantum-infrastructure/airflow && docker-compose -f docker-compose.airflow.simple.yml --env-file .env.airflow up -d`
+6. **Infrastructure Services**: All monitoring, Airflow, and database services managed through unified infrastructure
 
 ### Testing & Debugging
 - **Airflow System Verification**: 
