@@ -18,10 +18,10 @@ dependencies = [
     "pandas-ta>=0.3.14b0",
     "quantstats>=0.0.76",
     "matplotlib>=3.10.6",
-    # 추가 데이터 소스 라이브러리
-    "pykrx>=1.0.51",
-    "finance-datareader>=0.9.0",
-    "yfinance>=0.2.0",
+    # 추가 데이터 소스 라이브러리 (KIS API 중심화로 제거)
+    # "pykrx>=1.0.51",           # 제거: KIS API로 대체
+    # "finance-datareader>=0.9.0", # 제거: KIS API로 대체
+    # "yfinance>=0.2.0",          # 제거: KIS API로 대체
     # 고성능 백테스팅 라이브러리 (조건부)
     # "vectorbt>=0.26.1",  # 별도 설치
     # 기술적 분석 라이브러리 (조건부)

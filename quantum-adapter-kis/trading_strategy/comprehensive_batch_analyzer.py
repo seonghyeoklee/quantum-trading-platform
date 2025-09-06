@@ -24,7 +24,7 @@ sys.path.append(str(current_dir.parent))
 
 # 분석 엔진 import
 try:
-    from core.multi_data_provider import MultiDataProvider, DataSource, MarketData
+    from core.kis_data_provider import KISDataProvider, SECTOR_SYMBOLS, get_all_sector_symbols
     from core.signal_detector import SignalDetector
     from core.technical_analysis import TechnicalAnalyzer
     from core.backtester import GoldenCrossBacktester
@@ -47,8 +47,8 @@ class ComprehensiveBatchAnalyzer:
         """초기화"""
         logger.info("🚀 종합 분석 시스템 초기화 중...")
         
-        # 분석 엔진 초기화
-        self.provider = MultiDataProvider(enable_kis=False, cache_enabled=True)
+        # 분석 엔진 초기화 (KIS API 중심화)
+        self.provider = KISDataProvider(base_url="http://localhost:8000")
         self.signal_detector = SignalDetector()
         self.technical_analyzer = TechnicalAnalyzer()
         self.backtester = GoldenCrossBacktester()
@@ -56,12 +56,51 @@ class ComprehensiveBatchAnalyzer:
         # PostgreSQL 연결 (나중에 활성화)
         self.db_conn = None
         
-        # 전체 종목 마스터 데이터
-        self.stock_master = self._load_stock_master()
+        # 전체 종목 마스터 데이터 (KIS API 기반 섹터 시스템과 동기화)
+        self.symbol_registry = self._load_symbols_from_sectors()
         
-        logger.info(f"✅ 초기화 완료 - 총 {len(self.stock_master)}개 종목 로드")
+        logger.info(f"✅ 초기화 완료 - 총 {len(self.symbol_registry)}개 종목 로드")
     
-    def _load_stock_master(self) -> Dict[str, Dict]:
+    def _load_symbols_from_sectors(self) -> Dict[str, Dict]:
+        """KIS API 기반 섹터 시스템과 동기화된 종목 마스터 데이터 로드"""
+        
+        # 종목명 매핑 (KIS API에서 가져올 수 있지만 일단 하드코딩)
+        stock_names = {
+            "009540": "HD한국조선해양",
+            "042660": "대우조선해양", 
+            "012450": "한화에어로스페이스",
+            "047810": "KAI",
+            "034020": "두산에너빌리티", 
+            "051600": "한전KPS",
+            "035420": "NAVER",
+            "035720": "카카오",
+            "005930": "삼성전자",
+            "000660": "SK하이닉스",
+            "207940": "삼성바이오로직스",
+            "068270": "셀트리온"
+        }
+        
+        symbol_registry = {}
+        
+        # SECTOR_SYMBOLS에서 종목 정보 생성
+        for sector_name, symbols in SECTOR_SYMBOLS.items():
+            for symbol in symbols:
+                symbol_registry[symbol] = {
+                    "name": stock_names.get(symbol, f"종목_{symbol}"),
+                    "name_en": stock_names.get(symbol, f"Stock_{symbol}"),
+                    "market_type": "DOMESTIC",
+                    "exchange": "KRX", 
+                    "country": "KR",
+                    "sector_l1": sector_name,
+                    "sector_l2": sector_name,
+                    "sector_l3": sector_name,
+                    "market_cap_tier": "LARGE"
+                }
+        
+        logger.info(f"섹터 기반 심볼 레지스트리 로드 완료: {len(symbol_registry)}개 종목")
+        return symbol_registry
+
+    def _load_symbols_old(self) -> Dict[str, Dict]:
         """종목 마스터 데이터 로드"""
         return {
             # ============= 국내 주요 종목 =============
@@ -266,24 +305,23 @@ class ComprehensiveBatchAnalyzer:
         try:
             start_time = time.time()
             
-            # 1. 시장 데이터 수집 (2년)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=730)  # 2년
-            market_data = self.provider.get_stock_data(
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date
-            )
+            # 1. 시장 데이터 수집 (KIS API 기반)
+            comprehensive_data = self.provider.get_comprehensive_data(symbol, days=730)
             
-            if not market_data or market_data.data.empty:
-                logger.warning(f"⚠️  {symbol} 데이터 없음")
+            if not comprehensive_data or 'error' in comprehensive_data:
+                logger.warning(f"⚠️  {symbol} 데이터 없음: {comprehensive_data.get('error', 'Unknown error')}")
                 return None
             
-            data_days = len(market_data.data)
-            logger.info(f"   └─ 데이터 수집: {data_days}일 ({market_data.source})")
+            chart_data = comprehensive_data.get('chart_data')
+            if chart_data is None or chart_data.empty:
+                logger.warning(f"⚠️  {symbol} 차트 데이터 없음")
+                return None
             
-            # 2. 기술적 분석
-            indicators_df = self.technical_analyzer.calculate_all_indicators(market_data.data)
+            data_days = len(chart_data)
+            logger.info(f"   └─ 데이터 수집: {data_days}일 (KIS_API)")
+            
+            # 2. 기술적 분석 (KIS API 데이터 기반)
+            indicators_df = self.technical_analyzer.calculate_all_indicators(chart_data)
             logger.info("기술적 지표 계산 완료: {}개 데이터".format(len(indicators_df)))
             
             # 최신 지표 값들을 딕셔너리로 가져오기
@@ -298,12 +336,12 @@ class ComprehensiveBatchAnalyzer:
             signal_info = self._format_signal_info(signal, symbol)
             logger.info(f"   └─ 신호 감지: {signal_info['type']} (강도: {signal_info['strength']})")
             
-            # 4. 백테스팅 (국내 종목만)
+            # 4. 백테스팅 (국내 종목만, KIS API 데이터 기반)
             backtest_result = {}
             if market_type == "DOMESTIC":
                 try:
                     # Prepare data for backtrader
-                    bt_data = self.backtester.prepare_data(market_data.data, symbol)
+                    bt_data = self.backtester.prepare_data(chart_data, symbol)
                     backtest_result = self.backtester.run_single_test(
                         bt_data, symbol, stock_info['name'], confirmation_days=1)
                     logger.info(f"   └─ 백테스팅: {backtest_result.get('total_return', 0):.2f}% ({backtest_result.get('trades', 0)}회)")
@@ -324,7 +362,7 @@ class ComprehensiveBatchAnalyzer:
             # 6. 결과 구조화
             result = self._create_analysis_result(
                 symbol, stock_info, signal_info, backtest_result,
-                indicators, market_data, investment_score, 
+                indicators, comprehensive_data, investment_score, 
                 recommendation, analysis_time
             )
             
@@ -360,7 +398,7 @@ class ComprehensiveBatchAnalyzer:
     
     def _create_analysis_result(self, symbol: str, stock_info: Dict, 
                                signal_info: Dict, backtest_result: Dict,
-                               indicators: Dict, market_data: Any,
+                               indicators: Dict, comprehensive_data: Dict,
                                investment_score: float, recommendation: str,
                                analysis_time: int) -> Dict:
         """분석 결과 구조화"""
@@ -384,7 +422,7 @@ class ComprehensiveBatchAnalyzer:
             "investment_score": round(investment_score, 2),
             "recommendation": recommendation,
             "risk_level": self.assess_risk_level(indicators, stock_info),
-            "confidence_level": self.assess_confidence_level(signal_info, len(market_data.data)),
+            "confidence_level": self.assess_confidence_level(signal_info, len(comprehensive_data.get('chart_data', pd.DataFrame()))),
             
             # 신호 정보
             "signal": signal_info,
@@ -394,10 +432,10 @@ class ComprehensiveBatchAnalyzer:
             
             # 현재 시장 데이터
             "market_data": {
-                "current_price": int(market_data.data['close'].iloc[-1]),
-                "price_change": float(market_data.data['close'].iloc[-1] - market_data.data['close'].iloc[-2]) if len(market_data.data) > 1 else 0,
-                "price_change_rate": float((market_data.data['close'].iloc[-1] / market_data.data['close'].iloc[-2] - 1) * 100) if len(market_data.data) > 1 else 0,
-                "volume": int(market_data.data['volume'].iloc[-1]),
+                "current_price": int(comprehensive_data.get('chart_data', pd.DataFrame())['close'].iloc[-1]) if not comprehensive_data.get('chart_data', pd.DataFrame()).empty else 0,
+                "price_change": float(comprehensive_data.get('chart_data', pd.DataFrame())['close'].iloc[-1] - comprehensive_data.get('chart_data', pd.DataFrame())['close'].iloc[-2]) if len(comprehensive_data.get('chart_data', pd.DataFrame())) > 1 else 0,
+                "price_change_rate": float((comprehensive_data.get('chart_data', pd.DataFrame())['close'].iloc[-1] / comprehensive_data.get('chart_data', pd.DataFrame())['close'].iloc[-2] - 1) * 100) if len(comprehensive_data.get('chart_data', pd.DataFrame())) > 1 else 0,
+                "volume": int(comprehensive_data.get('chart_data', pd.DataFrame())['volume'].iloc[-1]) if not comprehensive_data.get('chart_data', pd.DataFrame()).empty else 0,
             },
             
             # 기술적 지표
@@ -419,9 +457,9 @@ class ComprehensiveBatchAnalyzer:
             # 메타데이터
             "meta": {
                 "analysis_duration_ms": analysis_time,
-                "data_source": market_data.source.value,
-                "data_quality": self.assess_data_quality(market_data.data),
-                "data_period_days": len(market_data.data),
+                "data_source": comprehensive_data.get('data_source', 'KIS_API'),
+                "data_quality": self.assess_data_quality(comprehensive_data.get('chart_data', pd.DataFrame())),
+                "data_period_days": len(comprehensive_data.get('chart_data', pd.DataFrame())),
                 "analysis_engine_version": "1.0.0",
                 "created_at": datetime.now().isoformat()
             }
@@ -526,12 +564,12 @@ class ComprehensiveBatchAnalyzer:
         if target_symbols:
             symbols_to_analyze = target_symbols
         else:
-            symbols_to_analyze = list(self.stock_master.keys())
+            symbols_to_analyze = list(self.symbol_registry.keys())
         
         logger.info(f"📊 분석 대상: {len(symbols_to_analyze)}개 종목")
         
         # 시장별 집계
-        domestic_count = sum(1 for s in symbols_to_analyze if self.stock_master[s]['market_type'] == 'DOMESTIC')
+        domestic_count = sum(1 for s in symbols_to_analyze if self.symbol_registry[s]['market_type'] == 'DOMESTIC')
         overseas_count = len(symbols_to_analyze) - domestic_count
         
         logger.info(f"   └─ 국내: {domestic_count}개, 해외: {overseas_count}개")
@@ -541,7 +579,7 @@ class ComprehensiveBatchAnalyzer:
         failed_symbols = []
         
         for i, symbol in enumerate(symbols_to_analyze, 1):
-            stock_info = self.stock_master[symbol]
+            stock_info = self.symbol_registry[symbol]
             
             logger.info(f"\n[{i}/{len(symbols_to_analyze)}] 진행률: {i/len(symbols_to_analyze)*100:.1f}%")
             

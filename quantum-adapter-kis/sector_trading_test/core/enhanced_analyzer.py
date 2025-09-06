@@ -18,7 +18,7 @@ sys.path.append(str(current_dir.parent / 'trading_strategy'))
 try:
     from trading_strategy.core.technical_analysis import TechnicalAnalyzer
     from trading_strategy.core.signal_detector import SignalDetector, TradingSignal, SignalType, ConfidenceLevel
-    from trading_strategy.core.multi_data_provider import MultiDataProvider, DataSource
+    from trading_strategy.core.kis_data_provider import KISDataProvider
 except ImportError as e:
     print(f"trading_strategy 모듈 import 실패: {e}")
     # Fallback classes 정의
@@ -34,11 +34,13 @@ except ImportError as e:
         def detect_golden_cross(self, df, symbol, name):
             return None
     
-    class MultiDataProvider:
-        def __init__(self, enable_kis=False, cache_enabled=True):
+    class KISDataProvider:
+        def __init__(self, base_url="http://localhost:8000"):
             pass
-        def get_stock_data(self, symbol, start_date, end_date, source):
-            return None
+        def get_chart_data(self, symbol, period="D", count=100):
+            return pd.DataFrame()
+        def get_comprehensive_data(self, symbol, days=100):
+            return {"symbol": symbol, "error": "KIS API not available"}
     
     # Mock classes for compatibility
     class TradingSignal:
@@ -58,6 +60,7 @@ except ImportError as e:
         WEAK = "WEAK"
     
     class DataSource:
+        # Deprecated - replaced by KIS API
         AUTO = "AUTO"
 
 # 기존 KIS 모듈들
@@ -116,15 +119,14 @@ class EnhancedSectorAnalyzer:
         try:
             self.technical_analyzer = TechnicalAnalyzer()
             self.signal_detector = SignalDetector(confirmation_days=1)
-            self.multi_data_provider = MultiDataProvider(
-                enable_kis=use_kis_api, 
-                cache_enabled=True
+            self.kis_data_provider = KISDataProvider(
+                base_url="http://localhost:8000"
             )
         except Exception as e:
             self.logger.error(f"trading_strategy 모듈 초기화 실패: {e}")
             self.technical_analyzer = None
             self.signal_detector = None
-            self.multi_data_provider = None
+            self.kis_data_provider = None
         
         # Simple Data Provider 초기화 (fallback)
         from .simple_data_provider import SimpleDataProvider
@@ -280,22 +282,17 @@ class EnhancedSectorAnalyzer:
             except Exception as e:
                 self.logger.warning(f"Simple data provider 현재가 조회 실패 {symbol}: {e}")
         
-        # 다중 데이터 소스 활용 (최후 수단)
-        if current_price is None and self.multi_data_provider:
+        # KIS API 활용 (최후 수단)
+        if current_price is None and self.kis_data_provider:
             try:
-                # 최근 1일 데이터로 현재가 추정
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=5)  # 5일 여유
-                
-                market_data = self.multi_data_provider.get_stock_data(
-                    symbol, start_date, end_date, DataSource.AUTO
-                )
-                
-                if market_data and not market_data.data.empty:
-                    current_price = float(market_data.data['close'].iloc[-1])
+                current_price_data = self.kis_data_provider.get_current_price(symbol)
+                if current_price_data and 'output' in current_price_data:
+                    stck_prpr = current_price_data['output'].get('stck_prpr')
+                    if stck_prpr:
+                        current_price = float(stck_prpr)
                     
             except Exception as e:
-                self.logger.warning(f"Multi data source 현재가 조회 실패 {symbol}: {e}")
+                self.logger.warning(f"KIS API 현재가 조회 실패 {symbol}: {e}")
         
         # 캐시 저장
         if current_price:
@@ -323,27 +320,13 @@ class EnhancedSectorAnalyzer:
         except Exception as e:
             self.logger.warning(f"Simple data provider 차트 조회 실패 {symbol}: {e}")
         
-        # 다중 데이터 소스 fallback
-        if chart_data is None and self.multi_data_provider:
+        # KIS API fallback
+        if chart_data is None and self.kis_data_provider:
             try:
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=days)
-                
-                market_data = self.multi_data_provider.get_stock_data(
-                    symbol, start_date, end_date, DataSource.AUTO
-                )
-                
-                if market_data and not market_data.data.empty:
-                    chart_data = market_data.data
+                chart_data = self.kis_data_provider.get_chart_data(symbol, period="D", count=days)
+                if chart_data is not None and chart_data.empty:
+                    chart_data = None
                     
-            except Exception as e:
-                self.logger.warning(f"Multi data source 차트 조회 실패 {symbol}: {e}")
-        
-        # KIS API 사용 (fallback)
-        if chart_data is None and self.use_kis_api:
-            try:
-                # KIS API를 통한 차트 데이터 조회 (기존 코드 활용)
-                pass  # 필요시 구현
             except Exception as e:
                 self.logger.warning(f"KIS API 차트 조회 실패 {symbol}: {e}")
         

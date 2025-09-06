@@ -8,7 +8,6 @@ __author__ = "Quantum Trading Platform"
 
 from .core.technical_analysis import TechnicalAnalyzer
 from .core.signal_detector import SignalDetector, SignalType, ConfidenceLevel
-from .strategies.golden_cross import GoldenCrossStrategy
 from .monitor.signal_monitor import SignalMonitor
 
 __all__ = [
@@ -16,6 +15,5 @@ __all__ = [
     'SignalDetector', 
     'SignalType',
     'ConfidenceLevel',
-    'GoldenCrossStrategy',
     'SignalMonitor'
 ]

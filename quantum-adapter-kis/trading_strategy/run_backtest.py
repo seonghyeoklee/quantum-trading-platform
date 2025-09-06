@@ -15,11 +15,9 @@ import pandas as pd
 current_dir = Path(__file__).parent
 sys.path.append(str(current_dir))
 sys.path.append(str(current_dir.parent))
-sys.path.append(str(current_dir.parent / 'examples_llm'))
 
-# KIS API 모듈 import
-import kis_auth as ka
-from domestic_stock.inquire_daily_itemchartprice.inquire_daily_itemchartprice import inquire_daily_itemchartprice
+# Note: examples_llm directory was removed for cleanup
+# KIS API functionality can be accessed through main.py endpoints
 
 # trading_strategy 모듈 import
 from core.backtester import GoldenCrossBacktester, convert_kis_data
