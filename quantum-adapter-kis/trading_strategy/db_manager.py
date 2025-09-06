@@ -23,7 +23,7 @@ class DatabaseManager:
     
     def __init__(self, 
                  host: str = "localhost",
-                 port: int = 5433,
+                 port: int = 5432,
                  database: str = "quantum_trading",
                  user: str = "quantum",
                  password: str = "quantum123"):

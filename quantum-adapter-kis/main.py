@@ -26,6 +26,7 @@ from domestic_stock.inquire_daily_itemchartprice.inquire_daily_itemchartprice im
 from domestic_stock.inquire_price.inquire_price import inquire_price
 from domestic_stock.inquire_index_price.inquire_index_price import inquire_index_price
 from domestic_stock.top_interest_stock.top_interest_stock import top_interest_stock
+from domestic_stock.chk_holiday.chk_holiday import chk_holiday
 
 # 해외주식 API 함수들 import
 from overseas_stock.price.price import price as overseas_price
@@ -477,6 +478,61 @@ async def get_top_interest_stock(
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"관심종목 조회 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/domestic/holiday")
+async def get_domestic_holiday(bass_dt: str):
+    """국내 휴장일 조회
+    
+    Args:
+        bass_dt (str): 기준일자 (YYYYMMDD)
+        
+    Returns:
+        Dict: 국내 휴장일 정보
+        
+    Note:
+        KIS API 원장서비스와 연관되어 1일 1회 호출 권장
+        영업일, 거래일, 개장일, 결제일 여부를 포함한 정보 반환
+    """
+    try:
+        logger.info(f"국내 휴장일 조회 시작 - bass_dt: {bass_dt}")
+        
+        # 날짜 형식 검증
+        if not bass_dt or len(bass_dt) != 8:
+            raise HTTPException(status_code=400, detail="bass_dt는 YYYYMMDD 형식(8자리)이어야 합니다")
+        
+        try:
+            # 날짜 유효성 검사
+            datetime.strptime(bass_dt, "%Y%m%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="유효하지 않은 날짜 형식입니다. YYYYMMDD 형식으로 입력해주세요")
+        
+        # API 호출
+        logger.info("chk_holiday API 호출 시작")
+        result = chk_holiday(bass_dt=bass_dt)
+        
+        logger.info(f"API 호출 완료 - result type: {type(result)}")
+        
+        if result is None or result.empty:
+            logger.warning(f"조회된 휴장일 데이터가 없습니다. bass_dt: {bass_dt}")
+            return create_success_response(
+                data=[],
+                message="조회된 휴장일 데이터가 없습니다."
+            )
+        
+        logger.info(f"휴장일 조회 성공 - 데이터 건수: {len(result)}")
+        return create_success_response(
+            data=result.to_dict(orient="records"),
+            message="국내 휴장일 조회 완료"
+        )
+        
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        logger.error(f"파라미터 오류: {str(ve)}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"국내 휴장일 조회 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== 해외 주식 API ====================
