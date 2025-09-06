@@ -1,170 +1,132 @@
-# Quantum Trading Platform - 인프라 & 모니터링
+# Quantum Trading Platform - 통합 Infrastructure
 
-Grafana + Loki + Prometheus + Promtail을 사용한 통합 로그 모니터링 시스템
+모니터링, 데이터 파이프라인, 로깅을 위한 완전한 infrastructure 스택
 
-## 🚀 시작하기
+## 🏗️ 포함된 서비스
 
-### 1. 모니터링 시스템 실행
+### 📊 모니터링 스택
+- **Grafana**: 시각화 대시보드 (포트 3001)
+- **Prometheus**: 메트릭 수집 및 저장 (포트 9090)  
+- **Loki**: 로그 집계 및 저장 (포트 3100)
+- **Promtail**: 로그 수집 에이전트
 
+### 🔧 데이터 파이프라인  
+- **Apache Airflow**: 워크플로우 관리 (포트 8081)
+- **PostgreSQL**: 통합 데이터베이스 (포트 5432)
+
+### 🌐 네트워킹
+- **quantum-network**: 모든 서비스가 동일한 Docker 네트워크에서 실행
+
+## 🚀 빠른 시작
+
+### 1. Infrastructure 시작
 ```bash
 cd quantum-infrastructure
-docker-compose -f docker-compose.monitoring.yml up -d
+./start-infrastructure.sh
 ```
 
-### 2. 웹 UI 접근
-
-- **Grafana**: http://localhost:3001 (admin/quantum2024)
-- **Prometheus**: http://localhost:9090
-- **Loki**: http://localhost:3100
-
-### 3. 서비스 실행 (로그 생성용)
-
+### 2. Infrastructure 중지
 ```bash
-# Spring Boot API (터미널 1)
-cd quantum-web-api
-./gradlew bootRun --args='--spring.profiles.active=docker'
-
-# FastAPI KIS Adapter (터미널 2)  
-cd quantum-adapter-kis
-uv run python main.py
-
-# Next.js Frontend (터미널 3)
-cd quantum-web-client
-npm run dev
+./stop-infrastructure.sh
 ```
 
-## 📊 대시보드 기능
-
-### 🔍 통합 로그 모니터링
-- **실시간 로그 스트림**: 3개 서비스 통합 로그 확인
-- **서비스별 로그 분포**: 파이 차트로 서비스별 로그 비중
-- **로그 레벨별 추이**: ERROR, WARN, INFO 레벨 시간별 변화
-- **에러 로그 필터링**: 에러와 경고 로그만 별도 표시
-
-### ⚡ API 성능 모니터링
-- **응답시간 분석**: P95, P50 응답시간 추이
-- **HTTP 상태코드**: 2xx, 4xx, 5xx 요청 분포
-- **API 엔드포인트별**: 특정 API 성능 추적
-
-### 🎯 KIS API 모니터링
-- **KIS API 호출 성공률**: 성공/실패 비율
-- **거래소별 API 사용량**: 국내/해외 API 호출 분포
-- **토큰 사용 추이**: 인증 토큰 사용 패턴
-
-## 🛠️ 설정 및 구성
-
-### 로그 수집 방식
-```
-서비스 → 로그 파일 (JSON) → Promtail → Loki → Grafana
-```
-
-### 로그 파일 위치
-- **Spring Boot**: `quantum-web-api/logs/*.log`
-- **FastAPI**: `quantum-adapter-kis/logs/*.log`
-- **Next.js**: `quantum-web-client/logs/*.log`
-
-### 로그 보존 정책
-- **로그 보존기간**: 7일
-- **최대 저장용량**: 1GB
-- **로그 로테이션**: 일별 자동 로테이션
-
-## 🔧 고급 설정
-
-### Grafana 알림 설정
-
-1. **에러율 임계값 알림**
+### 3. 수동 실행 (고급 사용자)
 ```bash
-# 5분간 에러율이 5% 초과 시 알림
-sum(rate({job="quantum-web-api", level="ERROR"}[5m])) 
-/ sum(rate({job="quantum-web-api"}[5m])) > 0.05
+# 전체 스택 시작
+docker-compose up -d
+
+# 특정 서비스만 시작
+docker-compose up -d grafana prometheus
+docker-compose up -d airflow-webserver airflow-scheduler
 ```
 
-2. **API 응답시간 알림**
+## 🌐 서비스 URL
+
+| 서비스 | URL | 인증 정보 |
+|--------|-----|----------|
+| 📈 Grafana | http://localhost:3001 | admin / quantum2024 |
+| 🔧 Airflow | http://localhost:8081 | admin / quantum123 |
+| 🔍 Prometheus | http://localhost:9090 | 없음 |
+| 📝 Loki | http://localhost:3100 | 없음 |
+
+## 💾 데이터베이스
+
+| 목적 | 포트 | 인증 정보 | 사용처 |
+|------|------|----------|--------|
+| PostgreSQL | 5432 | quantum / quantum123 | 트레이딩 플랫폼 & Airflow 통합 |
+
+## 📋 DAG 관리
+
+### KIS 휴장일 수집 DAG
+- **스케줄**: 매일 오전 6시
+- **목적**: KIS API에서 국내 휴장일 데이터 수집
+- **저장소**: `kis_domestic_holidays` 테이블
+
+### DAG 수동 실행
 ```bash
-# P95 응답시간이 3초 초과 시 알림
-quantile_over_time(0.95, {job="quantum-web-api"} 
-| json | unwrap response_time_ms [5m]) > 3000
+# REST API로 DAG 트리거
+TIMESTAMP=$(date +%s)
+curl -X POST "http://localhost:8081/api/v1/dags/kis_holiday_sync/dagRuns" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic $(echo -n 'admin:quantum123' | base64)" \
+  -d "{\"dag_run_id\": \"manual_${TIMESTAMP}\"}"
 ```
 
-### Loki 쿼리 예시
+## 🔧 구성 파일
 
-1. **특정 심볼 관련 로그 검색**
+- **docker-compose.yml**: 통합 infrastructure 정의
+- **.env**: 환경 변수 설정
+- **monitoring/**: Grafana, Prometheus, Loki 설정
+- **airflow/**: Airflow DAG 및 설정
+
+## 🐛 문제 해결
+
+### 네트워크 문제
 ```bash
-{job="quantum-adapter-kis"} |= "005930"
+# quantum-network 재생성
+docker network rm quantum-network
+docker network create quantum-network
 ```
 
-2. **API 에러만 필터링**
+### 데이터 초기화
 ```bash
-{job="quantum-web-api", level="ERROR", event_type="api_request"}
+# 모든 데이터 볼륨 삭제 (주의!)
+docker-compose down -v
 ```
 
-3. **응답시간이 긴 API 요청**
+### 서비스 로그 확인
 ```bash
-{job="quantum-web-api"} | json | response_time_ms > 1000
+# 특정 서비스 로그
+docker logs airflow-scheduler
+docker logs quantum-grafana
+
+# 모든 서비스 로그
+docker-compose logs
 ```
 
-## 🚨 트러블슈팅
+## 📈 모니터링
 
-### 로그가 수집되지 않는 경우
+### Grafana 대시보드
+- **Spring Boot Metrics**: 애플리케이션 성능
+- **PostgreSQL Metrics**: 데이터베이스 성능  
+- **System Metrics**: 서버 리소스
+- **Custom Dashboards**: 비즈니스 메트릭
 
-1. **로그 파일 경로 확인**
-```bash
-ls -la quantum-*/logs/
-```
+### 알림 설정
+- **Slack Integration**: 중요 이벤트 알림
+- **Email Alerts**: 시스템 장애 알림
+- **Webhook Notifications**: 사용자 정의 통합
 
-2. **Promtail 컨테이너 로그 확인**
-```bash
-docker logs quantum-promtail
-```
+## 🛡️ 보안
 
-3. **권한 문제 해결**
-```bash
-chmod 755 quantum-*/logs/
-chmod 644 quantum-*/logs/*.log
-```
+### 기본 인증
+- 모든 웹 UI는 기본 인증 사용
+- 프로덕션에서는 강력한 비밀번호로 변경 필요
 
-### Grafana 대시보드 복원
+### 네트워크 보안
+- 내부 통신은 Docker 네트워크 사용
+- 필요한 포트만 호스트에 노출
 
-```bash
-# 대시보드 JSON 파일 위치
-ls monitoring/grafana/dashboards/
-
-# 컨테이너 재시작
-docker-compose -f docker-compose.monitoring.yml restart grafana
-```
-
-## 📈 성능 모니터링 지표
-
-### 시스템 리소스
-- **메모리 사용량**: JVM 힙 메모리, Python 프로세스 메모리
-- **CPU 사용률**: 각 서비스별 CPU 점유율
-- **디스크 I/O**: 로그 파일 쓰기 성능
-
-### 애플리케이션 메트릭
-- **동시 연결수**: WebSocket 연결, HTTP 세션
-- **처리량**: 초당 API 요청 수, 초당 로그 생성 수
-- **에러율**: 서비스별 에러 발생 비율
-
-## 🎛️ 환경별 설정
-
-### 개발 환경 (Development)
-- 모든 로그 레벨 수집 (DEBUG 포함)
-- 실시간 로그 스트리밍 활성화
-- 상세한 API 응답시간 추적
-
-### 운영 환경 (Production)
-- INFO 레벨 이상만 수집
-- 성능 최적화된 로그 수집
-- 알림 및 모니터링 강화
-
-## 🔐 보안 고려사항
-
-### 민감정보 마스킹
-- KIS API 토큰 자동 마스킹
-- 사용자 비밀번호 로그 제외
-- JWT 토큰 부분 마스킹
-
-### 접근 제어
-- Grafana 관리자 계정 변경 필수
-- 로그 접근 권한 제한
-- 네트워크 방화벽 설정 권장
+### 데이터 보안
+- 모든 데이터베이스 연결은 암호화
+- 볼륨은 호스트에 안전하게 저장
