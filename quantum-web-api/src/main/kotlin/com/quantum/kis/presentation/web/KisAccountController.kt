@@ -8,8 +8,11 @@ import com.quantum.kis.presentation.dto.KisAccountInfoResponse
 import com.quantum.user.infrastructure.security.JwtTokenProvider
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
-import io.swagger.v3.oas.annotations.responses.ApiResponse as SwaggerApiResponse
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -57,9 +60,21 @@ class KisAccountController(
         description = "현재 인증된 사용자의 KIS 계정 정보를 조회합니다. LIVE와 SANDBOX 환경별로 반환됩니다."
     )
     @ApiResponses(
-        SwaggerApiResponse(responseCode = "200", description = "조회 성공"),
-        SwaggerApiResponse(responseCode = "401", description = "인증 실패")
+        ApiResponse(
+            responseCode = "200", 
+            description = "조회 성공", 
+            content = [Content(schema = Schema(implementation = Map::class))]
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증 실패 - JWT 토큰 누락 또는 유효하지 않음"
+        ),
+        ApiResponse(
+            responseCode = "500", 
+            description = "서버 내부 오류"
+        )
     )
+    @SecurityRequirement(name = "bearerAuth")
     fun getMyKisAccounts(
         request: jakarta.servlet.http.HttpServletRequest
     ): ResponseEntity<Map<String, KisAccountInfoResponse?>> {
@@ -97,11 +112,25 @@ class KisAccountController(
         description = "사용자의 저장된 KIS 계정 정보를 사용하여 액세스 토큰을 발급합니다."
     )
     @ApiResponses(
-        SwaggerApiResponse(responseCode = "200", description = "토큰 발급 성공"),
-        SwaggerApiResponse(responseCode = "400", description = "계정 정보 없음 또는 잘못된 요청"),
-        SwaggerApiResponse(responseCode = "401", description = "인증 실패"),
-        SwaggerApiResponse(responseCode = "500", description = "토큰 발급 실패")
+        ApiResponse(
+            responseCode = "200", 
+            description = "토큰 발급 성공", 
+            content = [Content(schema = Schema(implementation = KisTokenIssueResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "계정 정보 없음 또는 잘못된 요청"
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "JWT 인증 실패"
+        ),
+        ApiResponse(
+            responseCode = "500", 
+            description = "KIS API 토큰 발급 실패"
+        )
     )
+    @SecurityRequirement(name = "bearerAuth")
     suspend fun issueTokenFromStoredAccount(
         @RequestBody request: KisTokenIssueFromStoredAccountRequest,
         httpRequest: jakarta.servlet.http.HttpServletRequest
@@ -159,11 +188,25 @@ class KisAccountController(
         description = "사용자의 KIS 계정 정보를 신규 등록하거나 업데이트합니다."
     )
     @ApiResponses(
-        SwaggerApiResponse(responseCode = "200", description = "계정 설정 성공"),
-        SwaggerApiResponse(responseCode = "400", description = "잘못된 계정 정보"),
-        SwaggerApiResponse(responseCode = "401", description = "인증 실패"),
-        SwaggerApiResponse(responseCode = "500", description = "서버 오류")
+        ApiResponse(
+            responseCode = "200", 
+            description = "계정 설정 성공", 
+            content = [Content(schema = Schema(implementation = KisAccountSetupResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "잘못된 계정 정보 또는 유효성 검증 실패"
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "JWT 인증 실패"
+        ),
+        ApiResponse(
+            responseCode = "500", 
+            description = "서버 내부 오류"
+        )
     )
+    @SecurityRequirement(name = "bearerAuth")
     fun setupKisAccount(
         @RequestBody request: KisAccountSetupRequest,
         httpRequest: jakarta.servlet.http.HttpServletRequest
@@ -218,8 +261,25 @@ class KisAccountController(
         summary = "KIS 계정 존재 여부 확인",
         description = "사용자가 특정 환경의 KIS 계정을 가지고 있는지 확인합니다."
     )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "계정 존재 여부 확인 완료", 
+            content = [Content(schema = Schema(implementation = KisAccountExistsResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "JWT 인증 실패"
+        ),
+        ApiResponse(
+            responseCode = "500", 
+            description = "서버 내부 오류"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     fun hasKisAccount(
-        @Parameter(description = "KIS 환경") @RequestParam environment: KisEnvironment,
+        @Parameter(description = "KIS 환경 (LIVE 또는 SANDBOX)", required = true, example = "SANDBOX") 
+        @RequestParam environment: KisEnvironment,
         request: jakarta.servlet.http.HttpServletRequest
     ): ResponseEntity<KisAccountExistsResponse> {
         return try {

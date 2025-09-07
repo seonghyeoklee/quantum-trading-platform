@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: quantum-web-api
+  
+  # Timezone Configuration
+  jackson:
+    time-zone: Asia/Seoul
 
   # Database Configuration - PostgreSQL
   datasource:
@@ -15,7 +19,7 @@ spring:
   # JPA Configuration
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: false  # p6spy가 처리하므로 비활성화
     properties:
       hibernate:

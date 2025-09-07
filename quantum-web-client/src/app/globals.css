@@ -1087,4 +1087,353 @@
       transparent 100%
     );
   }
+
+  /* Google Calendar Style - Full Screen Width Calendar */
+  .google-calendar-style,
+  .bryntum-calendar,
+  .react-calendar-enhanced,
+  .react-calendar {
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    font-family: inherit !important;
+    max-width: none !important;
+    min-height: 600px !important;
+  }
+
+  /* Hide default weekday labels for custom Korean labels */
+  .google-calendar-style .react-calendar__month-view__weekdays {
+    display: none !important;
+  }
+
+  /* Professional Navigation - Enhanced */
+  .bryntum-calendar .react-calendar__navigation,
+  .react-calendar-enhanced__navigation,
+  .react-calendar__navigation {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 2rem !important;
+    padding: 1rem 0.5rem !important;
+    border-bottom: 1px solid rgb(var(--border)) !important;
+    background: rgb(var(--muted) / 0.1) !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  .bryntum-calendar .react-calendar__navigation__label,
+  .react-calendar-enhanced__navigation__label,
+  .react-calendar__navigation__label {
+    background: transparent !important;
+    border: none !important;
+    color: rgb(var(--foreground)) !important;
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 0.5rem !important;
+    cursor: pointer !important;
+    letter-spacing: -0.02em !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .react-calendar-enhanced__navigation__label:hover,
+  .react-calendar__navigation__label:hover {
+    background: rgb(var(--muted) / 0.5) !important;
+    color: rgb(var(--primary)) !important;
+  }
+
+  .react-calendar-enhanced__navigation__arrow,
+  .react-calendar__navigation__arrow {
+    @apply w-8 h-8 flex items-center justify-center rounded-md transition-colors duration-200;
+    background: transparent !important;
+    border: 1px solid rgb(var(--border)) !important;
+    color: rgb(var(--muted-foreground)) !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .react-calendar-enhanced__navigation__arrow:hover,
+  .react-calendar__navigation__arrow:hover {
+    background: rgb(var(--muted) / 0.5) !important;
+    color: rgb(var(--foreground)) !important;
+    border-color: rgb(var(--border)) !important;
+  }
+
+  .react-calendar-enhanced__navigation__arrow:disabled,
+  .react-calendar__navigation__arrow:disabled {
+    @apply opacity-40 cursor-not-allowed;
+    background: transparent !important;
+  }
+
+  .react-calendar-enhanced__navigation__arrow:disabled:hover,
+  .react-calendar__navigation__arrow:disabled:hover {
+    background: transparent !important;
+    color: rgb(var(--muted-foreground)) !important;
+  }
+
+  /* Professional Weekday Headers - Bryntum Style */
+  .react-calendar-enhanced__month-view__weekdays,
+  .react-calendar__month-view__weekdays {
+    @apply text-xs font-medium tracking-wide mb-2;
+    color: rgb(var(--muted-foreground)) !important;
+    display: flex !important;
+    text-align: center !important;
+    background: rgb(var(--muted) / 0.2) !important;
+    border-radius: 4px !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  .react-calendar-enhanced__month-view__weekdays__weekday,
+  .react-calendar__month-view__weekdays__weekday {
+    @apply text-center py-2 relative;
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 0.5rem 0 !important;
+    font-weight: 500 !important;
+  }
+
+  .react-calendar-enhanced__month-view__weekdays__weekday abbr,
+  .react-calendar__month-view__weekdays__weekday abbr {
+    @apply no-underline;
+    text-decoration: none !important;
+    text-transform: uppercase !important;
+  }
+
+  .react-calendar-enhanced__month-view__weekdays__weekday:first-child abbr,
+  .react-calendar-enhanced__month-view__weekdays__weekday:last-child abbr,
+  .react-calendar__month-view__weekdays__weekday:first-child abbr,
+  .react-calendar__month-view__weekdays__weekday:last-child abbr {
+    color: rgb(var(--destructive) / 0.8) !important;
+  }
+
+  /* Professional Date Grid */
+  .react-calendar-enhanced__month-view__days,
+  .react-calendar__month-view__days {
+    @apply grid grid-cols-7;
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    gap: 2px !important;
+    background: rgb(var(--border) / 0.3) !important;
+    border: 1px solid rgb(var(--border)) !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  /* Professional Calendar Date Tiles */
+  .google-calendar-style .react-calendar__tile,
+  .bryntum-calendar .react-calendar__tile,
+  .react-calendar-enhanced__tile,
+  .react-calendar__tile {
+    min-height: 130px !important;
+    height: 130px !important;
+    background: rgb(var(--card)) !important;
+    border: 1px solid rgb(var(--border) / 0.6) !important;
+    color: rgb(var(--foreground)) !important;
+    display: block !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    font-weight: 500 !important;
+    font-size: 1rem !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    backdrop-filter: blur(8px) !important;
+    overflow: hidden !important;
+  }
+
+  /* Professional Date Number */
+  .google-calendar-style .react-calendar__tile abbr,
+  .bryntum-calendar .react-calendar__tile abbr {
+    text-decoration: none !important;
+    display: block !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: rgb(var(--foreground)) !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1 !important;
+    position: absolute !important;
+    top: 0.25rem !important;
+    left: 0.25rem !important;
+    z-index: 10 !important;
+  }
+
+  /* Professional Hover Effects */
+  .google-calendar-style .react-calendar__tile:hover,
+  .bryntum-calendar .react-calendar__tile:hover,
+  .react-calendar-enhanced__tile:hover,
+  .react-calendar__tile:hover {
+    background: rgb(var(--muted) / 0.3) !important;
+    border-color: rgb(var(--primary) / 0.6) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+    transform: translateY(-2px) scale(1.01) !important;
+    color: rgb(var(--foreground)) !important;
+  }
+
+  .react-calendar-enhanced__tile:disabled,
+  .react-calendar__tile:disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+  }
+
+  .react-calendar-enhanced__tile:disabled:hover,
+  .react-calendar__tile:disabled:hover {
+    background: rgb(var(--card)) !important;
+  }
+
+  /* Professional Active/Selected Date */
+  .google-calendar-style .react-calendar__tile--active,
+  .bryntum-calendar .react-calendar__tile--active,
+  .react-calendar-enhanced__tile--active,
+  .react-calendar__tile--active {
+    background: rgb(var(--primary) / 0.1) !important;
+    border-color: rgb(var(--primary)) !important;
+    box-shadow: 0 0 0 2px rgb(var(--primary) / 0.2), 0 4px 12px rgb(var(--primary) / 0.15) !important;
+    transform: scale(1.02) !important;
+  }
+
+  .google-calendar-style .react-calendar__tile--active abbr,
+  .bryntum-calendar .react-calendar__tile--active abbr {
+    color: rgb(var(--primary)) !important;
+    font-weight: 700 !important;
+  }
+
+  /* Schedule display area within date tiles */
+  .google-calendar-style .react-calendar__tile::after {
+    content: '';
+    display: block;
+    flex: 1;
+    min-height: 60px;
+    margin-top: 0.25rem;
+  }
+
+  /* KIS Calendar Schedule Items - Enhanced Business Day Info */
+  .schedule-item {
+    background: #3b82f6;
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    margin: 0.125rem 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* KIS Business Day Status Colors */
+  .schedule-item.holiday {
+    background: #dc2626; /* 빨간색 - 휴장 */
+  }
+
+  .schedule-item.business {
+    background: #0891b2; /* 청록색 - 영업일 */
+  }
+
+  .schedule-item.trading {
+    background: #059669; /* 초록색 - 거래일 */
+  }
+
+  .schedule-item.settlement {
+    background: #ea580c; /* 주황색 - 결제불가 */
+  }
+
+  .schedule-item.normal {
+    background: #16a34a; /* 연초록 - 정상 */
+  }
+
+  /* Legacy support */
+  .schedule-item.market {
+    background: #dc2626;
+  }
+
+  .schedule-item.analysis {
+    background: #7c3aed;
+  }
+
+  /* Holiday tile styling */
+  .google-calendar-style .has-holiday {
+    background: #fef2f2 !important;
+    border-color: #f87171 !important;
+  }
+
+  .google-calendar-style .has-holiday:hover {
+    background: #fee2e2 !important;
+    border-color: #ef4444 !important;
+  }
+
+  .google-calendar-style .has-holiday abbr {
+    color: #dc2626 !important;
+    font-weight: 700 !important;
+  }
+
+  .react-calendar-enhanced__tile--active:hover,
+  .react-calendar__tile--active:hover {
+    background: rgb(var(--primary) / 0.9) !important;
+  }
+
+  /* Today's Date - Enhanced Professional Style */
+  .react-calendar-enhanced__tile--now,
+  .react-calendar__tile--now {
+    background: rgb(var(--primary) / 0.08) !important;
+    color: rgb(var(--primary)) !important;
+    font-weight: 700 !important;
+    position: relative !important;
+    border: 2px solid rgb(var(--primary) / 0.3) !important;
+    box-shadow: 0 2px 8px rgb(var(--primary) / 0.15) !important;
+  }
+
+  .react-calendar-enhanced__tile--now::after,
+  .react-calendar__tile--now::after {
+    content: '오늘';
+    position: absolute !important;
+    top: 2px !important;
+    right: 4px !important;
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    color: rgb(var(--primary)) !important;
+    background: rgb(var(--primary) / 0.1) !important;
+    padding: 1px 4px !important;
+    border-radius: 4px !important;
+    border: 1px solid rgb(var(--primary) / 0.2) !important;
+  }
+
+  .react-calendar-enhanced__tile--now:hover,
+  .react-calendar__tile--now:hover {
+    background: rgb(var(--muted) / 0.3) !important;
+  }
+
+  /* Weekend Styling - Subtle */
+  .react-calendar-enhanced__tile--weekends,
+  .react-calendar__tile--weekends {
+    color: rgb(var(--muted-foreground)) !important;
+  }
+
+  .react-calendar-enhanced__tile--weekends:hover,
+  .react-calendar__tile--weekends:hover {
+    background: rgb(var(--muted) / 0.3) !important;
+  }
+
+  /* Neighboring Month Dates - Subtle */
+  .react-calendar-enhanced__tile--neighboringMonth,
+  .react-calendar__tile--neighboringMonth {
+    opacity: 0.3 !important;
+    color: rgb(var(--muted-foreground)) !important;
+  }
+
+  /* Holiday and Trading Day Styling - Professional */
+  .react-calendar-enhanced__tile--holiday,
+  .react-calendar__tile--holiday {
+    background: rgb(var(--destructive) / 0.1) !important;
+    color: rgb(var(--destructive)) !important;
+  }
+
+  .react-calendar-enhanced__tile--trading-day,
+  .react-calendar__tile--trading-day {
+    background: rgb(var(--success-emerald) / 0.1) !important;
+    color: rgb(var(--success-emerald)) !important;
+  }
 }

@@ -63,10 +63,6 @@ class SecurityConfig(
                     .requestMatchers("/api/v1/auth/login").permitAll()
                     .requestMatchers("/api/v1/auth/register").permitAll()
                     .requestMatchers("/h2-console/**").permitAll()
-                    // KIS 계정 관련 엔드포인트 - 프론트엔드에서 직접 접근
-                    .requestMatchers("/api/v1/kis-accounts/me/token").permitAll()
-                    .requestMatchers("/api/v1/kis-accounts/me/credentials").permitAll()
-                    .requestMatchers("/api/v1/kis-accounts/register").permitAll()
                     // Actuator 엔드포인트 - 모니터링용
                     .requestMatchers("/actuator/**").permitAll()
                     // Swagger/OpenAPI 문서화
@@ -77,6 +73,9 @@ class SecurityConfig(
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
+
+                    // TODO 개발용
+                    .requestMatchers("/api/v1/**").permitAll()
                     .anyRequest().authenticated()
             }
             .authenticationProvider(authenticationProvider())

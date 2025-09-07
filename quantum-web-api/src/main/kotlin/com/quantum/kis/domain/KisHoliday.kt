@@ -9,14 +9,14 @@ import java.time.LocalDateTime
  */
 @Entity
 @Table(name = "kis_domestic_holidays")
-data class KisHoliday(
+class KisHoliday(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
     // ========== 기본 식별 정보 (테이블 앞부분) ==========
     @Column(name = "holiday_date", nullable = false, unique = true)
-    val holidayDate: LocalDate,
+    val holidayDate: LocalDate = LocalDate.now(),
 
     @Column(name = "holiday_name")
     val holidayName: String? = null,    // 휴일명

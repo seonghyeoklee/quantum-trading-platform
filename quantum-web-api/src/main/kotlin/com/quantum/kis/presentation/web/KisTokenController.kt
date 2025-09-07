@@ -4,6 +4,11 @@ import com.quantum.kis.application.service.*
 import com.quantum.kis.domain.KisEnvironment
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -30,10 +35,30 @@ class KisTokenController(
      * KIS 계정 검증
      */
     @PostMapping("/account/validate")
-    @Operation(summary = "KIS 계정 검증", description = "KIS 계정 정보의 유효성을 검증합니다")
+    @Operation(
+        summary = "KIS 계정 검증", 
+        description = "KIS 계정 정보의 유효성을 검증합니다. 실제 KIS API와 통신하여 계정 유효성을 확인합니다."
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "계정 검증 완료", 
+            content = [Content(schema = Schema(implementation = KisAccountValidationResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "잘못된 계정 정보 또는 검증 실패"
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증되지 않은 사용자"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     suspend fun validateAccount(
+        @Parameter(description = "KIS 계정 검증 요청 정보", required = true)
         @RequestBody request: KisAccountValidationRequest,
-        authentication: Authentication
+        @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisAccountValidationResponse> {
         return try {
             val userId = authentication.name.toLong()
@@ -77,10 +102,34 @@ class KisTokenController(
      * KIS 토큰 발급
      */
     @PostMapping("/token")
-    @Operation(summary = "KIS 토큰 발급", description = "새로운 KIS 액세스 토큰을 발급합니다")
+    @Operation(
+        summary = "KIS 토큰 발급", 
+        description = "새로운 KIS 액세스 토큰을 발급합니다. 계정 정보를 저장하고 KIS API와 통신하여 토큰을 발급받습니다."
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "토큰 발급 성공", 
+            content = [Content(schema = Schema(implementation = KisTokenResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "잘못된 계정 정보"
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증되지 않은 사용자"
+        ),
+        ApiResponse(
+            responseCode = "500", 
+            description = "토큰 발급 실패"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     suspend fun issueToken(
+        @Parameter(description = "KIS 토큰 발급 요청 정보", required = true)
         @RequestBody request: KisTokenIssueRequest,
-        authentication: Authentication
+        @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenResponse> {
         return try {
             val userId = authentication.name.toLong()
@@ -117,10 +166,30 @@ class KisTokenController(
      * KIS 토큰 갱신
      */
     @PostMapping("/token/refresh")
-    @Operation(summary = "KIS 토큰 갱신", description = "기존 KIS 토큰을 갱신합니다")
+    @Operation(
+        summary = "KIS 토큰 갱신", 
+        description = "기존 KIS 토큰을 갱신합니다. 저장된 계정 정보를 사용하여 새로운 토큰을 발급받습니다."
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "토큰 갱신 성공", 
+            content = [Content(schema = Schema(implementation = KisTokenResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "저장된 계정 정보 없음"
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증되지 않은 사용자 또는 토큰 갱신 실패"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     suspend fun refreshToken(
+        @Parameter(description = "KIS 토큰 갱신 요청 정보", required = true)
         @RequestBody request: KisTokenRefreshRequest,
-        authentication: Authentication
+        @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenResponse> {
         return try {
             val userId = authentication.name.toLong()
@@ -149,10 +218,30 @@ class KisTokenController(
      * 현재 활성 토큰 조회
      */
     @GetMapping("/token/current")
-    @Operation(summary = "현재 토큰 조회", description = "사용자의 현재 활성 토큰을 조회합니다")
+    @Operation(
+        summary = "현재 토큰 조회", 
+        description = "사용자의 현재 활성 토큰을 조회합니다. 토큰이 없으면 null을 반환합니다."
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "토큰 조회 성공", 
+            content = [Content(schema = Schema(implementation = KisTokenResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증되지 않은 사용자"
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "잘못된 요청"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     fun getCurrentToken(
-        @Parameter(description = "KIS 환경") @RequestParam environment: KisEnvironment,
-        authentication: Authentication
+        @Parameter(description = "KIS 환경 (LIVE 또는 SANDBOX)", required = true, example = "SANDBOX") 
+        @RequestParam environment: KisEnvironment,
+        @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenResponse?> {
         return try {
             val userId = authentication.name.toLong()
@@ -181,10 +270,30 @@ class KisTokenController(
      * 토큰 상태 확인
      */
     @GetMapping("/token/status")
-    @Operation(summary = "토큰 상태 확인", description = "토큰의 상태와 유효성을 확인합니다")
+    @Operation(
+        summary = "토큰 상태 확인", 
+        description = "토큰의 상태와 유효성을 확인합니다. 토큰 존재 여부, 유효성, 남은 시간 등을 포함한 상태 정보를 제공합니다."
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200", 
+            description = "토큰 상태 조회 성공", 
+            content = [Content(schema = Schema(implementation = KisTokenStatusResponse::class))]
+        ),
+        ApiResponse(
+            responseCode = "401", 
+            description = "인증되지 않은 사용자"
+        ),
+        ApiResponse(
+            responseCode = "400", 
+            description = "잘못된 요청"
+        )
+    )
+    @SecurityRequirement(name = "bearerAuth")
     fun getTokenStatus(
-        @Parameter(description = "KIS 환경") @RequestParam environment: KisEnvironment,
-        authentication: Authentication
+        @Parameter(description = "KIS 환경 (LIVE 또는 SANDBOX)", required = true, example = "SANDBOX") 
+        @RequestParam environment: KisEnvironment,
+        @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenStatusResponse> {
         return try {
             val userId = authentication.name.toLong()
@@ -225,10 +334,19 @@ class KisTokenController(
  * KIS 계정 검증 요청 DTO
  */
 data class KisAccountValidationRequest(
+    @field:Parameter(description = "KIS 앱 키", example = "your_app_key", required = true)
     val appKey: String,
+    
+    @field:Parameter(description = "KIS 앱 시크릿", example = "your_app_secret", required = true)
     val appSecret: String,
+    
+    @field:Parameter(description = "계좌번호 (8자리)", example = "12345678", required = true)
     val accountNumber: String,
+    
+    @field:Parameter(description = "KIS 환경", example = "SANDBOX", required = true)
     val environment: KisEnvironment,
+    
+    @field:Parameter(description = "계정 별칭 (선택사항)", example = "메인 투자 계좌")
     val accountAlias: String? = null
 )
 
@@ -236,10 +354,19 @@ data class KisAccountValidationRequest(
  * KIS 계정 검증 응답 DTO
  */
 data class KisAccountValidationResponse(
+    @field:Parameter(description = "계정 유효성 여부", example = "true")
     val isValid: Boolean,
+    
+    @field:Parameter(description = "검증 결과 메시지", example = "계정 정보가 유효합니다")
     val message: String,
+    
+    @field:Parameter(description = "검증한 KIS 환경", example = "SANDBOX")
     val environment: KisEnvironment,
+    
+    @field:Parameter(description = "검증 완료 시각", example = "2024-01-01T12:00:00")
     val validatedAt: LocalDateTime,
+    
+    @field:Parameter(description = "오류 정보 (검증 실패 시)", example = "AUTHENTICATION_FAILED")
     val error: String? = null
 )
 

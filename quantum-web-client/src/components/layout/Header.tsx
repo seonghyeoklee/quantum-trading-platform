@@ -90,7 +90,7 @@ export default function Header({ className }: HeaderProps) {
                 <BarChart3 className="w-4 h-4 text-white" />
               </div>
               <div className="hidden sm:block">
-                <div className="font-semibold text-base text-foreground">
+                <div className="font-semibold text-lg text-foreground">
                   Quantum Trading
                 </div>
               </div>

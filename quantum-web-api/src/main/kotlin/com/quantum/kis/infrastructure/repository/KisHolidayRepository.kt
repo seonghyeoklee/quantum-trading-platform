@@ -16,7 +16,7 @@ interface KisHolidayRepository : JpaRepository<KisHoliday, Long> {
     /**
      * 특정 기간의 휴장일만 조회 (달력용)
      */
-    @Query("SELECT h FROM KisHoliday h WHERE h.holidayDate BETWEEN :startDate AND :endDate AND h.openingDayYn = 'N' ORDER BY h.holidayDate")
+    @Query("SELECT h FROM KisHoliday h WHERE h.holidayDate BETWEEN :startDate AND :endDate ORDER BY h.holidayDate")
     fun findHolidaysBetween(
         @Param("startDate") startDate: LocalDate,
         @Param("endDate") endDate: LocalDate
