@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication, multi-environment KIS token management, and comprehensive analysis pipelines powered by Apache Airflow and Spring AI integration.
 
 ### Recent Major Additions
+- **External Data Adapter**: Complete quantum-adapter-external module with real-time Naver News API and comprehensive DART public disclosure system integration
 - **Apache Airflow Analysis Pipeline**: Fully functional daily stock analysis system with 10 complex DAGs
 - **Spring AI Integration**: OpenAI GPT-4o-mini integration for intelligent market analysis  
 - **Comprehensive Batch Analyzer**: Multi-source data analysis system (PyKRX, yfinance, FinanceDataReader)
@@ -18,6 +19,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 Frontend (Port 3000) ← → Backend (Port 8080) ← → KIS Adapter (Port 8000)
 Next.js 15 + React 19      Spring Boot 3.5 + Kotlin    FastAPI + Python 3.13
+                                      ↓
+                           External Adapter (Port 8001)
+                           FastAPI + Python 3.13 + Naver News + DART APIs
 ```
 
 ### Key Architectural Decisions
@@ -30,11 +34,15 @@ Next.js 15 + React 19      Spring Boot 3.5 + Kotlin    FastAPI + Python 3.13
 
 ### Frontend (quantum-web-client/)
 ```bash
-npm run dev              # Runs on quantum-trading.com (custom host)
+npm run dev              # Runs on quantum-trading.com:3000 (custom host)
 npm run dev:local        # Runs on localhost:3000
 npm run build
 npm run start
 npm run lint
+
+# Frontend uses Next.js 15.5.2 with App Router
+# React Strict Mode is disabled to prevent chart duplications
+# API proxying configured: /api/kis/* → adapter.quantum-trading.com:8000/*
 ```
 
 ### Backend (quantum-web-api/)  
@@ -78,6 +86,31 @@ uv run python test_system.py        # Basic system test
 # core/enhanced_analyzer.py    - Advanced analysis without KIS API
 # core/smart_order_manager.py  - Intelligent price optimization
 # core/simple_data_provider.py - PyKRX/yfinance data access
+```
+
+### External Adapter (quantum-adapter-external/)
+```bash
+uv sync                  # Install dependencies with uv (Python 3.13+ required)
+uv run python main.py    # Run FastAPI server on port 8001
+
+# Test API endpoints with custom domain (hosts configured)
+curl "http://external-api.quantum-trading.com:8001/health"                   # Health check
+curl "http://external-api.quantum-trading.com:8001/news/search?query=삼성전자&display=5"  # Search news
+curl "http://external-api.quantum-trading.com:8001/news/latest/애플?count=3" # Latest news
+curl "http://external-api.quantum-trading.com:8001/news/financial/삼성전자"   # Financial news
+
+# DART Disclosure API endpoints
+curl "http://external-api.quantum-trading.com:8001/disclosure/recent?days=3&count=5"         # Recent disclosures
+curl "http://external-api.quantum-trading.com:8001/disclosure/company/00126380?days=60&count=3"  # Samsung disclosures
+curl "http://external-api.quantum-trading.com:8001/disclosure/periodic?days=7&count=3"       # Periodic disclosures (정기공시)
+curl "http://external-api.quantum-trading.com:8001/disclosure/major?days=7&count=3"          # Major disclosures (주요사항보고)
+curl "http://external-api.quantum-trading.com:8001/disclosure/search-company/삼성?count=5"    # Search by company keyword
+curl "http://external-api.quantum-trading.com:8001/disclosure/company-info/00126380"         # Company information (기업개황)
+curl "http://external-api.quantum-trading.com:8001/disclosure/company-info/00164779"         # SK Hynix company info
+curl "http://external-api.quantum-trading.com:8001/disclosure/types"                         # Disclosure types reference
+
+# API Documentation (when DEBUG=true)
+# http://external-api.quantum-trading.com:8001/docs
 ```
 
 ### Airflow Analysis Pipeline
@@ -136,21 +169,41 @@ cd quantum-infrastructure
    my_prod: "01"  # 종합계좌
    ```
 
-3. **JWT Secret**: Configured in application.yml
+3. **External APIs Configuration**: Create `.env` in quantum-adapter-external/
+   ```yaml
+   # Example .env structure for external adapter
+   NAVER_CLIENT_ID=your_naver_client_id
+   NAVER_CLIENT_SECRET=your_naver_client_secret
+   DART_API_KEY=your_dart_api_key_from_opendart.fss.or.kr
+   DEBUG=true
+   SERVER_PORT=8001
+   ```
 
-4. **KIS Token Storage**: Configure path in kis_auth.py
+4. **JWT Secret**: Configured in application.yml
+
+5. **KIS Token Storage**: Configure path in kis_auth.py
    ```python
    # Line 39 in kis_auth.py
    config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
    ```
 
 ### Port Configuration
-- **Frontend**: 3000 (Next.js)
-- **Backend**: 8080 (Spring Boot)  
-- **KIS Adapter**: 8000 (FastAPI)
+- **Frontend**: 3000 (Next.js) - quantum-trading.com:3000 or localhost:3000
+- **Backend**: 8080 (Spring Boot) - api.quantum-trading.com:8080
+- **KIS Adapter**: 8000 (FastAPI) - adapter.quantum-trading.com:8000
+- **External Adapter**: 8001 (FastAPI) - external-api.quantum-trading.com:8001
 - **Database**: 5432 (PostgreSQL - unified for trading platform & Airflow)
 - **Airflow**: 8081 (Web UI)
 - **Monitoring**: Grafana (3001), Prometheus (9090), Loki (3100)
+
+### Hosts File Configuration
+Add these entries to `/etc/hosts` for custom domain access:
+```
+127.0.0.1 quantum-trading.com
+127.0.0.1 api.quantum-trading.com  
+127.0.0.1 adapter.quantum-trading.com
+127.0.0.1 external-api.quantum-trading.com
+```
 
 ## Comprehensive DAG Analysis System
 
@@ -240,6 +293,32 @@ presentation/          # Controllers and DTOs
 └── dto/              # Request/response objects
 ```
 
+### Frontend Architecture (Next.js App Router)
+```
+src/
+├── app/                    # Next.js 13+ App Router
+│   ├── layout.tsx         # Root layout with providers
+│   ├── page.tsx           # Home page
+│   ├── domestic/          # Domestic trading pages
+│   ├── overseas/          # Overseas trading pages
+│   └── calendar/          # Holiday calendar
+├── components/            # React components
+│   ├── ui/               # shadcn/ui base components
+│   ├── auth/             # Authentication components
+│   ├── chart/            # Trading charts (lightweight-charts)
+│   ├── layout/           # Layout components (Header, etc.)
+│   ├── kis/              # KIS-specific components
+│   └── market/           # Market indicators
+├── contexts/             # React Context providers
+│   ├── AuthContext.tsx   # User authentication state
+│   ├── MarketContext.tsx # Market data state
+│   └── TradingModeContext.tsx # LIVE/SANDBOX mode
+├── lib/                  # Utilities and services
+│   ├── api-client.ts     # Backend API client
+│   └── services/         # External API services
+└── hooks/                # Custom React hooks
+```
+
 ### Data Flow Architecture
 ```
 User Request → Frontend → Backend API → KIS Adapter → KIS OpenAPI
@@ -277,11 +356,13 @@ WebSocket /ws/realtime                         # Real-time data stream
 ## Technology Stack & Dependencies
 
 ### Frontend (quantum-web-client/)
-- **Next.js 15.5.2** + React 19.1.0
-- **UI Components**: Radix UI primitives + Tailwind CSS
+- **Next.js 15.5.2** + React 19.1.0 (App Router architecture)
+- **UI Components**: Radix UI primitives + Tailwind CSS + shadcn/ui
 - **Forms**: React Hook Form + Zod validation
-- **Charts**: lightweight-charts v5.0.8
+- **Charts**: lightweight-charts v5.0.8 (Korean colors: red=up, blue=down)
 - **Themes**: next-themes for dark/light mode
+- **State Management**: React Context (Auth, Market, TradingMode)
+- **Fonts**: Geist Sans + Geist Mono
 
 ### Backend (quantum-web-api/)
 - **Spring Boot 3.5.5** + Kotlin 1.9.25 + Java 21
@@ -301,6 +382,15 @@ WebSocket /ws/realtime                         # Real-time data stream
   - scikit-learn 1.7.1+ (machine learning)
   - aiohttp 3.12.15+ (async HTTP operations)
 - **Architecture**: 17 REST endpoints + WebSocket real-time data + Airflow integration
+
+### External Adapter (quantum-adapter-external/)
+- **FastAPI** + Python 3.13 + uvicorn
+- **News API Integration**: Naver News API for real-time financial news
+- **DART API Integration**: Korea Financial Supervisory Service public disclosure system
+- **HTTP Client**: httpx 0.25+ for async API calls
+- **Environment Management**: python-dotenv for configuration
+- **Validation**: Pydantic models for API request/response validation
+- **Architecture**: 12 REST endpoints (4 news + 8 disclosure) + health monitoring
 
 ### Apache Airflow (Analysis Pipeline)
 - **Airflow 2.8.2** with LocalExecutor setup
@@ -344,6 +434,11 @@ PATIENT: 1.0% discount/premium for high volatility
 6. **Infrastructure Services**: All monitoring, Airflow, and database services managed through unified infrastructure
 
 ### Testing & Debugging
+- **Frontend Development**:
+  - Use browser DevTools for React Component debugging
+  - Check Context state in React DevTools (Auth, Market, TradingMode)
+  - Monitor API calls in Network tab (proxied through Next.js to KIS Adapter)
+  - Chart debugging: React Strict Mode disabled to prevent duplicate chart instances
 - **Airflow System Verification**: 
   - Monitor DAG execution via UI at http://localhost:8081
   - Check task logs: `docker exec airflow-scheduler cat /opt/airflow/logs/dag_id=quantum_daily_stock_analysis/[run_id]/task_id=[task]/attempt=1.log`
@@ -397,6 +492,12 @@ docker-compose -f docker-compose.airflow.simple.yml up -d --build
 ## Current Implementation Status
 
 ### ✅ Completed
+- **External Data Adapter**: Complete quantum-adapter-external service
+  - Real-time Naver News API integration (4 endpoints)
+  - Comprehensive DART public disclosure system integration (8 endpoints)
+  - Company information (기업개황) and disclosure search capabilities
+  - Custom domain support: external-api.quantum-trading.com:8001
+  - Pydantic validation models and comprehensive error handling
 - **Apache Airflow Pipeline**: Fully functional daily analysis system
   - 10 complex DAGs for comprehensive market analysis
   - Verified ComprehensiveBatchAnalyzer processing 28+ stocks

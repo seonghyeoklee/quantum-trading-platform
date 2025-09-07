@@ -14,6 +14,10 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: 'Asia/Seoul'
+    AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: 'Asia/Seoul' 
+    AIRFLOW__CORE__DAG_DEFAULT_VIEW: 'tree'
+    TZ: 'Asia/Seoul'
     # Connection to quantum PostgreSQL (same database, different service name)
     AIRFLOW_CONN_QUANTUM_POSTGRES: postgresql://quantum:quantum123@quantum-postgres:5432/quantum_trading
     PYTHONPATH: /opt/airflow/dags:/opt/airflow/plugins:/opt/airflow/quantum_analysis
@@ -21,6 +25,7 @@ x-airflow-common:
     - ../airflow/dags:/opt/airflow/dags
     - ../airflow/logs:/opt/airflow/logs
     - ../airflow/plugins:/opt/airflow/plugins
+    - ../airflow/config/airflow.cfg:/opt/airflow/airflow.cfg
     - ../quantum-adapter-kis/trading_strategy:/opt/airflow/quantum_analysis
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
@@ -40,6 +45,8 @@ services:
       POSTGRES_USER: quantum
       POSTGRES_PASSWORD: quantum123
       POSTGRES_DB: quantum_trading
+      TZ: 'Asia/Seoul'
+      PGTZ: 'Asia/Seoul'
     volumes:
       - quantum-postgres-data:/var/lib/postgresql/data
     ports:
@@ -122,6 +129,8 @@ services:
   loki:
     image: grafana/loki:2.9.0
     container_name: quantum-loki
+    environment:
+      TZ: 'Asia/Seoul'
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
@@ -136,6 +145,8 @@ services:
   promtail:
     image: grafana/promtail:2.9.0
     container_name: quantum-promtail
+    environment:
+      TZ: 'Asia/Seoul'
     volumes:
       - ./monitoring/promtail-config-simple-realtime.yml:/etc/promtail/config.yml
       - ../quantum-web-api/logs:/app/logs:ro
@@ -151,6 +162,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: quantum-prometheus
+    environment:
+      TZ: 'Asia/Seoul'
     ports:
       - "9090:9090"
     volumes:
@@ -174,6 +187,7 @@ services:
     ports:
       - "3001:3000"
     environment:
+      - TZ=Asia/Seoul
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=quantum2024
       - GF_USERS_ALLOW_SIGN_UP=false

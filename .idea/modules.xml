@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/quantum-adapter-external/quantum-adapter-external.iml" filepath="$PROJECT_DIR$/quantum-adapter-external/quantum-adapter-external.iml" />
       <module fileurl="file://$PROJECT_DIR$/quantum-adapter-kis/quantum-adapter-kis.iml" filepath="$PROJECT_DIR$/quantum-adapter-kis/quantum-adapter-kis.iml" />
       <module fileurl="file://$PROJECT_DIR$/quantum-adapter-kiwoom/quantum-adapter-kiwoom.iml" filepath="$PROJECT_DIR$/quantum-adapter-kiwoom/quantum-adapter-kiwoom.iml" />
       <module fileurl="file://$PROJECT_DIR$/quantum-trading-platform.iml" filepath="$PROJECT_DIR$/quantum-trading-platform.iml" />
