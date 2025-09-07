@@ -345,6 +345,279 @@
     @apply px-6 py-4;
   }
   
+  /* Custom Calendar Styles */
+  .calendar-container {
+    @apply bg-card rounded-2xl border border-border shadow-xl overflow-hidden;
+    background: linear-gradient(135deg, rgb(var(--card)), rgb(var(--card) / 0.98));
+  }
+
+  /* React Calendar Custom Styles - Complete Override */
+  .react-calendar {
+    @apply w-full border-0 font-sans;
+    background: transparent !important;
+    color: rgb(var(--foreground));
+    font-family: inherit;
+    line-height: 1.125em;
+  }
+  
+  .react-calendar * {
+    text-decoration: none;
+  }
+  
+  .react-calendar button {
+    margin: 0;
+    border: 0;
+    outline: none;
+  }
+  
+  .react-calendar button:enabled:hover {
+    cursor: pointer;
+  }
+
+  .react-calendar__navigation {
+    @apply flex items-center justify-between mb-6 px-4 !important;
+    background: transparent !important;
+    height: 56px !important;
+    min-height: 56px !important;
+  }
+
+  .react-calendar__navigation button {
+    @apply text-foreground transition-all duration-200 rounded-lg p-2 !important;
+    background: transparent !important;
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .react-calendar__navigation button:hover:enabled {
+    @apply bg-primary/10 !important;
+    background-color: rgb(var(--primary) / 0.1) !important;
+  }
+
+  .react-calendar__navigation button:disabled {
+    @apply opacity-50 cursor-not-allowed !important;
+  }
+
+  .react-calendar__navigation__label {
+    @apply flex-grow text-center font-bold text-xl !important;
+    pointer-events: none !important;
+    color: rgb(var(--foreground)) !important;
+    font-size: 1.25rem !important;
+    line-height: 1.2 !important;
+  }
+  
+  /* More specific selectors for navigation */
+  .calendar-container .react-calendar__navigation {
+    height: 56px !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .calendar-container .react-calendar__navigation button {
+    color: rgb(var(--foreground)) !important;
+    border: 1px solid transparent !important;
+  }
+  
+  .calendar-container .react-calendar__navigation__label {
+    color: rgb(var(--foreground)) !important;
+    font-weight: 700 !important;
+  }
+
+  .react-calendar__month-view__weekdays {
+    @apply text-center font-semibold text-base mb-4 !important;
+    background: rgb(var(--muted) / 0.3) !important;
+    padding: 1rem 0 !important;
+    border-radius: 0.75rem !important;
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
+    align-items: center !important;
+  }
+
+  .react-calendar__month-view__weekdays__weekday {
+    @apply py-3 px-2 text-muted-foreground !important;
+    font-weight: 600 !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .react-calendar__month-view__weekdays__weekday:first-child,
+  .react-calendar__month-view__weekdays__weekday:last-child {
+    @apply text-destructive font-bold !important;
+    color: rgb(var(--destructive)) !important;
+  }
+
+  .react-calendar__month-view__days {
+    @apply grid grid-cols-7 gap-2;
+  }
+
+  .react-calendar__tile {
+    @apply relative flex flex-col items-center justify-start p-2 transition-all duration-200 rounded-lg;
+    background: transparent;
+    border: 1px solid transparent;
+    min-height: 120px;
+    height: auto;
+  }
+
+  .react-calendar__tile:hover:enabled {
+    @apply bg-primary/5 border-primary/20;
+    transform: translateY(-1px);
+  }
+
+  .react-calendar__tile:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+
+  .react-calendar__tile--now {
+    @apply bg-primary/10 border-primary/30;
+    box-shadow: 0 0 0 1px rgb(var(--primary) / 0.2);
+  }
+
+  .react-calendar__tile--active {
+    @apply bg-primary text-primary-foreground;
+    box-shadow: 0 4px 12px rgb(var(--primary) / 0.3);
+  }
+
+  .react-calendar__tile--active:hover:enabled {
+    @apply bg-primary;
+  }
+
+  .react-calendar__month-view__days__day--weekend {
+    @apply text-destructive;
+  }
+  
+  .react-calendar__tile.sunday {
+    @apply text-destructive;
+  }
+  
+  .react-calendar__tile.sunday abbr {
+    @apply text-destructive font-bold;
+  }
+  
+  .react-calendar__tile.saturday {
+    @apply text-destructive;
+  }
+  
+  .react-calendar__tile.saturday abbr {
+    @apply text-destructive font-bold;
+  }
+  
+  .react-calendar__tile.holiday {
+    @apply text-destructive;
+  }
+  
+  .react-calendar__tile.holiday abbr {
+    @apply text-destructive font-bold;
+  }
+
+  .react-calendar__month-view__days__day--neighboringMonth {
+    @apply opacity-30;
+  }
+
+  /* Calendar tile content */
+  .react-calendar__tile abbr {
+    @apply font-semibold text-base no-underline;
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+
+  /* Custom tile states */
+  .react-calendar__tile.market-open {
+    @apply bg-green-500/10 border-green-500/30;
+  }
+
+  .react-calendar__tile.market-open:hover:enabled {
+    @apply bg-green-500/20 border-green-500/40;
+  }
+
+  .react-calendar__tile.trading-day {
+    @apply bg-blue-500/10 border-blue-500/30;
+  }
+
+  .react-calendar__tile.business-day {
+    @apply bg-cyan-500/5 border-cyan-500/20;
+  }
+
+  .react-calendar__tile.holiday {
+    @apply bg-red-500/10 border-red-500/30;
+  }
+
+  /* Dark mode specific adjustments */
+  .dark .react-calendar__tile {
+    @apply hover:bg-primary/10;
+  }
+
+  .dark .react-calendar__tile--now {
+    @apply bg-primary/15 border-primary/40;
+  }
+
+  .dark .react-calendar__tile--active {
+    @apply bg-primary;
+  }
+
+  .dark .react-calendar__month-view__weekdays {
+    background: rgb(var(--muted) / 0.15);
+  }
+
+  /* Calendar status badges */
+  .calendar-badge {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .calendar-badge-green {
+    @apply bg-green-100 text-green-800 border border-green-200;
+  }
+
+  .dark .calendar-badge-green {
+    @apply bg-green-900/30 text-green-400 border-green-800;
+  }
+
+  .calendar-badge-blue {
+    @apply bg-blue-100 text-blue-800 border border-blue-200;
+  }
+
+  .dark .calendar-badge-blue {
+    @apply bg-blue-900/30 text-blue-400 border-blue-800;
+  }
+
+  .calendar-badge-red {
+    @apply bg-red-100 text-red-800 border border-red-200;
+  }
+
+  .dark .calendar-badge-red {
+    @apply bg-red-900/30 text-red-400 border-red-800;
+  }
+
+  .calendar-badge-orange {
+    @apply bg-orange-100 text-orange-800 border border-orange-200;
+  }
+
+  .dark .calendar-badge-orange {
+    @apply bg-orange-900/30 text-orange-400 border-orange-800;
+  }
+
+  /* Calendar holiday name */
+  .calendar-holiday-name {
+    @apply text-xs text-muted-foreground mt-1;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  /* Status dots */
+  .calendar-status-dot {
+    @apply w-1.5 h-1.5 rounded-full;
+  }
+
   /* Data Table Styles */
   .data-table {
     @apply w-full border-collapse border border-border rounded-lg overflow-hidden;
@@ -634,15 +907,15 @@
     ) !important;
   }
 
-  .dark body.trading-mode-production .border-primary {
+  .dark body.trading-mode-production [class*="border-primary"] {
     border-color: rgb(239 68 68) !important;
   }
 
-  .dark body.trading-mode-production .text-primary {
+  .dark body.trading-mode-production [class*="text-primary"] {
     color: rgb(239 68 68) !important;
   }
 
-  .dark body.trading-mode-production .bg-primary {
+  .dark body.trading-mode-production [class*="bg-primary"] {
     background-color: rgb(239 68 68) !important;
   }
 
@@ -1435,5 +1708,15 @@
   .react-calendar__tile--trading-day {
     background: rgb(var(--success-emerald) / 0.1) !important;
     color: rgb(var(--success-emerald)) !important;
+  }
+
+  /* Scrollbar hide utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 }

@@ -1,11 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, isSameMonth, isToday, isWeekend } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import Calendar, { CalendarProps } from 'react-calendar';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import Calendar from 'react-calendar';
+import { 
+  Calendar as CalendarIcon, 
+  ChevronLeft, 
+  ChevronRight,
+  Info,
+  TrendingUp,
+  Building2,
+  BanknoteIcon,
+  XCircle,
+  RefreshCw
+} from 'lucide-react';
 import { KisHolidayApiResponse, KisHolidayItem } from '@/types/kis-holiday';
+import { cn } from '@/lib/utils';
 
 // react-calendar의 Value 타입 정의
 type ValuePiece = Date | null;
@@ -15,21 +26,28 @@ interface HolidayCalendarProps {
   className?: string;
 }
 
+// 날짜 상태 타입 정의
+type DateStatus = {
+  type: 'market-open' | 'trading' | 'business' | 'no-settlement' | 'holiday';
+  label: string;
+  icon: React.ReactNode;
+  priority: number;
+  className: string;
+};
+
 export default function HolidayCalendar({ className }: HolidayCalendarProps) {
-  // 실제 현재 날짜 자동 가져오기
   const currentDate = new Date();
   const [selectedDate, setSelectedDate] = useState<Value>(currentDate);
   const [activeStartDate, setActiveStartDate] = useState(currentDate);
   const [holidayData, setHolidayData] = useState<KisHolidayItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiMessage, setApiMessage] = useState<string>('');
 
   // 날짜 변경 핸들러
   const handleDateChange = (value: Value) => {
     setSelectedDate(value);
   };
-
+  
   // 월 변경 핸들러
   const handleActiveStartDateChange = ({ activeStartDate }: { activeStartDate: Date | null }) => {
     if (activeStartDate) {
@@ -37,273 +55,295 @@ export default function HolidayCalendar({ className }: HolidayCalendarProps) {
     }
   };
 
-  // 휴장일 달력 데이터 로드 (Spring Boot 직접 호출)
+  // 휴장일 달력 데이터 로드
   const fetchHolidayData = async (year: number, month: number) => {
     setIsLoading(true);
     setError(null);
-    setApiMessage('');
     
     try {
-      // 시작일과 종료일 계산 (해당 월 전체)
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
 
-      // Spring Boot API 직접 호출
       const apiUrl = `http://api.quantum-trading.com:8080/api/v1/kis/holidays/calendar?startDate=${startDate}&endDate=${endDate}`;
-      console.log('🔗 Fetching directly from Spring Boot:', apiUrl);
-
+      
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Spring Boot API 호출 실패: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(`API 호출 실패: ${response.status}`);
       }
+
+      const data: KisHolidayApiResponse = await response.json();
       
-      const apiResponse: KisHolidayApiResponse = await response.json();
-      
-      if (apiResponse.calendar) {
-        setHolidayData(apiResponse.calendar || []);
-        setApiMessage('달력 정보 조회 완료');
-        console.log('✅ Calendar data loaded directly:', apiResponse.calendar?.length || 0, 'calendar items');
-        console.log('📅 Date range:', apiResponse.startDate, 'to', apiResponse.endDate);
-        console.log('📊 Total count:', apiResponse.totalCount);
+      if (data.success && data.data) {
+        setHolidayData(data.data);
       } else {
-        throw new Error('달력 데이터를 불러올 수 없습니다');
+        console.warn('휴장일 데이터가 없거나 형식이 올바르지 않습니다:', data);
+        setHolidayData([]);
       }
     } catch (error) {
-      console.error('❌ Spring Boot API 호출 실패:', error);
-      setError(error instanceof Error ? error.message : 'Spring Boot 서버 연결 중 오류가 발생했습니다');
+      console.error('휴장일 데이터 로드 실패:', error);
+      setError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
       setHolidayData([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 현재 표시된 월 정보 및 데이터 로드
+  // 컴포넌트 마운트 및 월 변경 시 데이터 로드
   useEffect(() => {
     const year = activeStartDate.getFullYear();
     const month = activeStartDate.getMonth() + 1;
-    
-    console.log('Calendar month changed:', format(activeStartDate, 'yyyy-MM', { locale: ko }));
     fetchHolidayData(year, month);
   }, [activeStartDate]);
 
-  // 날짜별 거래일 정보 조회 함수 (모든 날짜 정보 포함)
-  const getCalendarInfoForDate = (date: Date): KisHolidayItem | null => {
-    const dateString = format(date, 'yyyy-MM-dd');
-    return holidayData.find(item => item.date === dateString) || null;
-  };
-
-  // 날짜 상태 분석 함수 - 전문적인 스타일
-  type DateStatus = {
-    type: string;
-    label: string;
-    priority: number;
-    color: string;
-    bgColor: string;
-    borderColor: string;
-  };
-
-  const getDateStatus = (holiday: KisHolidayItem | null): DateStatus | null => {
+  // 날짜별 상태 확인
+  const getDateStatus = (date: Date): DateStatus | null => {
+    const dateString = format(date, 'yyyyMMdd');
+    const holiday = holidayData.find(item => item.bass_dt === dateString);
+    
     if (!holiday) return null;
-    
-    // KIS API 기준 상태 분석 (새 필드 우선, 기존 필드 fallback)
-    const isMarketOpen = holiday.opnd_yn === 'Y' || holiday.isOpeningDay;    // 개장일 (주문 가능)
-    const isBusinessDay = holiday.bzdy_yn === 'Y' || holiday.isBusinessDay;   // 영업일 (금융기관 업무)
-    const isTradingDay = holiday.tr_day_yn === 'Y' || holiday.isTradingDay;  // 거래일 (증권업무)
-    const isSettlementDay = holiday.sttl_day_yn === 'Y' || holiday.isSettlementDay; // 결제일
-    
-    // 우선순위: 개장일 > 거래일 > 영업일 > 결제일
-    if (isMarketOpen) {
-      return { 
-        type: 'market-open', 
-        label: '개장일', 
+
+    // 우선순위별 상태 확인 (높은 우선순위부터)
+    const statusMap: Record<string, DateStatus> = {
+      '0': {
+        type: 'holiday',
+        label: '휴장',
+        icon: <XCircle className="w-3 h-3" />,
         priority: 1,
-        color: 'text-green-700',
-        bgColor: 'bg-green-100',
-        borderColor: 'border-green-300'
-      };
-    }
-    
-    if (isTradingDay) {
-      return { 
-        type: 'trading', 
-        label: '거래일', 
-        priority: 2,
-        color: 'text-blue-700',
-        bgColor: 'bg-blue-100',
-        borderColor: 'border-blue-300'
-      };
-    }
-    
-    if (isBusinessDay) {
-      return { 
-        type: 'business', 
-        label: '영업일', 
-        priority: 3,
-        color: 'text-cyan-700',
-        bgColor: 'bg-cyan-50',
-        borderColor: 'border-cyan-200'
-      };
-    }
-    
-    if (!isSettlementDay) {
-      return { 
-        type: 'no-settlement', 
-        label: '결제불가', 
+        className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
+      },
+      '1': {
+        type: 'market-open',
+        label: '개장',
+        icon: <TrendingUp className="w-3 h-3" />,
         priority: 4,
-        color: 'text-orange-700',
-        bgColor: 'bg-orange-50',
-        borderColor: 'border-orange-200'
-      };
+        className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800'
+      },
+      '2': {
+        type: 'trading',
+        label: '거래',
+        icon: <Building2 className="w-3 h-3" />,
+        priority: 3,
+        className: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
+      },
+      '3': {
+        type: 'business',
+        label: '영업',
+        icon: <BanknoteIcon className="w-3 h-3" />,
+        priority: 3,
+        className: 'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800'
+      },
+      '4': {
+        type: 'no-settlement',
+        label: '결제불가',
+        icon: <XCircle className="w-3 h-3" />,
+        priority: 2,
+        className: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800'
+      }
+    };
+
+    // 각 필드를 확인하여 가장 우선순위가 높은 상태 반환
+    const possibleStatuses = [];
+    if (holiday.bzdy_yn === '0') possibleStatuses.push(statusMap['0']);
+    if (holiday.tr_dy_yn === '1') possibleStatuses.push(statusMap['1']);
+    if (holiday.opnd_yn === '1') possibleStatuses.push(statusMap['2']);
+    if (holiday.sttl_dy_yn === '0') possibleStatuses.push(statusMap['4']);
+    
+    // 우선순위가 가장 높은 것 반환 (낮은 숫자가 높은 우선순위)
+    return possibleStatuses.sort((a, b) => a.priority - b.priority)[0] || null;
+  };
+
+  // 달력 타일 클래스 이름
+  const getTileClassName = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== 'month') return null;
+    
+    const classes = ['react-calendar__tile'];
+    
+    // 오늘 날짜
+    if (isToday(date)) {
+      classes.push('react-calendar__tile--now');
     }
     
-    // 모든 업무가 불가능한 휴일
-    return { 
-      type: 'holiday', 
-      label: '휴장일', 
-      priority: 5,
-      color: 'text-red-700',
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200'
-    };
+    // 선택된 날짜
+    if (selectedDate && selectedDate instanceof Date && format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')) {
+      classes.push('react-calendar__tile--active');
+    }
+    
+    // 현재 월이 아닌 날짜
+    if (!isSameMonth(date, activeStartDate)) {
+      classes.push('react-calendar__tile--neighboringMonth');
+    }
+    
+    // 주말
+    if (isWeekend(date)) {
+      classes.push('react-calendar__tile--weekends');
+    }
+    
+    // 휴일 상태
+    const status = getDateStatus(date);
+    if (status?.type === 'holiday') {
+      classes.push('react-calendar__tile--holiday');
+    }
+    
+    return classes.join(' ');
+  };
+
+  // 달력 타일 내용
+  const getTileContent = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== 'month') return null;
+    
+    const status = getDateStatus(date);
+    if (!status) return null;
+
+    return (
+      <div className="absolute bottom-1 left-1 right-1">
+        <div className={cn('calendar-badge text-xs px-1 py-0.5 rounded flex items-center gap-1', status.className)}>
+          {status.icon}
+          <span className="text-xs">{status.label}</span>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className={`w-full ${className}`}>
-
-      {/* Professional Trading Calendar - Full Width */}
-      <div className="bg-card border border-border rounded-2xl shadow-lg backdrop-blur-sm w-full min-h-[700px]" style={{
-        background: 'linear-gradient(135deg, rgb(var(--card)), rgb(var(--card) / 0.98))',
-        padding: '2rem'
-      }}>
-        {/* Professional Month Header with Status */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-muted-foreground">
-                {isLoading ? '데이터 로드 중...' : apiMessage || '실시간 거래일 정보'}
-              </span>
-            </div>
+    <div className={cn('space-y-6', className)}>
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-primary/10 rounded-xl">
+            <CalendarIcon className="w-8 h-8 text-primary" />
           </div>
-          {error && (
-            <div className="text-sm text-destructive bg-destructive/10 px-3 py-1 rounded-md border border-destructive/20">
-              {error}
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">트레이딩 캘린더</h1>
+            <p className="text-muted-foreground">KIS 휴장일 및 시장 운영 정보</p>
+          </div>
+        </div>
+        
+        <button
+          onClick={() => fetchHolidayData(activeStartDate.getFullYear(), activeStartDate.getMonth() + 1)}
+          disabled={isLoading}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors",
+            "text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           )}
+        >
+          <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          새로고침
+        </button>
+      </div>
+
+      {/* 에러 상태 */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-destructive">
+            <Info className="w-4 h-4" />
+            <span className="font-medium">데이터 로드 실패</span>
+          </div>
+          <p className="text-sm text-destructive/80 mt-1">{error}</p>
         </div>
-        
-        {/* Professional Weekday Headers */}
-        <div className="mb-6">
-          <div className="grid grid-cols-7 gap-1 mb-4 bg-muted/30 rounded-xl p-3">
-            <div className="text-center py-2 font-semibold text-destructive/80 text-base">일</div>
-            <div className="text-center py-2 font-semibold text-muted-foreground text-base">월</div>
-            <div className="text-center py-2 font-semibold text-muted-foreground text-base">화</div>
-            <div className="text-center py-2 font-semibold text-muted-foreground text-base">수</div>
-            <div className="text-center py-2 font-semibold text-muted-foreground text-base">목</div>
-            <div className="text-center py-2 font-semibold text-muted-foreground text-base">금</div>
-            <div className="text-center py-2 font-semibold text-destructive/80 text-base">토</div>
+      )}
+
+      {/* 범례 */}
+      <div className="bg-card rounded-lg border border-border p-4">
+        <h3 className="text-sm font-medium text-foreground mb-3">범례</h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="flex items-center gap-2">
+            <div className="calendar-badge bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800">
+              <XCircle className="w-3 h-3" />
+              <span>휴장</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="calendar-badge bg-green-100 text-green-700 border-green-300 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
+              <TrendingUp className="w-3 h-3" />
+              <span>개장</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="calendar-badge bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+              <Building2 className="w-3 h-3" />
+              <span>거래</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="calendar-badge bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800">
+              <BanknoteIcon className="w-3 h-3" />
+              <span>영업</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="calendar-badge bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800">
+              <XCircle className="w-3 h-3" />
+              <span>결제불가</span>
+            </div>
           </div>
         </div>
-        
+      </div>
+
+      {/* 달력 */}
+      <div className="bg-card rounded-lg border border-border p-6 calendar-container">
         <Calendar
           onChange={handleDateChange}
-          value={selectedDate}
           onActiveStartDateChange={handleActiveStartDateChange}
-          locale="en-US"
-          showNavigation={true}
-          showNeighboringMonth={false}
-          prevLabel={<ChevronLeft className="h-6 w-6" />}
-          nextLabel={<ChevronRight className="h-6 w-6" />}
+          value={selectedDate}
+          view="month"
+          locale="ko-KR"
+          calendarType="gregory"
+          showNeighboringMonth={true}
+          formatShortWeekday={(locale, date) => {
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            return weekdays[date.getDay()];
+          }}
+          tileClassName={getTileClassName}
+          tileContent={getTileContent}
+          prevLabel={<ChevronLeft className="w-5 h-5" />}
+          nextLabel={<ChevronRight className="w-5 h-5" />}
           prev2Label={null}
           next2Label={null}
-          className="google-calendar-style"
-          tileContent={({ date, view }) => {
-            if (view === 'month') {
-              const calendarInfo = getCalendarInfoForDate(date);
-              const status = getDateStatus(calendarInfo);
-              
-              return (
-                <div className="absolute inset-0 p-1 pt-6 flex flex-col overflow-hidden">
-                  {/* 로딩 상태 */}
-                  {isLoading && (
-                    <div className="flex items-center justify-center">
-                      <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
-                    </div>
-                  )}
-                  
-                  {/* 거래일 상태 정보 */}
-                  {!isLoading && calendarInfo && (
-                    <>
-                      {/* 주요 상태 표시 - 작은 뱃지 */}
-                      {status && (
-                        <div className="mb-1">
-                          <div className={`inline-block px-1 py-0.5 rounded text-xs font-medium leading-none ${status.bgColor} ${status.color} ${status.borderColor} border`} style={{ fontSize: '8px' }}>
-                            {status.label.charAt(0)}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* 휴장일 이름 */}
-                      {calendarInfo.holidayName && calendarInfo.holidayName.trim() !== '' && (
-                        <div className="mb-1">
-                          <span className="text-xs text-muted-foreground bg-muted/20 px-0.5 rounded" style={{ fontSize: '8px', lineHeight: '10px' }}>
-                            {calendarInfo.holidayName.length > 3 ? calendarInfo.holidayName.substring(0, 3) : calendarInfo.holidayName}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* 상태 점들 */}
-                      <div className="flex gap-0.5 flex-wrap">
-                        {(() => {
-                          const isMarketOpen = calendarInfo.opnd_yn === 'Y' || calendarInfo.isOpeningDay;
-                          const isTradingDay = calendarInfo.tr_day_yn === 'Y' || calendarInfo.isTradingDay;
-                          const isBusinessDay = calendarInfo.bzdy_yn === 'Y' || calendarInfo.isBusinessDay;
-                          const isSettlementDay = calendarInfo.sttl_day_yn === 'Y' || calendarInfo.isSettlementDay;
-                          
-                          return (
-                            <>
-                              {isMarketOpen && (
-                                <div className="w-1 h-1 bg-green-500 rounded-full" title="개장일"></div>
-                              )}
-                              {isTradingDay && !isMarketOpen && (
-                                <div className="w-1 h-1 bg-blue-500 rounded-full" title="거래일"></div>
-                              )}
-                              {isBusinessDay && !isTradingDay && (
-                                <div className="w-1 h-1 bg-cyan-500 rounded-full" title="영업일"></div>
-                              )}
-                              {!isSettlementDay && (
-                                <div className="w-1 h-1 bg-orange-400 rounded-full" title="결제불가"></div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          }}
-          tileClassName={({ date, view }) => {
-            if (view === 'month') {
-              const calendarInfo = getCalendarInfoForDate(date);
-              if (calendarInfo && (!calendarInfo.isTradingDay || !calendarInfo.isBusinessDay)) {
-                return 'has-holiday';
-              }
-            }
-            return '';
-          }}
+          className="react-calendar-enhanced"
         />
       </div>
+
+      {/* 선택된 날짜 정보 */}
+      {selectedDate && selectedDate instanceof Date && (
+        <div className="bg-card rounded-lg border border-border p-4">
+          <h3 className="text-lg font-semibold text-foreground mb-3">
+            {format(selectedDate, 'yyyy년 M월 d일 EEEE', { locale: ko })}
+          </h3>
+          {(() => {
+            const status = getDateStatus(selectedDate);
+            if (status) {
+              return (
+                <div className="flex items-center gap-3">
+                  <div className={cn('calendar-badge', status.className)}>
+                    {status.icon}
+                    <span>{status.label}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {status.type === 'holiday' ? '증권시장 휴장일입니다' :
+                     status.type === 'market-open' ? '증권시장 개장일입니다' :
+                     status.type === 'trading' ? '거래 가능한 날입니다' :
+                     status.type === 'business' ? '영업일입니다' :
+                     status.type === 'no-settlement' ? '결제가 불가능한 날입니다' : ''}
+                  </span>
+                </div>
+              );
+            } else {
+              return (
+                <p className="text-sm text-muted-foreground">
+                  일반 영업일입니다.
+                </p>
+              );
+            }
+          })()}
+        </div>
+      )}
     </div>
   );
 }

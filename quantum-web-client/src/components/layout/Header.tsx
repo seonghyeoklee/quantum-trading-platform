@@ -22,7 +22,12 @@ import {
   Menu,
   X,
   Settings,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  Calendar,
+  Building2,
+  DollarSign,
+  Newspaper
 } from "lucide-react";
 
 interface HeaderProps {
@@ -37,8 +42,8 @@ export default function Header({ className }: HeaderProps) {
 
   // 현재 페이지 확인 - 새로운 구조
   const isHomePage = pathname === '/';
-  const isDomesticPage = pathname === '/domestic';
-  const isOverseasPage = pathname === '/overseas';
+  const isDomesticPage = pathname === '/domestic' || pathname.startsWith('/domestic/');
+  const isOverseasPage = pathname === '/overseas' || pathname.startsWith('/overseas/');
   const isProfilePage = pathname === '/profile';
   const isSettingsPage = pathname === '/settings';
 
@@ -109,16 +114,68 @@ export default function Header({ className }: HeaderProps) {
                 홈
               </Link>
               
-              <Link 
-                href="/domestic" 
-                className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
-                  isDomesticPage 
-                    ? 'text-primary bg-primary/10' 
-                    : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
-                }`}
-              >
-                국내시장
-              </Link>
+              {/* 국내시장 드롭다운 */}
+              <div className="relative group">
+                <Link 
+                  href="/domestic" 
+                  className={`flex items-center gap-1 px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+                    isDomesticPage 
+                      ? 'text-primary bg-primary/10' 
+                      : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
+                  }`}
+                >
+                  국내시장
+                  <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                </Link>
+                
+                {/* 드롭다운 메뉴 */}
+                <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <Link 
+                      href="/domestic"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Home className="w-4 h-4" />
+                      대시보드
+                    </Link>
+                    <Link 
+                      href="/domestic/calendar"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      달력
+                    </Link>
+                    <Link 
+                      href="/domestic/charts"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      차트
+                    </Link>
+                    <Link 
+                      href="/domestic/stocks"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Building2 className="w-4 h-4" />
+                      종목
+                    </Link>
+                    <Link 
+                      href="/domestic/trading"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      거래
+                    </Link>
+                    <Link 
+                      href="/domestic/news"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Newspaper className="w-4 h-4" />
+                      뉴스
+                    </Link>
+                  </div>
+                </div>
+              </div>
               
               <Link 
                 href="/overseas" 
