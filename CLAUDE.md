@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication, multi-environment KIS token management, and comprehensive analysis pipelines powered by Apache Airflow and Spring AI integration.
+**Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication, multi-environment KIS token management, comprehensive analysis pipelines powered by Apache Airflow, and strict data integrity safeguards preventing any fake/mock data generation.
 
 ### Recent Major Additions
+- **Data Integrity Framework**: Complete system safeguards preventing fake/mock data generation with comprehensive error handling
+- **DDD-Based Stock Domain**: Complete Domain-Driven Design implementation with JPA entities, repositories, and ETL pipelines for efficient stock data management
 - **External Data Adapter**: Complete quantum-adapter-external module with real-time Naver News API and comprehensive DART public disclosure system integration
 - **Apache Airflow Analysis Pipeline**: Fully functional daily stock analysis system with 10 complex DAGs
-- **Spring AI Integration**: OpenAI GPT-4o-mini integration for intelligent market analysis  
-- **Comprehensive Batch Analyzer**: Multi-source data analysis system (PyKRX, yfinance, FinanceDataReader)
+- **Comprehensive Batch Analyzer**: KIS API-focused data analysis system with internal optimization
 - **Sector-Based Trading System**: Automated trading across 6 key sectors with intelligent order management
 
 ## Architecture Overview
@@ -18,10 +19,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Microservices Structure
 ```
 Frontend (Port 3000) ← → Backend (Port 8080) ← → KIS Adapter (Port 8000)
-Next.js 15 + React 19      Spring Boot 3.5 + Kotlin    FastAPI + Python 3.13
+Next.js 15 + React 19      Spring Boot 3.3.4 + Kotlin    FastAPI + Python 3.13
                                       ↓
                            External Adapter (Port 8001)
                            FastAPI + Python 3.13 + Naver News + DART APIs
+                                      ↓
+                           Kiwoom Adapter (experimental)
+                           FastAPI + Python 3.13 + Kiwoom API
 ```
 
 ### Key Architectural Decisions
@@ -58,6 +62,7 @@ export OPENAI_API_KEY=sk-your-api-key-here
 
 ### KIS Adapter (quantum-adapter-kis/)
 ```bash
+# CRITICAL: uv is required for dependency management (much faster than pip)
 uv sync                  # Install dependencies with uv (Python 3.13+ required)
 uv run python main.py    # Run FastAPI server on port 8000
 
@@ -85,11 +90,12 @@ uv run python test_system.py        # Basic system test
 # core/sector_portfolio.py     - Portfolio management
 # core/enhanced_analyzer.py    - Advanced analysis without KIS API
 # core/smart_order_manager.py  - Intelligent price optimization
-# core/simple_data_provider.py - PyKRX/yfinance data access
+# core/simple_data_provider.py - KIS API data access with fallback
 ```
 
 ### External Adapter (quantum-adapter-external/)
 ```bash
+# CRITICAL: uv is required for dependency management (much faster than pip)
 uv sync                  # Install dependencies with uv (Python 3.13+ required)
 uv run python main.py    # Run FastAPI server on port 8001
 
@@ -111,6 +117,14 @@ curl "http://external-api.quantum-trading.com:8001/disclosure/types"            
 
 # API Documentation (when DEBUG=true)
 # http://external-api.quantum-trading.com:8001/docs
+```
+
+### Kiwoom Adapter (quantum-adapter-kiwoom/) [EXPERIMENTAL]
+```bash
+# NOTE: Experimental component for Kiwoom securities integration
+# Currently in early development phase
+cd quantum-adapter-kiwoom
+python main.py    # Basic setup only
 ```
 
 ### Airflow Analysis Pipeline
@@ -140,6 +154,37 @@ curl -X POST "http://localhost:8081/api/v1/dags/quantum_daily_stock_analysis/dag
 # - risk_management_dag - Risk assessment and monitoring
 ```
 
+### Database & ETL Operations
+```bash
+# Database setup and ETL execution
+cd database/
+
+# Create all DDD tables
+psql -h localhost -p 5432 -U quantum -d quantum_trading -f create_ddd_stock_tables.sql
+
+# Execute ETL migration (domestic_stocks_detail → daily_chart_data)
+psql -h localhost -p 5432 -U quantum -d quantum_trading -f etl_chart_data_migration.sql
+
+# Create optimized chart data table
+psql -h localhost -p 5432 -U quantum -d quantum_trading -f create_daily_chart_table.sql
+
+# Data verification queries
+psql -h localhost -p 5432 -U quantum -d quantum_trading -c "
+  SELECT COUNT(*) as total_stocks, 
+         COUNT(*) FILTER (WHERE market_type = 'KOSPI') as kospi_count,
+         COUNT(*) FILTER (WHERE market_type = 'KOSDAQ') as kosdaq_count
+  FROM domestic_stocks WHERE is_active = true;"
+
+# ETL performance testing
+psql -h localhost -p 5432 -U quantum -d quantum_trading -c "
+  SELECT stock_code, COUNT(*) as chart_records, 
+         MIN(trade_date) as earliest_date, MAX(trade_date) as latest_date,
+         ROUND(AVG(close_price), 2) as avg_price
+  FROM daily_chart_data 
+  GROUP BY stock_code 
+  ORDER BY chart_records DESC LIMIT 10;"
+```
+
 ### Infrastructure & Monitoring
 ```bash
 cd quantum-infrastructure
@@ -152,7 +197,7 @@ cd quantum-infrastructure
 ## Configuration Requirements
 
 ### Environment Setup
-1. **PostgreSQL Database**: Port 5433 (dev), 5432 (prod)
+1. **PostgreSQL Database**: Port 5432 (unified for both dev and prod)
    - Database: `quantum_trading`
    - Username: `quantum` 
    - Password: `quantum123`
@@ -247,9 +292,9 @@ quantum-infrastructure/
 sector_trading_test/
 ├── core/                           # Core modules
 │   ├── sector_portfolio.py        # 6-sector portfolio management
-│   ├── enhanced_analyzer.py       # Analysis without KIS API (PyKRX/yfinance)
+│   ├── enhanced_analyzer.py       # Analysis with optimized KIS API calls
 │   ├── smart_order_manager.py     # Intelligent order pricing (AGGRESSIVE/BALANCED/PATIENT)
-│   ├── simple_data_provider.py    # Multi-source data provider (PyKRX priority)
+│   ├── simple_data_provider.py    # KIS API data provider with caching
 │   ├── manual_executor.py          # Manual approval workflow
 │   └── trade_logger.py            # Trade logging system
 ├── config/                        # Configuration files
@@ -274,7 +319,19 @@ Sector Portfolio (1,000만원 total):
 domain/                 # Business logic, entities, domain services
 ├── User.kt            # Aggregate root with domain events
 ├── KisAccount.kt      # KIS trading accounts
-└── KisToken.kt        # Server-side token management
+├── KisToken.kt        # Server-side token management
+└── stock/             # Stock domain (NEW DDD implementation)
+    ├── domain/
+    │   ├── DomesticStock.kt        # 국내주식 마스터 (KOSPI/KOSDAQ)
+    │   ├── DomesticStockDetail.kt  # 국내주식 상세정보 (KIS API 원시 데이터)
+    │   ├── DailyChartData.kt       # 일봉 차트 데이터 (백테스팅 최적화)
+    │   ├── OverseasStock.kt        # 해외주식 마스터
+    │   └── OverseasStockDetail.kt  # 해외주식 상세정보
+    └── infrastructure/
+        └── persistence/
+            ├── DomesticStockRepository.kt
+            ├── DomesticStockDetailRepository.kt
+            └── DailyChartDataRepository.kt (implied)
 
 application/           # Use cases and port definitions  
 ├── port/
@@ -325,13 +382,18 @@ User Request → Frontend → Backend API → KIS Adapter → KIS OpenAPI
                   ↑           ↓             ↓
                 JWT Auth   Server KIS    Market Data
                             ↓             ↓
-                      AI Analysis ← Stock Analysis DB
-                            ↑
-                    Airflow Pipeline (Daily 18:00)
-                    └── Sector Trading System
-                         ├── PyKRX Data (No rate limit)
+                      AI Analysis ← Stock Analysis DB (DDD Entities)
+                            ↑                    ↑
+                    Airflow Pipeline (Daily 18:00)   ETL Process
+                    └── Sector Trading System        ↓
+                         ├── KIS API Data (Rate limited)
                          ├── Smart Order Manager
                          └── Manual Approval Workflow
+
+DDD Data Flow:
+KIS Raw Data → DomesticStockDetail (원시 JSON) → ETL → DailyChartData (최적화된 OHLCV)
+                                                  ↓
+                                            Chart/Backtesting
 ```
 
 ### KIS Adapter API Pattern
@@ -353,6 +415,73 @@ GET /health                                    # Health check
 WebSocket /ws/realtime                         # Real-time data stream
 ```
 
+## DDD-Based Stock Data Architecture
+
+### Core Domain Entities Design
+The platform implements a sophisticated Domain-Driven Design approach for stock data management:
+
+**DomesticStock** (마스터 데이터):
+- 3,902개 국내주식 종목 정보 (KOSPI: 2,097, KOSDAQ: 1,805)
+- JPA 엔티티 with optimized indexing (stock_code, market_type, is_active)
+- Business methods: isKospi(), isKosdaq(), activate()/deactivate()
+- Factory methods: createKospi(), createKosdaq()
+
+**DomesticStockDetail** (원시 API 데이터):
+- KIS API 완전한 JSON 응답 저장 (raw_response JSONB)
+- 데이터 타입별 분리: PRICE, CHART, INDEX
+- 품질 추적: EXCELLENT, GOOD, FAIR, POOR
+- JSON 경로 추출 메서드: extractFromResponse(), getOhlcvData()
+
+**DailyChartData** (차트 최적화):
+- 백테스팅 및 차트 렌더링 전용 최적화 테이블
+- OHLCV 데이터 with 비즈니스 로직 메서드
+- 기술적 분석: isValidOhlc(), getDailyReturn(), isBullish()/isBearish()
+- 캔들스틱 분석: getBodySize(), getUpperShadow(), isDoji()
+
+### ETL Data Pipeline Architecture
+```sql
+-- ETL Flow: domestic_stocks_detail → daily_chart_data
+-- 원시 JSON 데이터를 최적화된 OHLCV 구조로 변환
+
+INSERT INTO daily_chart_data (...)
+SELECT 
+    dsd.stock_code,
+    dsd.trade_date,
+    COALESCE(
+        (dsd.raw_response->'parsed_ohlcv'->>'open')::decimal(12,2),
+        (dsd.raw_response->>'stck_oprc')::decimal(12,2)
+    ) as open_price,
+    -- Additional OHLCV extraction logic...
+FROM domestic_stocks_detail dsd
+WHERE dsd.data_type = 'CHART' AND dsd.raw_response IS NOT NULL
+```
+
+### Database Performance Optimization
+- **Index Strategy**: Compound indexes on (stock_code, trade_date DESC), price/volume indexes
+- **Query Performance**: 0.243ms single stock, 7.099ms multi-stock analysis
+- **Data Validation**: 100% OHLC relationship validation (Low ≤ Open/Close ≤ High)
+- **ETL Results**: 4,460 records migrated successfully with quality verification
+
+### Repository Pattern Implementation
+```kotlin
+interface DomesticStockRepository : JpaRepository<DomesticStock, Long> {
+    fun findByStockCode(stockCode: String): DomesticStock?
+    fun findByMarketTypeAndIsActive(marketType: DomesticMarketType, isActive: Boolean): List<DomesticStock>
+    fun findByStockNameContainingIgnoreCase(name: String): List<DomesticStock>
+}
+
+interface DailyChartDataRepository : JpaRepository<DailyChartData, Long> {
+    fun findByStockCodeAndTradeDateBetween(
+        stockCode: String, 
+        startDate: LocalDate, 
+        endDate: LocalDate
+    ): List<DailyChartData>
+    
+    @Query("SELECT d FROM DailyChartData d WHERE d.stockCode = :stockCode ORDER BY d.tradeDate DESC LIMIT 1")
+    fun findLatestByStockCode(stockCode: String): DailyChartData?
+}
+```
+
 ## Technology Stack & Dependencies
 
 ### Frontend (quantum-web-client/)
@@ -365,22 +494,21 @@ WebSocket /ws/realtime                         # Real-time data stream
 - **Fonts**: Geist Sans + Geist Mono
 
 ### Backend (quantum-web-api/)
-- **Spring Boot 3.5.5** + Kotlin 1.9.25 + Java 21
+- **Spring Boot 3.3.4** + Kotlin 1.9.25 + Java 21
 - **Database**: PostgreSQL + Spring Data JPA
 - **Security**: JWT authentication + Spring Security
 - **HTTP Client**: WebFlux WebClient for KIS API calls
-- **AI Integration**: Spring AI 0.8.1 + OpenAI GPT models
 - **Monitoring**: Actuator + Prometheus metrics + Logbook HTTP logging
 
 ### KIS Adapter (quantum-adapter-kis/)
 - **FastAPI** + Python 3.13 + uvicorn
+- **Dependency Management**: uv (required - faster than pip)
 - **Trading Libraries**: 
-  - PyKRX 1.0.51+ (Korean stock data without API limits)
-  - yfinance 0.2.0+ (fallback data source)
   - pandas-ta 0.3.14b0 (technical indicators)
   - backtrader 1.9.78+ (backtesting)
-  - scikit-learn 1.7.1+ (machine learning)
-  - aiohttp 3.12.15+ (async HTTP operations)
+  - matplotlib 3.10.6+ (visualization)
+  - psycopg2-binary 2.9.10+ (PostgreSQL connector)
+- **Data Sources**: **KIS API Focused** (PyKRX, yfinance, FinanceDataReader removed per pyproject.toml)
 - **Architecture**: 17 REST endpoints + WebSocket real-time data + Airflow integration
 
 ### External Adapter (quantum-adapter-external/)
@@ -410,11 +538,13 @@ PATIENT: 1.0% discount/premium for high volatility
 
 ### Data Provider Priority
 ```python
-# Avoids KIS API rate limits by using alternative sources:
-1. PyKRX (primary) - No rate limits, real Korean market data
-2. yfinance (secondary) - Global market data fallback
-3. FinanceDataReader (tertiary) - Alternative Korean data source
-4. KIS API (last resort) - Only when others unavailable
+# KIS API Focused Architecture (As of current pyproject.toml):
+1. KIS API (primary) - Real-time authenticated Korean stock data
+2. Internal caching and data optimization
+3. Manual fallback procedures when KIS API unavailable
+
+# Note: PyKRX, yfinance, FinanceDataReader removed from dependencies
+# Previous multi-source approach consolidated to KIS API focus
 ```
 
 ### Risk Management
@@ -467,19 +597,39 @@ docker-compose -f docker-compose.airflow.simple.yml down
 docker-compose -f docker-compose.airflow.simple.yml up -d --build
 ```
 
-**Analysis Data Sources Priority**: MultiDataProvider uses PyKRX as primary source to avoid KIS API rate limits.
+**Analysis Data Sources Priority**: KIS API-focused with internal caching and optimization to manage rate limits.
 
-### Spring AI Integration Requirements
-- **OpenAI API Key**: Must be set as environment variable `OPENAI_API_KEY`
-- **Model Configuration**: GPT-4o-mini with temperature 0.1 for consistent analysis
-- **Fallback Behavior**: System gracefully handles missing API key but AI features will be disabled
+### Data Integrity Requirements (CRITICAL)
+- **No Mock Data Generation**: System NEVER creates fake/dummy data when APIs fail - always returns proper error responses
+- **Real Data Only**: All endpoints validate data authenticity and reject invalid requests with appropriate HTTP status codes
+- **Error Handling**: Comprehensive StandardErrorResponse system with specific error codes (KIS_API_ERROR, DATA_NOT_FOUND, etc.)
+- **Validation Chain**: DomesticStockService implements strict validation preventing any mock data generation
+
+## Critical Development Rules
+
+### Data Integrity Rule (ABSOLUTE REQUIREMENT)
+**NEVER generate mock/dummy/fake data when APIs fail or return errors.**
+
+This is the most important rule in the entire system. When KIS API calls fail, data is unavailable, or any other error occurs:
+- ✅ **CORRECT**: Return appropriate HTTP error codes (404, 503, etc.) with StandardErrorResponse
+- ❌ **FORBIDDEN**: Generate any kind of placeholder, demo, or dummy data
+
+**Examples of correct error handling**:
+- Invalid stock code (like Q53005) → 404 with "차트 데이터를 찾을 수 없습니다"
+- KIS API failure → 503 with "KIS API 연결에 실패했습니다"
+- Database error → 500 with "데이터베이스 오류가 발생했습니다"
+
+**Key implementation points**:
+- DomesticStockService returns `emptyList()` instead of generated data
+- GlobalExceptionHandler provides StandardErrorResponse for all failures
+- All validation methods (validateStockDetail, validateChartData) reject invalid data
+- Complete removal of dangerous functions like `start_demo_data_generator`
 
 ## Important Notes
 
 ### Rate Limiting & Performance
 - **KIS LIVE API**: 20 calls/second per account
-- **KIS SANDBOX API**: 2 calls/second per account  
-- **PyKRX Alternative**: No rate limits, recommended for analysis
+- **KIS SANDBOX API**: 2 calls/second per account
 - **WebSocket Limits**: Max 41 concurrent registrations
 - **Chart Data**: Automatic 90-day splitting for large date ranges
 
@@ -502,14 +652,14 @@ docker-compose -f docker-compose.airflow.simple.yml up -d --build
   - 10 complex DAGs for comprehensive market analysis
   - Verified ComprehensiveBatchAnalyzer processing 28+ stocks
   - Fixed async/sync integration issues, Python 3.8 compatibility
-  - Multi-source data integration (PyKRX priority, yfinance fallback)
-- **Spring AI Integration**: OpenAI GPT-4o-mini for market intelligence
-  - AI-powered stock analysis and recommendations
-  - Configurable model parameters (temperature: 0.1)
-  - Environment variable configuration for API keys
+  - KIS API-focused data integration with internal optimization
+- **Data Integrity Framework**: Complete system safeguards preventing fake/mock data generation
+  - Comprehensive error handling with StandardErrorResponse system
+  - Real data validation in DomesticStockService with transaction boundaries
+  - Enhanced GlobalExceptionHandler with KIS API specific error handling
 - **Sector Trading System**: Complete automated trading system with 6 sectors
   - Smart order management with intelligent pricing
-  - PyKRX integration to avoid KIS API rate limits
+  - KIS API integration with intelligent rate limit management
   - Manual approval workflow for trade execution
   - Comprehensive testing suite
 - **Frontend**: Next.js app with chart system
