@@ -41,22 +41,29 @@ class NewsItem(BaseModel):
     
     @validator('title', 'description')
     def clean_html_tags(cls, v):
-        """Remove HTML tags from text fields."""
+        """Remove HTML tags and decode HTML entities from text fields."""
         if v:
+            import html
             # Remove <b> tags and other HTML tags
             clean_text = re.sub(r'<[^>]+>', '', v)
+            # Decode HTML entities like &quot; &lt; &gt; &amp;
+            clean_text = html.unescape(clean_text)
             return clean_text.strip()
         return v
     
     @property
     def clean_title(self) -> str:
-        """Get title without HTML tags."""
-        return re.sub(r'<[^>]+>', '', self.title).strip()
+        """Get title without HTML tags and entities."""
+        import html
+        clean_text = re.sub(r'<[^>]+>', '', self.title)
+        return html.unescape(clean_text).strip()
     
     @property
     def clean_description(self) -> str:
-        """Get description without HTML tags."""
-        return re.sub(r'<[^>]+>', '', self.description).strip()
+        """Get description without HTML tags and entities."""
+        import html
+        clean_text = re.sub(r'<[^>]+>', '', self.description)
+        return html.unescape(clean_text).strip()
 
 
 class NewsSearchResponse(BaseModel):

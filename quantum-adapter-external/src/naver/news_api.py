@@ -3,7 +3,6 @@ Naver News API client implementation.
 """
 
 from typing import Dict, Any
-from urllib.parse import quote
 from config.settings import settings
 from src.utils.http_client import HTTPClient
 from src.naver.models import NewsSearchParams, NewsSearchResponse, NewsSearchRequest
@@ -44,8 +43,7 @@ class NaverNewsAPI:
             request = NewsSearchRequest(params=params)
             api_params = request.to_api_params()
             
-            # URL encode the query
-            api_params['query'] = quote(api_params['query'], encoding='utf-8')
+            # No need to manually encode - HTTPClient handles URL encoding
             
             logger.info(f"Searching Naver News: query='{params.query}', display={params.display}, start={params.start}")
             
@@ -136,15 +134,22 @@ class NaverNewsAPI:
         Returns:
             NewsSearchResponse: Financial news results
         """
-        # Create financial news specific query
-        query = f"{symbol_or_company} 주식"
+        # Check if input is a stock code (6 digits) - use as-is for better results
+        if symbol_or_company.isdigit() and len(symbol_or_company) == 6:
+            query = symbol_or_company
+            logger.info(f"Searching financial news with stock code: {query}")
+        else:
+            # For company names, add financial context
+            query = f"{symbol_or_company} 주가"
+            logger.info(f"Searching financial news with company name: {query}")
         
         params = NewsSearchParams(
             query=query,
-            display=50,  # Get more results for financial news
+            display=20,
             start=1,
-            sort="date"  # Latest financial news first
+            sort="sim"  # Relevance first
         )
+        
         return await self.search_news(params)
 
 

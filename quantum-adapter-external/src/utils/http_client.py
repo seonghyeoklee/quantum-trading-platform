@@ -4,7 +4,6 @@ HTTP client utilities for external API calls.
 
 import httpx
 from typing import Dict, Any, Optional
-from urllib.parse import urlencode
 import asyncio
 from src.common.exceptions import ExternalAPIError
 
@@ -54,12 +53,8 @@ class HTTPClient:
             raise RuntimeError("HTTPClient must be used as async context manager")
         
         try:
-            # Build URL with parameters
-            if params:
-                query_string = urlencode(params, safe='', encoding='utf-8')
-                url = f"{url}?{query_string}"
-            
-            response = await self._client.get(url, headers=headers)
+            # Let httpx handle URL encoding automatically
+            response = await self._client.get(url, headers=headers, params=params)
             
             # Check for HTTP errors
             if response.status_code >= 400:
