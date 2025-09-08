@@ -27,7 +27,8 @@ const CATEGORY_LABELS: Record<NewsCategory, string> = {
 
 const POPULAR_KEYWORDS = [
   '삼성전자', 'SK하이닉스', 'LG에너지솔루션', 'NAVER', '카카오',
-  '현대차', 'POSCO홀딩스', '셀트리온', 'LG화학', 'KB금융'
+  '현대차', 'POSCO홀딩스', '셀트리온', 'LG화학', 'KB금융',
+  '삼성바이오로직스', 'KAI', '한화에어로스페이스', '두산에너빌리티', 'HD현대중공업'
 ];
 
 export default function DomesticNewsClient() {
@@ -56,47 +57,81 @@ export default function DomesticNewsClient() {
     refresh: refreshToday
   } = useTodayNews();
 
-  // 카테고리 변경 핸들러
+  // 카테고리 변경 핸들러 - 개선된 금융 특화 검색
   const handleCategoryChange = async (category: NewsCategory) => {
+    console.log('🔥 카테고리 변경:', category);
     setSelectedCategory(category);
     clearNews();
     
     try {
       switch (category) {
         case 'financial':
-          await loadFinancialNews('주식', 7);
+          // 금융 뉴스: 주요 종목들로 더 구체적인 검색
+          const majorStocks = ['삼성전자', 'SK하이닉스', 'NAVER', '카카오', 'LG에너지솔루션'];
+          const randomStock = majorStocks[Math.floor(Math.random() * majorStocks.length)];
+          console.log('🔥 금융뉴스 로드:', randomStock);
+          await loadFinancialNews(randomStock, 3);
           break;
         case 'latest':
-          await loadLatestNews('경제', 20);
+          // 최신 뉴스: 시의성 있는 증시 키워드
+          console.log('🔥 최신뉴스 로드');
+          await loadLatestNews('증시 현황', 15);
           break;
         default:
-          await loadNews('경제 뉴스', { display: 20 });
+          // 일반 뉴스: 종합적인 경제 뉴스
+          console.log('🔥 일반뉴스 로드');
+          await loadNews('한국 경제 주식 시장', { display: 15 });
       }
     } catch (error) {
-      console.error('뉴스 로드 실패:', error);
+      console.error('🔥 뉴스 로드 실패:', error);
     }
   };
 
-  // 검색 핸들러
+  // 검색 핸들러 - 금융 특화 검색어 보완
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
     clearNews();
     try {
-      await loadNews(searchQuery, { display: 20 });
+      // 사용자 검색어를 금융 관련어로 보완
+      const enhancedQuery = enhanceUserSearchQuery(searchQuery);
+      await loadNews(enhancedQuery, { display: 20 });
     } catch (error) {
       console.error('뉴스 검색 실패:', error);
     }
   };
 
-  // 키워드 클릭 핸들러
+  // 사용자 검색어 금융 특화 보완 함수
+  const enhanceUserSearchQuery = (query: string): string => {
+    const financialTerms = ['주식', '증시', '투자', '경제', '주가', '종목'];
+    const hasFinancialTerm = financialTerms.some(term => query.includes(term));
+    
+    if (!hasFinancialTerm) {
+      // 금융 관련어가 없으면 "주식" 추가로 금융 뉴스 관련도 향상
+      return `${query} 주식`;
+    }
+    
+    return query;
+  };
+
+  // 키워드 클릭 핸들러 - 더 구체적인 금융 검색어 생성
   const handleKeywordClick = async (keyword: string) => {
     setSelectedKeyword(keyword);
-    setSearchQuery(keyword);
+    
+    // 종목명 + 금융 키워드 조합으로 더 관련성 높은 뉴스 검색
+    const financialVariations = [
+      `${keyword} 주가 분석`,
+      `${keyword} 실적 전망`,
+      `${keyword} 투자 의견`,
+      `${keyword} 증권가 평가`
+    ];
+    const enhancedQuery = financialVariations[Math.floor(Math.random() * financialVariations.length)];
+    
+    setSearchQuery(enhancedQuery);
     clearNews();
     
     try {
-      await loadFinancialNews(keyword, 7);
+      await loadFinancialNews(keyword, 5); // 더 최근 뉴스로 제한
     } catch (error) {
       console.error('키워드 뉴스 로드 실패:', error);
     }
@@ -104,6 +139,7 @@ export default function DomesticNewsClient() {
 
   // 초기 로드
   useEffect(() => {
+    console.log('🔥 DomesticNewsClient 초기 로드 시작');
     handleCategoryChange('financial');
   }, []);
 
@@ -165,7 +201,7 @@ export default function DomesticNewsClient() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="뉴스 검색..."
+                placeholder="종목명 또는 키워드 검색 (예: 삼성전자, AI, 반도체)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
