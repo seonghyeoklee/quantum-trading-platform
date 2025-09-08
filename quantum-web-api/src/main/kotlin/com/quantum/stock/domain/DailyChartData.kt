@@ -358,7 +358,7 @@ class DailyChartData(
         /**
          * ETL용 생성 메서드 (DomesticStockDetail에서 변환)
          */
-        fun fromStockDetail(detail: DomesticStockDetail): DailyChartData? {
+        fun fromStockDetail(detail: DomesticStocksDetail): DailyChartData? {
             if (!detail.isChartData() || detail.tradeDate == null) {
                 return null
             }

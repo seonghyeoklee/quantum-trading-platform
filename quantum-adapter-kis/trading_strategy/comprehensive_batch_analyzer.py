@@ -738,38 +738,47 @@ class ComprehensiveBatchAnalyzer:
         try:
             logger.info("🚀 Airflow 동기 분석 시작...")
             
-            results = []
-            for stock in self.stock_list:
-                result = self.analyze_single_stock(stock)
-                if result:
-                    results.append(result)
-            
-            # 결과 요약
-            summary = self._create_market_summary(results)
-            
-            # 전체 결과 구성
-            final_results = {
-                "analysis_info": {
-                    "analysis_date": datetime.now().strftime("%Y-%m-%d"),
-                    "total_stocks": len(results),
-                    "analysis_engine": "ComprehensiveBatchAnalyzer",
-                    "version": "1.0.0",
-                    "created_at": datetime.now().isoformat()
-                },
-                "market_summary": summary,
-                "sector_summary": self._create_sector_summary(results),
-                "analysis_results": results
-            }
-            
-            # JSON 파일 저장
-            self.save_to_json(final_results)
-            
-            logger.info(f"✅ Airflow 분석 완료: {len(results)}개 종목")
-            return final_results
-            
+            # 이벤트 루프 생성 및 실행
+            import asyncio
+            return asyncio.run(self._run_analysis_async())
         except Exception as e:
-            logger.error(f"❌ Airflow 분석 오류: {e}")
+            logger.error(f"❌ Airflow 분석 오류: {str(e)}")
             raise
+    
+    async def _run_analysis_async(self):
+        """내부 async 분석 함수"""
+        from datetime import datetime
+        
+        results = []
+        for stock in self.symbol_registry.keys():
+            stock_info = self.symbol_registry[stock]
+            result = await self.analyze_single_stock(stock, stock_info)
+            if result:
+                results.append(result)
+        
+        # 결과 요약
+        summary = self._create_market_summary(results)
+        
+        # 전체 결과 구성
+        final_results = {
+            "analysis_info": {
+                "analysis_date": datetime.now().strftime("%Y-%m-%d"),
+                "total_stocks": len(results),
+                "analysis_engine": "ComprehensiveBatchAnalyzer",
+                "version": "1.0.0",
+                "created_at": datetime.now().isoformat()
+            },
+            "market_summary": summary,
+            "sector_summary": self._create_sector_summary(results),
+            "analysis_results": results
+        }
+        
+        # JSON 파일 저장
+        date_str = datetime.now().strftime("%Y%m%d")
+        self._save_to_json(final_results, date_str)
+        
+        logger.info(f"✅ Airflow 분석 완료: {len(results)}개 종목")
+        return final_results
 
 # 실행 스크립트
 async def main():

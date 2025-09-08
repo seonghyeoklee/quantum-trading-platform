@@ -12,6 +12,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import pytz
+import time
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -32,7 +33,7 @@ default_args = {
 }
 
 dag = DAG(
-    dag_id='domestic_stocks_price_collector',
+    dag_id='Stock_Data__14_Price_Collector',
     default_args=default_args,
     description='국내주식 실시간 가격 수집 - KIS API 연동으로 주요 종목 가격 정보 수집',
     schedule_interval='0 16 * * 1-5',  # 주중 오후 4시 (장마감 후)
@@ -80,71 +81,124 @@ MAJOR_STOCKS = [
 # ========================================
 
 class KISAPIClient:
-    """KIS Open API 클라이언트"""
+    """KIS Open API 클라이언트 - KIS Adapter 연동"""
     
     def __init__(self):
-        self.base_url = "https://openapi.koreainvestment.com:9443"
-        self.token = None
-        self.app_key = None
-        self.app_secret = None
+        # KIS Adapter URL (Docker 내부에서는 host.docker.internal 사용)
+        # Airflow가 Docker에서 실행중이므로 host.docker.internal 사용
+        self.adapter_url = "http://host.docker.internal:8000"
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        })
+        
+    def check_adapter_health(self):
+        """KIS Adapter 헬스체크"""
+        try:
+            response = self.session.get(f"{self.adapter_url}/health", timeout=5)
+            if response.status_code == 200:
+                print("✅ KIS Adapter 연결 성공")
+                return True
+            else:
+                print(f"⚠️ KIS Adapter 응답 이상: {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"❌ KIS Adapter 연결 실패: {e}")
+            return False
         
     def get_auth_token(self, environment='prod'):
-        """KIS API 인증 토큰 획득"""
+        """KIS API 인증 토큰 획득 (KIS Adapter 경유)"""
         
         print(f"🔑 KIS API 인증 토큰 획득 중... (환경: {environment})")
         
-        # 환경별 설정 (나중에 환경변수나 설정파일에서 읽어올 예정)
-        # 현재는 더미 값으로 설정
-        if environment == 'prod':
-            self.app_key = os.getenv('KIS_PROD_APP_KEY', 'DUMMY_PROD_KEY')
-            self.app_secret = os.getenv('KIS_PROD_APP_SECRET', 'DUMMY_PROD_SECRET')
-        else:
-            self.app_key = os.getenv('KIS_PAPER_APP_KEY', 'DUMMY_PAPER_KEY')
-            self.app_secret = os.getenv('KIS_PAPER_APP_SECRET', 'DUMMY_PAPER_SECRET')
-        
-        # 실제 토큰 요청은 일단 스킵하고 더미 토큰 반환
-        # TODO: 실제 KIS API 인증 로직 구현
-        print("⚠️ KIS API 인증은 현재 더미 모드입니다.")
-        self.token = "DUMMY_ACCESS_TOKEN"
-        return self.token
+        try:
+            # KIS Adapter의 토큰 갱신 엔드포인트 호출
+            response = self.session.post(
+                f"{self.adapter_url}/auth/refresh-token",
+                params={"environment": environment},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                print(f"✅ KIS API 인증 성공: {result.get('message', 'Token refreshed')}")
+                return True
+            else:
+                print(f"⚠️ KIS API 인증 실패: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ KIS API 인증 오류: {e}")
+            return False
     
     def get_current_price(self, stock_code: str) -> Dict[str, Any]:
-        """종목 현재가 조회"""
+        """종목 현재가 조회 (실제 KIS API 호출)"""
         
         print(f"📊 {stock_code} 현재가 조회 중...")
         
-        # 실제 API 호출 대신 더미 데이터 반환
-        # TODO: 실제 KIS API 호출 로직 구현
-        import random
-        
-        # 더미 가격 데이터 생성
-        base_price = {
-            '005930': 75000,  # 삼성전자
-            '000660': 135000,  # SK하이닉스
-            '035420': 180000,  # NAVER
-            '035720': 45000,   # 카카오
-            '051910': 420000,  # LG화학
-        }.get(stock_code, 10000)
-        
-        current_price = base_price + random.randint(-5000, 5000)
-        volume = random.randint(100000, 10000000)
-        
-        dummy_response = {
-            'output': {
-                'stck_prpr': str(current_price),        # 현재가
-                'acml_vol': str(volume),                # 누적거래량
-                'prdy_vrss': str(random.randint(-3000, 3000)),  # 전일대비
-                'prdy_vrss_sign': '1' if random.choice([True, False]) else '5',  # 등락구분
-                'prdy_ctrt': f"{random.uniform(-5.0, 5.0):.2f}",  # 전일대비율
-                'hgpr': str(current_price + random.randint(0, 2000)),  # 고가
-                'lwpr': str(current_price - random.randint(0, 2000)),  # 저가
-            },
-            'rt_cd': '0',  # 성공코드
-            'msg_cd': '수신성공',
-        }
-        
-        print(f"✅ {stock_code} 현재가: {current_price:,}원")
-        return dummy_response
+        try:
+            # KIS Adapter를 통해 실제 가격 조회
+            response = self.session.get(
+                f"{self.adapter_url}/domestic/price/{stock_code}",
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # API 응답 성공 여부 확인
+                if data.get('rt_cd') == '0':
+                    output = data.get('output', {})
+                    current_price = int(output.get('stck_prpr', 0))
+                    volume = int(output.get('acml_vol', 0))
+                    
+                    print(f"✅ {stock_code} 현재가: {current_price:,}원 (거래량: {volume:,})")
+                    
+                    # DAG에서 사용하는 형식으로 변환
+                    return {
+                        'output': {
+                            'stck_prpr': output.get('stck_prpr', '0'),  # 현재가
+                            'acml_vol': output.get('acml_vol', '0'),    # 누적거래량
+                            'prdy_vrss': output.get('prdy_vrss', '0'),  # 전일대비
+                            'prdy_vrss_sign': output.get('prdy_vrss_sign', '3'),  # 등락구분
+                            'prdy_ctrt': output.get('prdy_ctrt', '0.00'),  # 전일대비율
+                            'hgpr': output.get('stck_hgpr', '0'),  # 고가 (필드명 수정)
+                            'lwpr': output.get('stck_lwpr', '0'),  # 저가 (필드명 수정)
+                        },
+                        'rt_cd': '0',  # 성공코드
+                        'msg_cd': data.get('msg1', '정상처리'),
+                        'raw_response': data  # 원본 응답 저장
+                    }
+                else:
+                    print(f"⚠️ {stock_code} API 오류: {data.get('msg1', 'Unknown error')}")
+                    return {
+                        'rt_cd': data.get('rt_cd', '1'),
+                        'msg_cd': data.get('msg1', 'API Error'),
+                        'output': {}
+                    }
+            else:
+                print(f"❌ {stock_code} HTTP 오류: {response.status_code}")
+                return {
+                    'rt_cd': '1',
+                    'msg_cd': f'HTTP Error: {response.status_code}',
+                    'output': {}
+                }
+                
+        except requests.exceptions.Timeout:
+            print(f"⏱️ {stock_code} 요청 타임아웃")
+            return {
+                'rt_cd': '1',
+                'msg_cd': 'Request Timeout',
+                'output': {}
+            }
+        except Exception as e:
+            print(f"❌ {stock_code} 처리 오류: {e}")
+            return {
+                'rt_cd': '1',
+                'msg_cd': str(e),
+                'output': {}
+            }
 
 
 def collect_major_stocks_price(**context):
@@ -154,7 +208,14 @@ def collect_major_stocks_price(**context):
     
     # KIS API 클라이언트 초기화
     kis_client = KISAPIClient()
-    kis_client.get_auth_token()
+    
+    # Adapter 연결 확인
+    if not kis_client.check_adapter_health():
+        print("❌ KIS Adapter 연결 실패. 수집을 중단합니다.")
+        raise Exception("KIS Adapter is not available")
+    
+    # 토큰 갱신 (선택적 - Adapter가 자동으로 관리함)
+    kis_client.get_auth_token(environment='prod')
     
     # PostgreSQL 연결
     pg_hook = PostgresHook(postgres_conn_id='quantum_postgres')
@@ -189,7 +250,7 @@ def collect_major_stocks_price(**context):
                     'change_rate': float(output['prdy_ctrt']),
                     'high_price': int(output['hgpr']),
                     'low_price': int(output['lwpr']),
-                    'raw_response': price_data,
+                    'raw_response': price_data.get('raw_response', price_data),  # 원본 응답 저장
                     'api_endpoint': '/uapi/domestic-stock/v1/quotations/inquire-price',
                     'data_type': 'PRICE',
                 }
@@ -198,6 +259,9 @@ def collect_major_stocks_price(**context):
                 success_count += 1
                 
                 print(f"✅ {stock_name}({stock_code}): {collected_info['current_price']:,}원")
+                
+                # Rate Limit 대응 - API 호출 간 0.1초 대기
+                time.sleep(0.1)
                 
             else:
                 print(f"❌ {stock_name}({stock_code}) 조회 실패: {price_data.get('msg_cd', 'Unknown error')}")

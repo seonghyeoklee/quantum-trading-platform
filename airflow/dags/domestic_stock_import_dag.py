@@ -36,7 +36,7 @@ default_args = {
 }
 
 dag = DAG(
-    dag_id='domestic_stock_import',
+    dag_id='Stock_Data__10_Master_Import',
     default_args=default_args,
     description='국내주식종목 가져오기 - KOSPI/KOSDAQ 종목 파일 파싱 및 DB 적재 (DDD 설계)',
     schedule_interval='0 2 * * 1-5',  # 주중 새벽 2시 실행
@@ -362,7 +362,7 @@ update_stats_task = PostgresOperator(
     postgres_conn_id='quantum_postgres',
     sql="""
     -- 국내주식종목 통계 업데이트 (UPSERT)
-    INSERT INTO public.dag_run_stats (
+    INSERT INTO airflow.dag_run_stats (
         dag_id,
         task_id,
         execution_date,

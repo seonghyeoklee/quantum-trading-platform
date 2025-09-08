@@ -1,0 +1,137 @@
+"""
+Quantum Trading Platform - 그룹화된 DAG 예제
+TaskGroup과 tags를 사용한 체계적 DAG 구성
+"""
+
+from datetime import datetime, timedelta
+import pytz
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.utils.task_group import TaskGroup
+
+# 기본 설정
+default_args = {
+    'owner': 'quantum-trading',
+    'depends_on_past': False,
+    'start_date': datetime(2025, 9, 7, tzinfo=pytz.timezone("Asia/Seoul")),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+# DAG 생성
+dag = DAG(
+    'quantum_grouped_workflow',
+    default_args=default_args,
+    description='Quantum Trading - 그룹화된 워크플로우',
+    schedule_interval='0 18 * * 1-5',  # 주중 6시
+    max_active_runs=1,
+    catchup=False,
+    tags=['quantum', 'grouped', 'workflow', 'production'],
+)
+
+def dummy_task(**context):
+    """더미 태스크"""
+    task_name = context['task'].task_id
+    print(f"실행 중: {task_name}")
+    return f"완료: {task_name}"
+
+# ===============================
+# 1. 데이터 수집 그룹
+# ===============================
+with TaskGroup("data_collection", dag=dag) as data_collection_group:
+    
+    # 국내 주식 데이터 수집
+    collect_domestic = PythonOperator(
+        task_id="collect_domestic_stocks",
+        python_callable=dummy_task,
+    )
+    
+    # 해외 주식 데이터 수집  
+    collect_overseas = PythonOperator(
+        task_id="collect_overseas_stocks",
+        python_callable=dummy_task,
+    )
+    
+    # 차트 데이터 수집
+    collect_charts = PythonOperator(
+        task_id="collect_chart_data",
+        python_callable=dummy_task,
+    )
+
+# ===============================
+# 2. AI 분석 그룹
+# ===============================
+with TaskGroup("ai_analysis", dag=dag) as ai_analysis_group:
+    
+    # 기술적 분석
+    technical_analysis = PythonOperator(
+        task_id="run_technical_analysis",
+        python_callable=dummy_task,
+    )
+    
+    # AI 신호 생성
+    ai_signal_generation = PythonOperator(
+        task_id="generate_ai_signals",
+        python_callable=dummy_task,
+    )
+    
+    # ML 모델 학습
+    ml_training = PythonOperator(
+        task_id="train_ml_models",
+        python_callable=dummy_task,
+    )
+
+# ===============================
+# 3. 거래 실행 그룹  
+# ===============================
+with TaskGroup("trading_execution", dag=dag) as trading_group:
+    
+    # 포트폴리오 리밸런싱
+    rebalance_portfolio = PythonOperator(
+        task_id="rebalance_portfolio",
+        python_callable=dummy_task,
+    )
+    
+    # 자동 거래 실행
+    execute_trades = PythonOperator(
+        task_id="execute_auto_trades",
+        python_callable=dummy_task,
+    )
+    
+    # 리스크 관리
+    risk_management = PythonOperator(
+        task_id="manage_risks",
+        python_callable=dummy_task,
+    )
+
+# ===============================
+# 4. 모니터링 그룹
+# ===============================
+with TaskGroup("monitoring", dag=dag) as monitoring_group:
+    
+    # 성과 모니터링
+    performance_monitoring = PythonOperator(
+        task_id="monitor_performance",
+        python_callable=dummy_task,
+    )
+    
+    # 알림 발송
+    send_notifications = PythonOperator(
+        task_id="send_notifications", 
+        python_callable=dummy_task,
+    )
+
+# ===============================
+# 태스크 의존성 설정
+# ===============================
+# 데이터 수집 → AI 분석 → 거래 실행 → 모니터링
+data_collection_group >> ai_analysis_group >> trading_group >> monitoring_group
+
+# 그룹 내 병렬 실행
+collect_domestic >> [collect_overseas, collect_charts]
+technical_analysis >> [ai_signal_generation, ml_training]
+rebalance_portfolio >> execute_trades >> risk_management
+performance_monitoring >> send_notifications

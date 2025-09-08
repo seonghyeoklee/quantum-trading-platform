@@ -29,7 +29,7 @@ default_args = {
 
 # DAG 정의
 dag = DAG(
-    dag_id='kis_token_renewal',
+    dag_id='System_Auth__00_KIS_Token_Renewal',
     default_args=default_args,
     description='KIS 토큰 자동 갱신',
     schedule_interval='0 */5 * * *',  # 매 5시간마다

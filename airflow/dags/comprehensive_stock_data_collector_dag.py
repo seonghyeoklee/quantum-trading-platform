@@ -34,14 +34,89 @@ default_args = {
 }
 
 dag = DAG(
-    dag_id='comprehensive_stock_data_collector',
+    dag_id='Stock_Data__11_Comprehensive_Collector',
     default_args=default_args,
     description='범용 주식 차트 데이터 수집 - 전체 3,902개 종목 배치 처리',
     schedule_interval='0 20 * * 1-5',  # 주중 오후 8시 (여유 있는 시간)
     max_active_runs=1,
     catchup=False,
-    tags=['comprehensive', 'batch', 'ohlcv', 'chart-data'],
+    tags=['data-collection', 'batch', 'ohlcv', 'chart-data', 'high-priority', 'daily', 'prod'],
 )
+
+# ========================================
+# 상수 정의
+# ========================================
+
+# 우선순위 1: 핵심 대형주 (주요 종목 10개)
+PRIORITY_1_STOCKS = [
+    '005930',  # 삼성전자
+    '000660',  # SK하이닉스  
+    '035420',  # NAVER
+    '005380',  # 현대차
+    '000270',  # 기아
+    '068270',  # 셀트리온
+    '035720',  # 카카오
+    '207940',  # 삼성바이오로직스
+    '006400',  # 삼성SDI
+    '051910',  # LG화학
+]
+
+# 배치 처리 제한
+PRIORITY_2_LIMIT = 50   # 우선순위 2 종목 수
+PRIORITY_3_LIMIT = 150  # 우선순위 3 종목 수  
+PRIORITY_4_LIMIT = 500  # 우선순위 4 종목 수
+
+# ========================================
+# KIS API 클라이언트 (HTTP 기반)
+# ========================================
+
+class KISChartAPIClient:
+    """KIS 어댑터를 통한 차트 데이터 클라이언트"""
+    
+    def __init__(self):
+        self.adapter_base_url = "http://host.docker.internal:8000"  # KIS 어댑터 URL
+        self.session = None
+    
+    def get_auth_token(self):
+        """토큰은 KIS 어댑터에서 자동 관리"""
+        print("🔑 KIS 어댑터 토큰 확인...")
+        return True
+    
+    def get_daily_chart_data(self, stock_code: str, period_days: int = 90):
+        """일봉 차트 데이터 조회 via KIS 어댑터"""
+        try:
+            import requests
+            url = f"{self.adapter_base_url}/domestic/chart/{stock_code}"
+            params = {
+                'period': 'D',  # 일봉
+                'adj_price': 1  # 수정주가
+            }
+            
+            print(f"🔍 KIS API 호출: {url} - {stock_code}")
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            kis_data = response.json()
+            
+            # KIS API 응답 구조 검증
+            if 'rt_cd' not in kis_data:
+                print(f"❌ {stock_code}: 잘못된 KIS API 응답 구조")
+                return None
+                
+            if kis_data['rt_cd'] != '0':
+                print(f"❌ {stock_code}: KIS API 오류 - {kis_data.get('msg1', 'Unknown error')}")
+                return None
+                
+            if 'output2' not in kis_data or not kis_data['output2']:
+                print(f"❌ {stock_code}: output2 데이터가 없음")
+                return None
+                
+            print(f"✅ {stock_code}: KIS API에서 {len(kis_data['output2'])}일 데이터 조회 완료")
+            return kis_data
+            
+        except Exception as e:
+            print(f"❌ {stock_code} 차트 데이터 조회 실패: {e}")
+            return None
 
 # ========================================
 # 범용 차트 데이터 수집 엔진
@@ -272,21 +347,24 @@ def collect_priority_1_stocks(**context):
     
     for stock_code in target_stocks:
         try:
-            # 90일 일봉 차트 데이터 조회
+            # 실제 KIS API를 통한 일봉 차트 데이터 조회
             chart_response = kis_client.get_daily_chart_data(stock_code, period_days=90)
             
-            if chart_response['rt_cd'] == '0':
+            if chart_response and chart_response.get('rt_cd') == '0':
                 chart_data = chart_response['output2']
                 
-                # OHLCV 데이터 저장
-                saved_count = save_chart_data_to_db(pg_hook, stock_code, chart_data)
+                # 실제 KIS API 데이터를 DB에 저장
+                saved_count = save_chart_data_to_db(pg_hook, stock_code, chart_data, chart_response)
                 total_records += saved_count
                 success_count += 1
                 
-                print(f"✅ {stock_code}: {saved_count}일 데이터 저장")
+                print(f"✅ {stock_code}: {saved_count}일 실제 KIS 데이터 저장")
                 
             else:
-                print(f"❌ {stock_code} 차트 조회 실패: {chart_response.get('msg_cd', 'Unknown')}")
+                if chart_response:
+                    print(f"❌ {stock_code} KIS API 오류: {chart_response.get('msg1', 'Unknown error')}")
+                else:
+                    print(f"❌ {stock_code} KIS API 호출 실패")
                 error_count += 1
                 
         except Exception as e:
@@ -307,8 +385,8 @@ def collect_priority_1_stocks(**context):
     return result
 
 
-def save_chart_data_to_db(pg_hook: PostgresHook, stock_code: str, chart_data: List[Dict]) -> int:
-    """차트 데이터(OHLCV)를 domestic_stocks_detail에 저장"""
+def save_chart_data_to_db(pg_hook: PostgresHook, stock_code: str, chart_data: List[Dict], full_response: Dict = None) -> int:
+    """실제 KIS API 차트 데이터(OHLCV)를 domestic_stocks_detail에 저장"""
     
     if not chart_data:
         return 0

@@ -15,7 +15,7 @@ import java.time.LocalDateTime
  */
 @Entity
 @Table(
-    name = "domestic_stock_detail",
+    name = "domestic_stocks_detail",
     indexes = [
         Index(name = "idx_domestic_data_stock_date", columnList = "stock_code, trade_date"),
         Index(name = "idx_domestic_data_stock_type", columnList = "stock_code, data_type, request_timestamp"),
@@ -24,7 +24,7 @@ import java.time.LocalDateTime
     ]
 )
 @Comment("국내주식상세정보 - 국내 종목의 가격/차트 데이터 (DDD 설계)")
-class DomesticStockDetail(
+class DomesticStocksDetail(
     /**
      * 종목코드 (외래키)
      */
@@ -326,8 +326,8 @@ class DomesticStockDetail(
             apiEndpoint: String,
             rawResponse: Map<String, Any>,
             requestParams: Map<String, Any>? = null
-        ): DomesticStockDetail {
-            val detail = DomesticStockDetail(
+        ): DomesticStocksDetail {
+            val detail = DomesticStocksDetail(
                 stockCode = stockCode,
                 apiEndpoint = apiEndpoint,
                 dataType = StockDataType.PRICE,
@@ -356,8 +356,8 @@ class DomesticStockDetail(
             apiEndpoint: String,
             rawResponse: Map<String, Any>,
             requestParams: Map<String, Any>? = null
-        ): DomesticStockDetail {
-            val detail = DomesticStockDetail(
+        ): DomesticStocksDetail {
+            val detail = DomesticStocksDetail(
                 stockCode = stockCode,
                 apiEndpoint = apiEndpoint,
                 dataType = StockDataType.CHART,
@@ -398,8 +398,8 @@ class DomesticStockDetail(
             apiEndpoint: String,
             rawResponse: Map<String, Any>,
             requestParams: Map<String, Any>? = null
-        ): DomesticStockDetail {
-            return DomesticStockDetail(
+        ): DomesticStocksDetail {
+            return DomesticStocksDetail(
                 stockCode = stockCode,
                 apiEndpoint = apiEndpoint,
                 dataType = StockDataType.INDEX,

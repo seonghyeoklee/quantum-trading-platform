@@ -453,7 +453,7 @@
   }
 
   .react-calendar__month-view__days {
-    @apply grid grid-cols-7 gap-2;
+    @apply grid grid-cols-7 gap-3;
   }
 
   .react-calendar__tile {
@@ -462,11 +462,13 @@
     border: 1px solid transparent;
     min-height: 120px;
     height: auto;
+    z-index: 1;
   }
 
   .react-calendar__tile:hover:enabled {
     @apply bg-primary/5 border-primary/20;
-    transform: translateY(-1px);
+    z-index: 10;
+    box-shadow: 0 2px 8px rgb(var(--primary) / 0.1);
   }
 
   .react-calendar__tile:disabled {
@@ -476,15 +478,18 @@
   .react-calendar__tile--now {
     @apply bg-primary/10 border-primary/30;
     box-shadow: 0 0 0 1px rgb(var(--primary) / 0.2);
+    z-index: 2;
   }
 
   .react-calendar__tile--active {
     @apply bg-primary text-primary-foreground;
-    box-shadow: 0 4px 12px rgb(var(--primary) / 0.3);
+    box-shadow: 0 2px 8px rgb(var(--primary) / 0.3);
+    z-index: 5;
   }
 
   .react-calendar__tile--active:hover:enabled {
     @apply bg-primary;
+    z-index: 10;
   }
 
   .react-calendar__month-view__days__day--weekend {

@@ -97,6 +97,70 @@ class KISChartResponse(BaseModel):
 
 # ==================== 공통 헬퍼 함수 ====================
 
+def validate_real_data(data: Any, data_type: str = "stock") -> bool:
+    """
+    실제 데이터인지 검증하는 함수
+    더미/Mock 데이터 생성을 절대 방지
+    """
+    if data is None:
+        return False
+    
+    if isinstance(data, pd.DataFrame):
+        if data.empty:
+            return False
+        
+        # 주식 데이터의 경우 필수 필드 존재 확인
+        if data_type == "stock":
+            required_fields = ['stck_prpr']  # 현재가
+            if not all(field in data.columns for field in required_fields):
+                return False
+                
+        # 데이터 타입별 값 검증
+        if data_type == "stock":
+            # 현재가가 0보다 커야 함
+            if 'stck_prpr' in data.columns:
+                current_price = pd.to_numeric(data['stck_prpr'].iloc[0], errors='coerce')
+                if pd.isna(current_price) or current_price <= 0:
+                    return False
+        
+        elif data_type == "overseas_price":
+            # 해외 주식 현재가 필드 확인 (KIS API 기준)
+            price_fields = ['last', 'curr', 'price', 'pvol', 'base', 'ovrs_nmix_prpr']  # 가능한 가격 필드들
+            has_price_field = any(field in data.columns for field in price_fields)
+            
+            if not has_price_field:
+                return False
+                
+            # 첫 번째로 발견되는 가격 필드 검증
+            for field in price_fields:
+                if field in data.columns:
+                    price_value = pd.to_numeric(data[field].iloc[0], errors='coerce')
+                    if pd.isna(price_value) or price_value <= 0:
+                        return False
+                    break  # 하나라도 유효하면 통과
+                    
+        elif data_type == "chart":
+            # OHLC 데이터 기본 검증
+            ohlc_fields = ['open', 'high', 'low', 'close', 'stck_oprc', 'stck_hgpr', 'stck_lwpr', 'stck_clpr']
+            has_ohlc = any(field in data.columns for field in ohlc_fields)
+            
+            if not has_ohlc:
+                return False
+                
+            # 가격 데이터가 양수인지 확인
+            for field in ohlc_fields:
+                if field in data.columns:
+                    price_value = pd.to_numeric(data[field].iloc[0], errors='coerce')
+                    if pd.isna(price_value) or price_value <= 0:
+                        return False
+    
+    elif isinstance(data, dict):
+        # 응답 코드가 성공인지 확인
+        if 'rt_cd' in data and data['rt_cd'] != '0':
+            return False
+    
+    return True
+
 def create_success_response(data: Any, message: str = "정상처리 되었습니다") -> Dict[str, Any]:
     """성공 응답 생성 헬퍼 함수"""
     return {
@@ -258,20 +322,31 @@ async def get_domestic_price(symbol: str):
             fid_input_iscd=symbol
         )
         
-        if result.empty:
-            raise HTTPException(status_code=404, detail="종목을 찾을 수 없습니다")
+        # 실제 데이터 검증 - 절대 가짜 데이터를 생성하지 않음
+        if not validate_real_data(result, "stock"):
+            logger.error(f"Invalid or empty data received for symbol: {symbol}")
+            raise HTTPException(
+                status_code=502, 
+                detail=f"외부 API에서 유효하지 않은 데이터를 받았습니다. 종목코드: {symbol}"
+            )
 
         # pandas DataFrame을 dict로 변환
         return {
             "rt_cd": "0",
             "msg_cd": "MCA00000",
             "msg1": "정상처리 되었습니다",
-            "output": result.to_dict(orient="records")[0]
+            "output": result.to_dict(orient="records")[0],
+            "data_source": "KIS_API_REAL",  # 데이터 출처 명시
+            "timestamp": datetime.now().isoformat()
         }
         
+    except HTTPException:
+        # HTTPException은 그대로 전달
+        raise
     except Exception as e:
         logger.error(f"국내 현재가 조회 오류: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 절대 성공으로 위장하거나 더미 데이터를 반환하지 않음
+        raise HTTPException(status_code=500, detail=f"KIS API 호출 실패: {str(e)}")
 
 def get_date_ranges(start_date: str, end_date: str, max_days: int = 90) -> List[Tuple[str, str]]:
     """큰 기간을 작은 기간들로 분할"""
@@ -296,11 +371,14 @@ async def get_domestic_chart(
     symbol: str,
     period: str = "D",  # D:일봉, W:주봉, M:월봉, Y:년봉
     start_date: str = "20240101",
-    end_date: str = "20250203",
+    end_date: str = None,
     adj_price: str = "1"  # 0:수정주가, 1:원주가
 ):
     """국내 주식 차트 조회 (일/주/월/년봉 지원, 자동 분할 조회)"""
     try:
+        # end_date가 None이면 오늘 날짜로 설정
+        if end_date is None:
+            end_date = datetime.now().strftime("%Y%m%d")
         # 기간 검증
         period_map = {"D": "D", "W": "W", "M": "M", "Y": "Y"}
         if period not in period_map:
@@ -574,7 +652,7 @@ async def get_overseas_chart(
     symbol: str,
     period: str = "D",  # D:일봉, W:주봉, M:월봉, Y:년봉
     start_date: str = "20240101", 
-    end_date: str = "20250203"
+    end_date: str = None
 ):
     """해외 주식 차트 조회 (일/주/월/년봉 지원, 자동 분할 조회)
     
@@ -586,6 +664,9 @@ async def get_overseas_chart(
         end_date (str): 조회 종료일 (YYYYMMDD)
     """
     try:
+        # end_date가 None이면 오늘 날짜로 설정
+        if end_date is None:
+            end_date = datetime.now().strftime("%Y%m%d")
         # 기간 검증
         period_map = {"D": "D", "W": "W", "M": "M", "Y": "Y"}
         if period not in period_map:
@@ -770,7 +851,7 @@ async def get_overseas_index_chart(
     index_code: str,
     period: str = "D",
     start_date: str = "20240101", 
-    end_date: str = "20250203"
+    end_date: str = None
 ):
     """해외 지수 차트 조회 (일/주/월/년봉 지원)
     
@@ -782,6 +863,9 @@ async def get_overseas_index_chart(
         end_date (str): 조회 종료일 (YYYYMMDD)
     """
     try:
+        # end_date가 None이면 오늘 날짜로 설정
+        if end_date is None:
+            end_date = datetime.now().strftime("%Y%m%d")
         # 기간 검증
         period_map = {"D": "D", "W": "W", "M": "M", "Y": "Y"}
         if period not in period_map:
@@ -991,85 +1075,8 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"실시간 데이터 폴링 시작 오류: {str(e)}")
     
-    async def start_demo_data_generator(self):
-        """데모 데이터 생성기 시작"""
-        if hasattr(self, 'demo_task') and self.demo_task is not None:
-            return
-            
-        try:
-            import random
-            
-            async def generate_demo_data():
-                """데모 실시간 데이터 생성"""
-                base_prices = {
-                    "RBAQAAPL": 175.00,
-                    "RBAQMSFT": 420.00,
-                    "RBAQTSLA": 250.00,
-                    "RBAQNVDA": 880.00,
-                    "RBAQGOOGL": 2800.00,
-                    "RBAQAMZN": 3400.00
-                }
-                
-                while True:
-                    try:
-                        for symbol, base_price in base_prices.items():
-                            # 랜덤한 가격 변동 (-2% ~ +2%)
-                            price_change = random.uniform(-0.02, 0.02)
-                            new_price = base_price * (1 + price_change)
-                            
-                            # 실시간 호가 데이터 시뮬레이션
-                            bid_price = new_price * 0.999
-                            ask_price = new_price * 1.001
-                            
-                            quote_data = {
-                                "type": "realtime_data",
-                                "tr_id": "HDFSASP0",  # 실시간 호가
-                                "data": {
-                                    "symb": symbol,
-                                    "pbid1": str(int(bid_price)),
-                                    "pask1": str(int(ask_price)),
-                                    "vbid1": str(random.randint(100, 1000)),
-                                    "vask1": str(random.randint(100, 1000))
-                                },
-                                "timestamp": datetime.now().isoformat()
-                            }
-                            
-                            # 체결 데이터 시뮬레이션
-                            trade_data = {
-                                "type": "realtime_data",
-                                "tr_id": "H0GSCNI0",  # 체결통보
-                                "data": {
-                                    "STCK_SHRN_ISCD": symbol,
-                                    "CNTG_QTY": str(random.randint(1, 100)),
-                                    "CNTG_UNPR": str(int(new_price)),
-                                    "PRDY_VRSS": str(int(new_price - base_price)),
-                                    "PRDY_VRSS_SIGN": "2" if new_price > base_price else "4"
-                                },
-                                "timestamp": datetime.now().isoformat()
-                            }
-                            
-                            # 브로드캐스트
-                            await self.broadcast(quote_data)
-                            await asyncio.sleep(0.1)  # 100ms 간격
-                            
-                            await self.broadcast(trade_data)
-                            await asyncio.sleep(0.1)
-                            
-                            # 가격 업데이트 (변동성 추가)
-                            base_prices[symbol] = new_price
-                            
-                        await asyncio.sleep(1)  # 1초 간격으로 전체 루프
-                        
-                    except Exception as e:
-                        logger.error(f"데모 데이터 생성 오류: {str(e)}")
-                        await asyncio.sleep(1)
-            
-            # 백그라운드 태스크로 실행
-            self.demo_task = asyncio.create_task(generate_demo_data())
-            logger.info("✅ 데모 데이터 생성기 시작")
-            
-        except Exception as e:
-            logger.error(f"데모 데이터 생성기 시작 오류: {str(e)}")
+    # 가짜 데이터 생성 함수 제거됨 - 데이터 무결성 보장을 위해 완전히 제거
+    # 오직 실제 KIS API 데이터만 사용하도록 강제
 
 manager = ConnectionManager()
 
@@ -1078,13 +1085,11 @@ async def websocket_endpoint(websocket: WebSocket):
     """실시간 데이터 WebSocket 엔드포인트"""
     await manager.connect(websocket)
     
-    # KIS 실시간 데이터 폴링이 시작되지 않았다면 시작 (실제 데이터)
+    # KIS 실시간 데이터 폴링 시작 (실제 데이터만 사용)
     if not hasattr(manager, 'polling_task') or manager.polling_task is None:
         asyncio.create_task(manager.start_kis_realtime_polling())
     
-    # 데모 모드 사용시 (주석 처리됨)
-    # if not hasattr(manager, 'demo_task') or manager.demo_task is None:
-    #     asyncio.create_task(manager.start_demo_data_generator())
+    # 가짜 데이터 생성 함수는 완전히 제거됨 - 데이터 무결성 보장
     
     try:
         while True:

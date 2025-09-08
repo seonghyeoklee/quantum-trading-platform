@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { usePopularStocks } from "@/hooks/usePopularStocks";
+import { MARKET_FILTERS } from "@/types/popular-stocks";
 import { 
   Search,
   Star,
@@ -69,6 +71,13 @@ const marketHours = {
 };
 
 export default function DomesticChartsPage() {
+  // Popular stocks hook
+  const { stocks: popularStocks, loading: popularLoading, error: popularError } = usePopularStocks({
+    marketCode: '0000', // All markets
+    refreshInterval: 300000, // 5 minutes
+    autoRefresh: true
+  });
+
   const [selectedStock, setSelectedStock] = useState(domesticStocks[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [watchlist, setWatchlist] = useState<string[]>(['005930', '000660', '035420']);
@@ -386,60 +395,111 @@ export default function DomesticChartsPage() {
             </div>
           </div>
 
-          {/* 인기 종목 */}
+          {/* 인기 종목 (실시간 API 데이터) */}
           <div className="p-4 border-b border-border">
-            <h3 className="text-sm font-semibold mb-3 flex items-center">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              인기 종목
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center">
+                <TrendingUp className="w-4 h-4 mr-2" />
+                인기 종목
+              </h3>
+              <Badge variant="secondary" className="text-xs">
+                실시간
+              </Badge>
+            </div>
             
-            <div className="space-y-1 max-h-40 overflow-y-auto">
-              {filteredStocks.slice(0, 5).map((stock) => (
-                <div
-                  key={stock.symbol}
-                  className={`p-2 rounded-md cursor-pointer transition-colors ${
-                    selectedStock.symbol === stock.symbol
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'hover:bg-muted/50'
-                  }`}
-                  onClick={() => setSelectedStock(stock)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
+            {popularLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="p-2 rounded-md bg-muted/30 animate-pulse">
+                    <div className="flex justify-between">
                       <div>
-                        <div className="text-sm font-medium">{stock.name}</div>
-                        <div className="text-xs text-muted-foreground">{stock.symbol}</div>
+                        <div className="w-16 h-4 bg-muted rounded mb-1" />
+                        <div className="w-12 h-3 bg-muted rounded" />
+                      </div>
+                      <div className="text-right">
+                        <div className="w-16 h-4 bg-muted rounded mb-1" />
+                        <div className="w-10 h-3 bg-muted rounded" />
                       </div>
                     </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleWatchlist(stock.symbol);
-                        }}
-                      >
-                        <Star className={`w-3 h-3 ${
-                          watchlist.includes(stock.symbol) ? 'fill-yellow-400 text-yellow-400' : ''
-                        }`} />
-                      </Button>
+                  </div>
+                ))}
+              </div>
+            ) : popularError ? (
+              <div className="text-xs text-red-500 text-center p-4">
+                데이터를 불러올 수 없습니다
+                <br />
+                <span className="text-muted-foreground">{popularError}</span>
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {popularStocks.slice(0, 10).map((stock, index) => (
+                  <div
+                    key={stock.symbol}
+                    className={`p-2 rounded-md cursor-pointer transition-colors ${
+                      selectedStock.symbol === stock.symbol
+                        ? 'bg-primary/10 border border-primary/20'
+                        : 'hover:bg-muted/50'
+                    }`}
+                    onClick={() => {
+                      // Convert API stock format to component stock format
+                      const convertedStock = {
+                        symbol: stock.symbol,
+                        name: stock.name,
+                        price: stock.price,
+                        change: stock.change,
+                        changePercent: stock.changePercent,
+                        volume: stock.volume,
+                        market: stock.market
+                      };
+                      setSelectedStock(convertedStock);
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-xs text-muted-foreground font-mono w-4 text-center">
+                          {stock.rank || (index + 1)}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{stock.name}</div>
+                          <div className="text-xs text-muted-foreground flex items-center space-x-1">
+                            <span>{stock.symbol}</span>
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {stock.market}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
                       
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{formatPrice(stock.price)}</div>
-                        <div className={`text-xs ${
-                          stock.change >= 0 ? 'text-red-600' : 'text-blue-600'
-                        }`}>
-                          {stock.change >= 0 ? '+' : ''}{stock.changePercent}%
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleWatchlist(stock.symbol);
+                          }}
+                        >
+                          <Star className={`w-3 h-3 ${
+                            watchlist.includes(stock.symbol) ? 'fill-yellow-400 text-yellow-400' : ''
+                          }`} />
+                        </Button>
+                        
+                        <div className="text-right">
+                          <div className="text-sm font-medium">{formatPrice(stock.price)}</div>
+                          <div className={`text-xs flex items-center ${
+                            stock.change >= 0 ? 'text-red-600' : 'text-blue-600'
+                          }`}>
+                            {stock.change >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                            {stock.change >= 0 ? '+' : ''}{stock.changePercent}%
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 주요 지수 */}

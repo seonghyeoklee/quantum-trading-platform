@@ -30,7 +30,7 @@ default_args = {
 }
 
 @dag(
-    dag_id='kis_holiday_sync',
+    dag_id='System_Auth__01_Holiday_Sync',
     default_args=default_args,
     description='KIS 국내휴장일 데이터 수집 및 DB 저장',
     schedule_interval='0 6 * * *',  # 매일 오전 6시

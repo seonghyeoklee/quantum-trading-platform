@@ -29,6 +29,7 @@ x-airflow-common:
     - /Users/admin/study/quantum-trading-platform/airflow/logs:/opt/airflow/logs
     - /Users/admin/study/quantum-trading-platform/airflow/plugins:/opt/airflow/plugins
     - /Users/admin/study/quantum-trading-platform/airflow/config:/opt/airflow/config
+    - /Users/admin/study/quantum-trading-platform/airflow/data:/opt/airflow/data
     - /Users/admin/study/quantum-trading-platform/quantum-adapter-kis/trading_strategy:/opt/airflow/quantum_analysis
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on

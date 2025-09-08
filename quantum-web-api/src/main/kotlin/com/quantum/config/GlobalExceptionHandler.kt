@@ -1,6 +1,11 @@
 package com.quantum.config
 
+import com.quantum.common.dto.ErrorCodes
+import com.quantum.common.dto.StandardErrorResponse
+import com.quantum.common.dto.UserMessages
+import com.quantum.stock.application.service.StockDataException
 import com.quantum.user.presentation.dto.ErrorResponse
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -119,15 +124,84 @@ class GlobalExceptionHandler {
         )
     }
     
+    // 주식 데이터 서비스 예외 처리 (표준화된 응답)
+    @ExceptionHandler(StockDataException::class)
+    fun handleStockDataException(
+        ex: StockDataException, 
+        request: HttpServletRequest
+    ): ResponseEntity<StandardErrorResponse> {
+        logger.error("Stock data service error: ${ex.message}", ex)
+        
+        val errorResponse = StandardErrorResponse.dataNotFound(
+            message = ex.message ?: UserMessages.STOCK_NOT_FOUND,
+            path = request.requestURI
+        )
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse)
+    }
+    
+    // KIS API 관련 오류 처리 (표준화된 응답)
+    @ExceptionHandler(RuntimeException::class)
+    fun handleKisApiException(
+        ex: RuntimeException,
+        request: HttpServletRequest
+    ): ResponseEntity<StandardErrorResponse> {
+        val message = ex.message ?: ""
+        
+        // KIS API 관련 오류 패턴 감지
+        when {
+            message.contains("KIS", ignoreCase = true) || 
+            message.contains("token", ignoreCase = true) ||
+            message.contains("API", ignoreCase = true) -> {
+                logger.error("KIS API error occurred: ${ex.message}", ex)
+                
+                val errorResponse = StandardErrorResponse.kisApiError(
+                    UserMessages.KIS_API_CONNECTION_FAILED
+                ).copy(path = request.requestURI)
+                
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorResponse)
+            }
+            message.contains("데이터", ignoreCase = true) ||
+            message.contains("data", ignoreCase = true) -> {
+                logger.error("Data processing error: ${ex.message}", ex)
+                
+                val errorResponse = StandardErrorResponse(
+                    error = ErrorCodes.DATA_INTEGRITY_ERROR,
+                    message = UserMessages.CHART_DATA_NOT_AVAILABLE,
+                    details = "데이터 처리 중 오류가 발생했습니다.",
+                    path = request.requestURI
+                )
+                
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(errorResponse)
+            }
+            else -> {
+                logger.error("Runtime error occurred: ${ex.message}", ex)
+                
+                val errorResponse = StandardErrorResponse.internalServerError(
+                    UserMessages.SERVER_ERROR
+                ).copy(path = request.requestURI)
+                
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
+            }
+        }
+    }
+    
+    // 일반적인 오류는 더 구체적인 정보 없이 처리 (표준화된 응답)
     @ExceptionHandler(Exception::class)
-    fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
+    fun handleGenericException(
+        ex: Exception,
+        request: HttpServletRequest
+    ): ResponseEntity<StandardErrorResponse> {
         logger.error("Unexpected error occurred", ex)
         
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-            ErrorResponse(
-                error = "INTERNAL_SERVER_ERROR",
-                message = "서버 내부 오류가 발생했습니다."
-            )
+        // 절대 더미 데이터를 생성하거나 성공으로 위장하지 않음
+        val errorResponse = StandardErrorResponse.internalServerError(
+            UserMessages.SERVER_ERROR
+        ).copy(
+            details = "예기치 않은 오류가 발생했습니다.",
+            path = request.requestURI
         )
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
     }
 }

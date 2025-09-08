@@ -23,9 +23,6 @@ Next.js 15 + React 19      Spring Boot 3.3.4 + Kotlin    FastAPI + Python 3.13
                                       ↓
                            External Adapter (Port 8001)
                            FastAPI + Python 3.13 + Naver News + DART APIs
-                                      ↓
-                           Kiwoom Adapter (experimental)
-                           FastAPI + Python 3.13 + Kiwoom API
 ```
 
 ### Key Architectural Decisions
@@ -119,13 +116,6 @@ curl "http://external-api.quantum-trading.com:8001/disclosure/types"            
 # http://external-api.quantum-trading.com:8001/docs
 ```
 
-### Kiwoom Adapter (quantum-adapter-kiwoom/) [EXPERIMENTAL]
-```bash
-# NOTE: Experimental component for Kiwoom securities integration
-# Currently in early development phase
-cd quantum-adapter-kiwoom
-python main.py    # Basic setup only
-```
 
 ### Airflow Analysis Pipeline
 ```bash
