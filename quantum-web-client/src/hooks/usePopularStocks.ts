@@ -50,15 +50,15 @@ export const usePopularStocks = (options: UsePopularStocksOptions = {}): UsePopu
     try {
       setError(null);
       
-      // Build API URL with market filter
-      const params = new URLSearchParams();
-      if (marketCode !== '0000') {
-        params.append('market', marketCode);
-      }
+      // Build API URL with market filter for 8000 KIS Adapter
+      const params = new URLSearchParams({
+        market_code: marketCode, // 0000:전체, 0001:거래소, 1001:코스닥, 2001:코스피200
+        div_cls_code: '0', // 0:전체
+        start_rank: '1' // 1위부터
+      });
       
-      const url = `http://adapter.quantum-trading.com:8000/domestic/ranking/top-interest-stock${params.toString() ? `?${params.toString()}` : ''}`;
-      
-      const response = await fetch(url, {
+      // KIS Adapter 직접 호출 (8000 포트)
+      const response = await fetch(`http://adapter.quantum-trading.com:8000/domestic/ranking/top-interest-stock?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -66,7 +66,7 @@ export const usePopularStocks = (options: UsePopularStocksOptions = {}): UsePopu
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        throw new Error(`KIS Adapter API 오류: ${response.status} ${response.statusText}`);
       }
 
       const data: PopularStocksApiResponse = await response.json();

@@ -1,34 +1,27 @@
-// Quantum 백엔드 API 클라이언트
-export class QuantumApiClient {
-  private baseUrl: string;
+// Quantum 백엔드 API 클라이언트 (JWT 인증, 백엔드 프록시 사용)
+import { apiClient } from '@/lib/api';
 
-  constructor(baseUrl: string = 'http://adapter.quantum-trading.com:8000') {
-    this.baseUrl = baseUrl;
+export class QuantumApiClient {
+  constructor() {
+    // 표준 API 클라이언트 사용, baseUrl 불필요
   }
 
-  // 현재가 조회
+  // 현재가 조회 (JWT 인증, 백엔드 프록시)
   async getCurrentPrice(symbol: string): Promise<StockPriceResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/domestic/price/${symbol}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<StockPriceResponse>(
+        `/api/v1/kis/domestic/price/${symbol}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     } catch (error) {
       console.error('현재가 조회 실패:', error);
       throw error;
     }
   }
 
-  // 일봉 차트 데이터 조회
+  // 일봉 차트 데이터 조회 (JWT 인증, 백엔드 프록시)
   async getDailyChart(
     symbol: string, 
     startDate?: string, 
@@ -38,35 +31,26 @@ export class QuantumApiClient {
       const today = new Date();
       const defaultEndDate = endDate || today.toISOString().slice(0, 10).replace(/-/g, '');
       
-      // 기본 60일 전 데이터
+      // 기본 1개월 전 데이터
       const defaultStartDate = startDate || (() => {
         const date = new Date();
-        date.setDate(date.getDate() - 60);
+        date.setDate(date.getDate() - 30);
         return date.toISOString().slice(0, 10).replace(/-/g, '');
       })();
 
-      const url = `${this.baseUrl}/domestic/chart/daily/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<ChartDataResponse>(
+        `/api/v1/kis/domestic/chart/daily/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     } catch (error) {
       console.error('차트 데이터 조회 실패:', error);
       throw error;
     }
   }
 
-  // 주간 차트 데이터 조회
+  // 주간 차트 데이터 조회 (JWT 인증, 백엔드 프록시)
   async getWeeklyChart(
     symbol: string, 
     startDate?: string, 
@@ -83,28 +67,19 @@ export class QuantumApiClient {
         return date.toISOString().slice(0, 10).replace(/-/g, '');
       })();
 
-      const url = `${this.baseUrl}/domestic/chart/weekly/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<ChartDataResponse>(
+        `/api/v1/kis/domestic/chart/weekly/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     } catch (error) {
       console.error('주간 차트 데이터 조회 실패:', error);
       throw error;
     }
   }
 
-  // 월간 차트 데이터 조회
+  // 월간 차트 데이터 조회 (JWT 인증, 백엔드 프록시)
   async getMonthlyChart(
     symbol: string, 
     startDate?: string, 
@@ -121,21 +96,12 @@ export class QuantumApiClient {
         return date.toISOString().slice(0, 10).replace(/-/g, '');
       })();
 
-      const url = `${this.baseUrl}/domestic/chart/monthly/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<ChartDataResponse>(
+        `/api/v1/kis/domestic/chart/monthly/${symbol}?fid_input_date_1=${defaultStartDate}&fid_input_date_2=${defaultEndDate}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     } catch (error) {
       console.error('월간 차트 데이터 조회 실패:', error);
       throw error;
@@ -175,22 +141,14 @@ export class QuantumApiClient {
         return date.toISOString().slice(0, 10).replace(/-/g, '');
       })();
 
-      const url = `${this.baseUrl}/domestic/chart/${symbol}?period=${period}&start_date=${defaultStartDate}&end_date=${defaultEndDate}`;
+      console.log(`📊 새로운 차트 API 호출 (JWT 인증): ${period}보 ${symbol}`);
       
-      console.log(`📊 새로운 차트 API 호출: ${url}`);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<ChartDataResponse>(
+        `/api/v1/kis/domestic/chart/${symbol}?period=${period}&start_date=${defaultStartDate}&end_date=${defaultEndDate}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = response.data;
       console.log(`✅ 차트 데이터 조회 성공: ${period}봉 ${data.output2?.length || 0}건`);
       return data;
     } catch (error) {
@@ -204,22 +162,15 @@ export class QuantumApiClient {
     return this.getChart(symbol, 'Y', startDate, endDate);
   }
 
-  // 국내 지수 조회
+  // 국내 지수 조회 (JWT 인증, 백엔드 프록시)
   async getDomesticIndex(indexCode: string): Promise<IndexResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/domestic/index/${indexCode}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // 백엔드 프록시 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<IndexResponse>(
+        `/api/v1/kis/domestic/index/${indexCode}`
+      );
 
-      if (!response.ok) {
-        throw new Error(`API 오류: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
+      return response.data;
     } catch (error) {
       console.error('지수 조회 실패:', error);
       throw error;

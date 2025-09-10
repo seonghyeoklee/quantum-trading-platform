@@ -44,6 +44,7 @@ export default function Header({ className }: HeaderProps) {
   const isHomePage = pathname === '/';
   const isDomesticPage = pathname === '/domestic' || pathname.startsWith('/domestic/');
   const isOverseasPage = pathname === '/overseas' || pathname.startsWith('/overseas/');
+  const isStocksPage = pathname === '/stocks' || pathname.startsWith('/stocks/');
   const isProfilePage = pathname === '/profile';
   const isSettingsPage = pathname === '/settings';
 
@@ -157,7 +158,7 @@ export default function Header({ className }: HeaderProps) {
                       className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                     >
                       <Building2 className="w-4 h-4" />
-                      종목
+                      종목 목록
                     </Link>
                     <Link 
                       href="/domestic/trading"
@@ -177,16 +178,47 @@ export default function Header({ className }: HeaderProps) {
                 </div>
               </div>
               
-              <Link 
-                href="/overseas" 
-                className={`px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
-                  isOverseasPage 
-                    ? 'text-primary bg-primary/10' 
-                    : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
-                }`}
-              >
-                해외시장
-              </Link>
+              {/* 해외시장 드롭다운 */}
+              <div className="relative group">
+                <Link 
+                  href="/overseas" 
+                  className={`flex items-center gap-1 px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
+                    isOverseasPage 
+                      ? 'text-primary bg-primary/10' 
+                      : 'text-muted-foreground hover:text-primary hover:bg-primary/5'
+                  }`}
+                >
+                  해외시장
+                  <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                </Link>
+                
+                {/* 드롭다운 메뉴 */}
+                <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <Link 
+                      href="/overseas"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Home className="w-4 h-4" />
+                      대시보드
+                    </Link>
+                    <Link 
+                      href="/overseas/stocks"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Building2 className="w-4 h-4" />
+                      종목 목록
+                    </Link>
+                    <Link 
+                      href="/overseas/trading"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      거래
+                    </Link>
+                  </div>
+                </div>
+              </div>
 
               {/* 향후 구현 예정 메뉴들 (주석 처리) */}
               {/* 
@@ -362,6 +394,12 @@ export default function Header({ className }: HeaderProps) {
               <>
                 <span>•</span>
                 <span className="text-primary font-medium">프로필 설정</span>
+              </>
+            )}
+            {isStocksPage && (
+              <>
+                <span>•</span>
+                <span className="text-primary font-medium">종목 목록</span>
               </>
             )}
             {isSettingsPage && (

@@ -42,7 +42,7 @@ export default function DomesticStockPage() {
   const { switchMarket } = useMarket()
   
   // State
-  const [selectedSymbol, setSelectedSymbol] = useState('RBAQAAPL') // Apple
+  const [selectedSymbol, setSelectedSymbol] = useState('005930') // 삼성전자
   const [chartData, setChartData] = useState<TradingViewCandle[]>([])
   const [chartType, setChartType] = useState<'daily' | 'minute'>('daily')
   const [searchQuery, setSearchQuery] = useState('')

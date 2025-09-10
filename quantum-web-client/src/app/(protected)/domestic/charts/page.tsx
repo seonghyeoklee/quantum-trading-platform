@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePopularStocks } from "@/hooks/usePopularStocks";
 import { MARKET_FILTERS } from "@/types/popular-stocks";
+import StockSelector, { DomesticStock } from '@/components/stock/StockSelector';
 import { 
   Search,
   Star,
@@ -81,6 +82,9 @@ export default function DomesticChartsPage() {
   const [selectedStock, setSelectedStock] = useState(domesticStocks[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [watchlist, setWatchlist] = useState<string[]>(['005930', '000660', '035420']);
+  const [realStocks, setRealStocks] = useState<DomesticStock[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showRealSearch, setShowRealSearch] = useState(false);
   
   // 패널 토글 상태 (오른쪽만 유지)
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
@@ -118,6 +122,44 @@ export default function DomesticChartsPage() {
     } else {
       return { status: 'closed', session: 'closed' };
     }
+  };
+
+  // 실시간 주식 검색
+  const searchRealStocks = async (keyword: string) => {
+    if (!keyword.trim() || keyword.length < 2) {
+      setRealStocks([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await fetch(`/api/v1/stocks/domestic/search?keyword=${encodeURIComponent(keyword)}&page=0&size=10`);
+      if (response.ok) {
+        const data = await response.json();
+        setRealStocks(data.stocks || []);
+      } else {
+        console.error('Stock search failed:', response.status);
+        setRealStocks([]);
+      }
+    } catch (error) {
+      console.error('Stock search error:', error);
+      setRealStocks([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // 실제 주식을 선택된 주식 형태로 변환
+  const convertRealStockToSelected = (stock: DomesticStock) => {
+    return {
+      symbol: stock.stockCode,
+      name: stock.stockName,
+      price: Math.floor(Math.random() * 100000) + 10000, // Placeholder price
+      change: Math.floor(Math.random() * 4000) - 2000, // Placeholder change
+      changePercent: (Math.random() * 10 - 5).toFixed(2), // Placeholder change%
+      volume: Math.floor(Math.random() * 10000000) + 100000, // Placeholder volume
+      market: stock.marketType,
+    };
   };
 
   const toggleWatchlist = (symbol: string) => {
@@ -180,6 +222,17 @@ export default function DomesticChartsPage() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isFullscreen]);
+
+  // 실시간 검색 디바운스
+  useEffect(() => {
+    if (!showRealSearch) return;
+    
+    const timer = setTimeout(() => {
+      searchRealStocks(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, showRealSearch]);
 
   // 로딩 화면 렌더링
   if (isLoading) {
@@ -248,46 +301,41 @@ export default function DomesticChartsPage() {
 
         {/* 메인 차트 패널 */}
         <div className="flex-1 flex flex-col">
-          {/* 차트 헤더 */}
-          <div className="p-4 border-b border-border bg-card">
+          {/* 차트 헤더 - 최소화 */}
+          <div className="px-4 py-2 border-b border-border bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                
                 <div>
-                  <h1 className="text-xl font-bold flex items-center space-x-2">
+                  <h1 className="text-lg font-bold flex items-center space-x-2">
                     <span>{selectedStock.symbol}</span>
                     <Badge variant="outline" className="text-xs">{selectedStock.market}</Badge>
                   </h1>
-                  <p className="text-sm text-muted-foreground">{selectedStock.name}</p>
+                  <p className="text-xs text-muted-foreground">{selectedStock.name}</p>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-2xl font-bold">{formatPrice(selectedStock.price)}</div>
+                <div className="flex items-center space-x-3">
+                  <div className="text-xl font-bold">{formatPrice(selectedStock.price)}</div>
                   <div className={`flex items-center space-x-1 ${
                     selectedStock.change >= 0 ? 'text-red-600' : 'text-blue-600'
                   }`}>
-                    {selectedStock.change >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                    <span className="text-lg font-semibold">
+                    {selectedStock.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    <span className="text-sm font-semibold">
                       {selectedStock.change >= 0 ? '+' : ''}{selectedStock.change.toLocaleString()}
                     </span>
-                    <span className="text-lg font-semibold">
+                    <span className="text-sm font-semibold">
                       ({selectedStock.change >= 0 ? '+' : ''}{selectedStock.changePercent}%)
                     </span>
                   </div>
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <Badge variant="outline" className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1">
+                <Badge variant="outline" className="flex items-center space-x-1 text-xs">
                   <Volume2 className="w-3 h-3" />
                   <span>{formatNumber(selectedStock.volume)}</span>
                 </Badge>
-                <Badge variant="outline" className="flex items-center space-x-1">
+                <Badge variant="outline" className="flex items-center space-x-1 text-xs">
                   <Clock className="w-3 h-3" />
                   <span>{marketStatus.status === 'open' ? '실시간' : '휴장'}</span>
-                </Badge>
-                <Badge variant="outline" className="flex items-center space-x-1">
-                  <DollarSign className="w-3 h-3" />
-                  <span>KRW</span>
                 </Badge>
                 
                 {/* 우측 패널 토글 버튼 */}
@@ -295,16 +343,16 @@ export default function DomesticChartsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setRightPanelVisible(!rightPanelVisible)}
-                  className="h-8 w-8 p-0"
+                  className="h-6 w-6 p-0"
                 >
-                  <ChevronLeft className={`w-4 h-4 transition-transform ${rightPanelVisible ? 'rotate-180' : ''}`} />
+                  <ChevronLeft className={`w-3 h-3 transition-transform ${rightPanelVisible ? 'rotate-180' : ''}`} />
                 </Button>
               </div>
             </div>
           </div>
 
           {/* 차트 영역 */}
-          <div className="flex-1 p-4">
+          <div className="flex-1">
             <TradingViewChart 
               symbol={selectedStock.symbol}
               market="domestic"
@@ -322,12 +370,136 @@ export default function DomesticChartsPage() {
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="종목명 또는 심볼 검색"
+                placeholder="종목명 또는 심볼 검색 (예: 삼성전자, 005930)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-8"
               />
             </div>
+            
+            {/* 검색 모드 토글 */}
+            <div className="flex gap-2 mb-2">
+              <Button
+                variant={!showRealSearch ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowRealSearch(false)}
+                className="text-xs"
+              >
+                빠른 검색
+              </Button>
+              <Button
+                variant={showRealSearch ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowRealSearch(true)}
+                className="text-xs"
+              >
+                실시간 검색 ({realStocks.length > 0 ? `${realStocks.length}개` : '0개'})
+              </Button>
+            </div>
+            
+            {/* 검색 결과 */}
+            {searchQuery && (
+              <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md bg-background p-2">
+                {searchLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    <span className="ml-2 text-xs text-muted-foreground">검색 중...</span>
+                  </div>
+                ) : showRealSearch ? (
+                  realStocks.length > 0 ? (
+                    realStocks.map((stock) => (
+                      <div
+                        key={stock.stockCode}
+                        className={`p-2 rounded-md cursor-pointer transition-colors ${
+                          selectedStock.symbol === stock.stockCode
+                            ? 'bg-primary/10 border border-primary/20'
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => {
+                          const convertedStock = convertRealStockToSelected(stock);
+                          setSelectedStock(convertedStock);
+                          setSearchQuery(''); // Clear search after selection
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">{stock.stockName}</div>
+                            <div className="text-xs text-muted-foreground flex items-center space-x-1">
+                              <span>{stock.stockCode}</span>
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {stock.marketType}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-muted-foreground">실시간 종목</div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleWatchlist(stock.stockCode);
+                              }}
+                            >
+                              <Star className={`w-3 h-3 ${
+                                watchlist.includes(stock.stockCode) ? 'fill-yellow-400 text-yellow-400' : ''
+                              }`} />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      "{searchQuery}"에 대한 실시간 검색 결과가 없습니다
+                    </div>
+                  )
+                ) : (
+                  filteredStocks.length > 0 ? (
+                    filteredStocks.map((stock) => (
+                      <div
+                        key={stock.symbol}
+                        className={`p-2 rounded-md cursor-pointer transition-colors ${
+                          selectedStock.symbol === stock.symbol
+                            ? 'bg-primary/10 border border-primary/20'
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => {
+                          setSelectedStock(stock);
+                          setSearchQuery(''); // Clear search after selection
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">{stock.name}</div>
+                            <div className="text-xs text-muted-foreground flex items-center space-x-1">
+                              <span>{stock.symbol}</span>
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {stock.market}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium">{formatPrice(stock.price)}</div>
+                            <div className={`text-xs flex items-center ${
+                              stock.change >= 0 ? 'text-red-600' : 'text-blue-600'
+                            }`}>
+                              {stock.change >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                              {stock.change >= 0 ? '+' : ''}{stock.changePercent}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      "{searchQuery}"에 대한 검색 결과가 없습니다
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </div>
 
           {/* 시장 상태 */}

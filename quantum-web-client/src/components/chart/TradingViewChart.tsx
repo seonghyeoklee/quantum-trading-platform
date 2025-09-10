@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { kisChartService, TradingViewCandle } from '@/lib/services/kis-chart-service';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -23,47 +24,6 @@ interface TradingViewChartProps {
   onFullscreenToggle?: () => void; // 외부에서 전체화면 상태 관리
 }
 
-// Mock 차트 데이터 생성 함수
-const generateMockData = (symbol: string, timeframe: string) => {
-  const data = [];
-  let basePrice = symbol === '005930' ? 70000 : 150; // 삼성전자 vs Apple
-  const now = new Date();
-  
-  // 시간봉에 따른 설정
-  const timeSettings = {
-    '1m': { count: 500, increment: 60 * 1000, volatility: 0.01 }, // 1분봉
-    '5m': { count: 300, increment: 5 * 60 * 1000, volatility: 0.02 }, // 5분봉
-    '15m': { count: 200, increment: 15 * 60 * 1000, volatility: 0.025 }, // 15분봉
-    '1h': { count: 168, increment: 60 * 60 * 1000, volatility: 0.03 }, // 1시간봉
-    '1D': { count: 100, increment: 24 * 60 * 60 * 1000, volatility: 0.05 }, // 일봉
-    '1W': { count: 52, increment: 7 * 24 * 60 * 60 * 1000, volatility: 0.08 }, // 주봉
-  };
-  
-  const setting = timeSettings[timeframe as keyof typeof timeSettings] || timeSettings['1D'];
-  
-  for (let i = setting.count; i >= 0; i--) {
-    const date = new Date(now.getTime() - (i * setting.increment));
-    
-    // 시간봉에 따른 변동성 조정
-    const change = (Math.random() - 0.5) * setting.volatility;
-    const open = basePrice;
-    const close = basePrice * (1 + change);
-    const high = Math.max(open, close) * (1 + Math.random() * 0.03);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.03);
-    
-    data.push({
-      time: Math.floor(date.getTime() / 1000),
-      open: open,
-      high: high,
-      low: low,
-      close: close,
-    });
-    
-    basePrice = close; // 다음 봉의 시작점
-  }
-  
-  return data;
-};
 
 export default function TradingViewChart({ symbol, market, className, onFullscreenToggle }: TradingViewChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -74,7 +34,9 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
   const [timeframe, setTimeframe] = useState('1D');
   const [chartType, setChartType] = useState('candlestick');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mockData, setMockData] = useState(() => generateMockData(symbol, timeframe));
+  const [chartData, setChartData] = useState<TradingViewCandle[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [crosshairData, setCrosshairData] = useState<{
     time: string;
     open: number;
@@ -178,12 +140,12 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
           });
         }
 
-        // Mock 데이터 설정
-        const chartData = chartType === 'candlestick' 
-          ? mockData 
-          : mockData.map(item => ({ time: item.time, value: item.close }));
+        // 실제 데이터 설정
+        const seriesData = chartType === 'candlestick' 
+          ? chartData 
+          : chartData.map(item => ({ time: item.time, value: item.close }));
         
-        series.current.setData(chartData);
+        series.current.setData(seriesData);
         chart.current.timeScale().fitContent();
 
         // Crosshair 이벤트 리스너 추가
@@ -209,7 +171,7 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
                 });
               } else if (chartType === 'line' && price.value !== undefined) {
                 // 라인차트의 경우 해당 시점의 원본 데이터를 찾아서 OHLC 표시
-                const originalData = mockData.find(item => item.time === param.time);
+                const originalData = chartData.find(item => item.time === param.time);
                 if (originalData) {
                   setCrosshairData({
                     time: date.toLocaleString('ko-KR', {
@@ -272,7 +234,7 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
         series.current = null;
       }
     };
-  }, [resolvedTheme, symbol, mockData, chartType]);
+  }, [resolvedTheme, symbol, chartData, chartType]);
 
   const toggleFullscreen = () => {
     if (onFullscreenToggle) {
@@ -332,11 +294,46 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
     updateChartSettings();
   }, [showGrid, showCrosshair, resolvedTheme]);
 
-  // 시간봉 변경시 데이터 업데이트
+  // 실제 API 데이터 로딩
   useEffect(() => {
-    const newData = generateMockData(symbol, timeframe);
-    setMockData(newData);
-  }, [symbol, timeframe]);
+    const loadChartData = async () => {
+      if (!symbol) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('📈 차트 데이터 조회:', symbol, timeframe);
+        
+        // 시간봉에 따른 차트 타입 결정
+        const chartDataType = ['1m', '5m', '15m', '1h'].includes(timeframe) ? 'minute' : 'daily';
+        
+        // 국내 종목인지 확인 (6자리 숫자)
+        const isDomestic = /^\d{6}$/.test(symbol);
+        
+        if (isDomestic && market === 'domestic') {
+          // 국내 주식 데이터 로딩
+          const data = await kisChartService.getTradingViewCandles(symbol, chartDataType);
+          setChartData(data);
+          console.log('✅ 국내 차트 데이터 조회 완료:', data.length);
+        } else {
+          // 해외 주식의 경우 아직 미구현
+          console.warn('해외 차트 데이터는 아직 구현되지 않았습니다');
+          setError('해외 차트 데이터는 준비 중입니다');
+        }
+        
+      } catch (error) {
+        console.error('❌ 차트 데이터 조회 실패:', error);
+        setError('차트 데이터를 불러올 수 없습니다');
+        // 에러 시 빈 배열로 설정
+        setChartData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadChartData();
+  }, [symbol, timeframe, market]);
 
   return (
     <div className={`relative ${className}`}>
@@ -423,6 +420,26 @@ export default function TradingViewChart({ symbol, market, className, onFullscre
           background: resolvedTheme === 'dark' ? '#131722' : '#ffffff' 
         }}
       />
+
+      {/* 로딩 상태 */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm rounded-lg">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span>차트 데이터 로딩 중...</span>
+          </div>
+        </div>
+      )}
+
+      {/* 에러 상태 */}
+      {error && !loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm rounded-lg">
+          <div className="text-center">
+            <div className="text-red-500 mb-2">⚠️</div>
+            <div className="text-sm text-muted-foreground">{error}</div>
+          </div>
+        </div>
+      )}
 
       {/* 하단 정보 - Crosshair 데이터 표시 */}
       {crosshairData && (

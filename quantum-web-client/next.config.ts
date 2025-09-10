@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: '/api/v1/:path*',
+        destination: 'http://api.quantum-trading.com:8080/api/v1/:path*',
+      },
+      {
         source: '/api/kis/:path*',
         destination: 'http://adapter.quantum-trading.com:8000/:path*',
       },

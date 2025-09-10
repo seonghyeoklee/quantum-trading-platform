@@ -1,6 +1,8 @@
 'use client';
 
-// KIS Adapter API 응답 인터페이스 (8000포트 직접 연동)
+import { apiClient } from '@/lib/api';
+
+// KIS Adapter API 응답 인터페이스 (백엔드 프록시를 통한 연동)
 interface KISApiResponse {
   success: boolean;
   data: {
@@ -13,6 +15,22 @@ interface KISApiResponse {
 // KIS API 원본 데이터 구조
 interface KISRawChartItem {
   [key: string]: string; // 모든 필드가 문자열로 전달됨
+}
+
+// 백엔드 DailyChartData 응답 구조
+interface DailyChartDataResponse {
+  id: number;
+  stockCode: string;
+  tradeDate: string; // YYYY-MM-DD
+  openPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  closePrice: number;
+  volume: number;
+  amount?: number;
+  dataSource: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 기존 인터페이스 유지 (하위 호환성)
@@ -55,106 +73,90 @@ export interface TradingViewCandle {
   volume?: number;   // 거래량 (선택적)
 }
 
-// KIS 8000포트 전용 차트 서비스 클래스
+// JWT 인증이 포함된 차트 서비스 클래스 (백엔드 프록시 사용)
 export class KISChartService {
-  private readonly baseUrl = 'http://localhost:8000';
   
   /**
-   * 국내 주식 일봉 차트 데이터 조회 (8000포트 직접 호출)
+   * 국내 주식 일봉 차트 데이터 조회 (백엔드 데이터베이스, JWT 인증)
    * @param symbol 종목코드 (6자리)
-   * @param count 조회 개수 (기본 100일)
+   * @param count 조회 개수 (기본 365일 - 1년)
    * @returns KIS 차트 데이터
    */
-  async getDomesticDailyChart(symbol: string, count: number = 100): Promise<KISChartData[]> {
+  async getDomesticDailyChart(symbol: string, count: number = 365): Promise<KISChartData[]> {
     try {
-      console.log(`📊 KIS 8000포트 국내 일봉 데이터 직접 조회: ${symbol}`);
+      console.log(`📊 백엔드 국내 일봉 데이터 조회: ${symbol}`);
       
-      // API URL 구성
-      const url = `${this.baseUrl}/domestic/chart/daily/${symbol}?period=D&count=${count}`;
+      // 날짜 범위 계산 (count일 전부터 오늘까지)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - count);
       
-      // 요청 헤더 구성
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
       
-      // API 호출
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      });
+      // 백엔드 차트 API 호출 (JWT 토큰 자동 포함)
+      const response = await apiClient.get<DailyChartDataResponse[]>(
+        `/api/v1/stocks/details/chart?stockCode=${symbol}&startDate=${startDateStr}&endDate=${endDateStr}`
+      );
       
-      if (!response.ok) {
-        throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
-      }
+      // 백엔드 DailyChartData를 KISChartData 형식으로 변환
+      const chartData = this.convertDailyChartDataToKISChartData(response.data);
       
-      const apiData: KISApiResponse = await response.json();
-      
-      if (!apiData.success) {
-        throw new Error(`API 응답 실패: ${apiData.message}`);
-      }
-      
-      // 데이터 변환
-      const records = apiData.data.records || apiData.data;
-      const chartData = this.convertRawDataToKISChartData(records);
-      
-      console.log(`✅ KIS 8000포트 국내 일봉 데이터 완료: ${chartData.length}개`);
+      console.log(`✅ 백엔드 국내 일봉 데이터 완료: ${chartData.length}개`);
       return chartData;
       
     } catch (error) {
-      console.error('❌ KIS 8000포트 국내 일봉 데이터 조회 실패:', error);
+      console.error('❌ KIS 백엔드 프록시 국내 일봉 데이터 조회 실패:', error);
       throw error;
     }
   }
 
   /**
-   * 국내 주식 분봉 차트 데이터 조회 (8000포트 직접 호출)
+   * 국내 주식 분봉 차트 데이터 조회 (KIS Adapter 직접 연결)
    * @param symbol 종목코드 (6자리)
-   * @param count 조회 개수 (기본 100분)
+   * @param count 조회 개수 (기본 480분 - 약 2일치)
    * @returns KIS 차트 데이터
    */
-  async getDomesticMinuteChart(symbol: string, count: number = 100): Promise<KISChartData[]> {
+  async getDomesticMinuteChart(symbol: string, count: number = 480): Promise<KISChartData[]> {
     try {
-      console.log(`📊 KIS 8000포트 국내 분봉 데이터 직접 조회: ${symbol}`);
+      console.log(`📊 KIS Adapter 직접 국내 분봉 데이터 조회: ${symbol}`);
       
-      // API URL 구성
-      const url = `${this.baseUrl}/domestic/chart/minute/${symbol}?period=1&count=${count}`;
-      
-      // 요청 헤더 구성
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      // API 호출
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      });
-      
+      // KIS Adapter 직접 호출 (실시간 데이터)
+      const response = await fetch(
+        `http://adapter.quantum-trading.com:8000/domestic/chart/${symbol}?period=1&count=${count}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
       if (!response.ok) {
-        throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
+        throw new Error(`KIS Adapter API 오류: ${response.status} ${response.statusText}`);
       }
+
+      const data = await response.json();
       
-      const apiData: KISApiResponse = await response.json();
-      
-      if (!apiData.success) {
-        throw new Error(`API 응답 실패: ${apiData.message}`);
+      if (!data.success) {
+        throw new Error(`API 응답 실패: ${data.message}`);
       }
       
       // 데이터 변환
-      const records = apiData.data.records || apiData.data;
+      const records = data.data.records || data.data;
       const chartData = this.convertRawDataToKISChartData(records);
       
-      console.log(`✅ KIS 8000포트 국내 분봉 데이터 완료: ${chartData.length}개`);
+      console.log(`✅ KIS Adapter 국내 분봉 데이터 완료: ${chartData.length}개`);
       return chartData;
       
     } catch (error) {
-      console.error('❌ KIS 8000포트 국내 분봉 데이터 조회 실패:', error);
+      console.error('❌ KIS Adapter 국내 분봉 데이터 조회 실패:', error);
       throw error;
     }
   }
 
   /**
-   * TradingView 차트용 캔들 데이터 조회 (8000포트 직접 호출)
+   * TradingView 차트용 캔들 데이터 조회 (백엔드 프록시, JWT 인증)
    * @param symbol 종목코드
    * @param chartType 차트 타입 ('daily' | 'minute')
    * @returns TradingView 캔들 데이터
@@ -163,7 +165,7 @@ export class KISChartService {
     try {
       console.log(`📈 TradingView 캔들 데이터 조회: ${symbol} (${chartType})`);
       
-      // 직접 KIS 데이터 조회
+      // 백엔드 프록시를 통한 KIS 데이터 조회
       const kisData = chartType === 'daily' 
         ? await this.getDomesticDailyChart(symbol)
         : await this.getDomesticMinuteChart(symbol);
@@ -194,6 +196,26 @@ export class KISChartService {
    * KIS API 원본 데이터 → KISChartData[] 변환 (8000포트 전용)
    * @param records KIS API에서 받은 원본 데이터 (모든 필드가 문자열)
    */
+  /**
+   * 백엔드 DailyChartData → KISChartData 변환
+   */
+  private convertDailyChartDataToKISChartData(records: DailyChartDataResponse[]): KISChartData[] {
+    if (!Array.isArray(records)) {
+      console.warn('백엔드 DailyChartData가 배열이 아닙니다:', records);
+      return [];
+    }
+
+    return records.map(record => ({
+      date: record.tradeDate.replace(/-/g, ''), // YYYY-MM-DD → YYYYMMDD
+      open: record.openPrice,
+      high: record.highPrice,
+      low: record.lowPrice,
+      close: record.closePrice,
+      volume: record.volume,
+      amount: record.amount,
+    })).filter(item => item.close > 0); // 유효한 데이터만 필터링
+  }
+
   private convertRawDataToKISChartData(records: KISRawChartItem[]): KISChartData[] {
     if (!Array.isArray(records)) {
       console.warn('KIS API 데이터가 배열이 아닙니다:', records);
@@ -261,7 +283,7 @@ export class KISChartService {
   }
 
   /**
-   * 국내 주식 일봉 차트 데이터 조회 (청크 단위로 분할 로딩)
+   * 국내 주식 일봉 차트 데이터 조회 (청크 단위로 분할 로딩, 백엔드 프록시 사용)
    * @param symbol 종목코드 (6자리)
    * @param totalCount 전체 조회 개수 (기본 365일)
    * @param chunkSize 청크 크기 (기본 100일)
@@ -269,7 +291,7 @@ export class KISChartService {
    */
   async getDomesticDailyChartChunked(symbol: string, totalCount: number = 365, chunkSize: number = 100): Promise<KISChartData[]> {
     try {
-      console.log(`📊 KIS 8000포트 국내 일봉 데이터 청크 로딩: ${symbol} (총 ${totalCount}일)`);
+      console.log(`📊 KIS 백엔드 프록시 국내 일봉 데이터 청크 로딩: ${symbol} (총 ${totalCount}일)`);
       
       const allData: KISChartData[] = [];
       const chunks = Math.ceil(totalCount / chunkSize);
@@ -292,11 +314,11 @@ export class KISChartService {
         )
         .sort((a, b) => a.date.localeCompare(b.date));
       
-      console.log(`✅ KIS 8000포트 국내 일봉 청크 로딩 완료: ${uniqueData.length}개`);
+      console.log(`✅ KIS 백엔드 프록시 국내 일봉 청크 로딩 완료: ${uniqueData.length}개`);
       return uniqueData;
       
     } catch (error) {
-      console.error('❌ KIS 8000포트 국내 일봉 청크 로딩 실패:', error);
+      console.error('❌ KIS 백엔드 프록시 국내 일봉 청크 로딩 실패:', error);
       throw error;
     }
   }
