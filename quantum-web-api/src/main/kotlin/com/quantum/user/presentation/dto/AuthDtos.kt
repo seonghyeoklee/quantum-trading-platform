@@ -17,7 +17,8 @@ data class LoginRequest(
 data class LoginResponse(
     val accessToken: String,
     val expiresIn: Long,
-    val user: UserResponse
+    val user: UserResponse,
+    val kisTokenStatus: KisTokenStatusResponse? = null
 )
 
 data class UserResponse(
@@ -37,4 +38,10 @@ data class ErrorResponse(
 data class SuccessResponse(
     val message: String,
     val timestamp: String = java.time.LocalDateTime.now().toString()
+)
+
+data class KisTokenStatusResponse(
+    val hasKisAccount: Boolean,
+    val tokenIssued: Boolean,
+    val environment: String?
 )

@@ -101,7 +101,6 @@ class DomesticStock(
         cascade = [CascadeType.ALL],
         fetch = FetchType.LAZY
     )
-    @com.fasterxml.jackson.annotation.JsonIgnore
     var stockDetails: MutableList<DomesticStocksDetail> = mutableListOf()
     
     /**
@@ -165,7 +164,6 @@ class DomesticStock(
     /**
      * 최신 주식 상세정보 조회
      */
-    @com.fasterxml.jackson.annotation.JsonIgnore
     fun getLatestDetail(): DomesticStocksDetail? {
         return stockDetails
             .filter { it.dataQuality in listOf(DataQuality.EXCELLENT, DataQuality.GOOD) }
@@ -175,7 +173,6 @@ class DomesticStock(
     /**
      * 특정 타입의 최신 상세정보 조회
      */
-    @com.fasterxml.jackson.annotation.JsonIgnore
     fun getLatestDetailByType(dataType: StockDataType): DomesticStocksDetail? {
         return stockDetails
             .filter { 

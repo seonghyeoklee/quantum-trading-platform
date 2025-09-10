@@ -1,16 +1,13 @@
 package com.quantum.stock.application.service
 
-import com.quantum.stock.domain.DailyChartData
 import com.quantum.stock.domain.DomesticStock
 import com.quantum.stock.domain.DomesticStocksDetail
 import com.quantum.stock.domain.StockDataType
-import com.quantum.stock.infrastructure.persistence.DailyChartDataRepository
 import com.quantum.stock.infrastructure.persistence.DomesticStockRepository
 import com.quantum.stock.infrastructure.persistence.DomesticStocksDetailRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
@@ -23,8 +20,7 @@ import java.time.LocalDate
 @Transactional(readOnly = true)
 class DomesticStockService(
     private val domesticStockRepository: DomesticStockRepository,
-    private val domesticStocksDetailRepository: DomesticStocksDetailRepository,
-    private val dailyChartDataRepository: DailyChartDataRepository
+    private val domesticStocksDetailRepository: DomesticStocksDetailRepository
 ) {
     
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -87,55 +83,6 @@ class DomesticStockService(
         }
     }
     
-    /**
-     * 일별 차트 데이터 조회 (백테스팅 최적화)
-     * 
-     * 데이터 무결성 보장:
-     * - OHLCV 데이터 유효성 검증
-     * - 가격 관계 검증 (Low ≤ Open/Close ≤ High)
-     * - 거래량 0 이상 검증
-     */
-    fun getDailyChartData(
-        stockCode: String,
-        startDate: LocalDate,
-        endDate: LocalDate
-    ): List<DailyChartData> {
-        
-        return try {
-            logger.info("일별 차트데이터 조회 시작 - stockCode: $stockCode, period: $startDate ~ $endDate")
-            
-            // 1. 종목 존재 여부 검증
-            val domesticStock = domesticStockRepository.findByStockCode(stockCode)
-            if (domesticStock == null || !domesticStock.isActive) {
-                logger.warn("유효하지 않은 종목코드: $stockCode")
-                return emptyList()
-            }
-            
-            // 2. 실제 차트 데이터 조회
-            val chartData = dailyChartDataRepository.findByStockCodeAndTradeDateBetween(
-                stockCode = stockCode,
-                startDate = startDate,
-                endDate = endDate
-            )
-            
-            // 3. OHLCV 데이터 무결성 검증
-            val validChartData = chartData.filter { data ->
-                validateChartData(data)
-            }
-            
-            if (validChartData.size < chartData.size) {
-                logger.warn("일부 차트데이터가 유효성 검사에 실패: 전체 ${chartData.size}개 중 ${validChartData.size}개만 유효")
-            }
-            
-            logger.info("일별 차트데이터 조회 완료 - stockCode: $stockCode, 결과: ${validChartData.size}개")
-            
-            return validChartData
-            
-        } catch (exception: Exception) {
-            logger.error("일별 차트데이터 조회 실패 - stockCode: $stockCode", exception)
-            emptyList()
-        }
-    }
     
     /**
      * 주식 상세 정보 데이터 검증
@@ -199,37 +146,6 @@ class DomesticStockService(
         }
     }
     
-    /**
-     * 차트 데이터 검증 (OHLCV 무결성)
-     */
-    private fun validateChartData(chartData: DailyChartData): Boolean {
-        return try {
-            // 1. 가격 데이터 유효성 검증
-            if (!chartData.isValidOhlc()) {
-                logger.debug("유효하지 않은 OHLC 데이터: ${chartData.stockCode}, ${chartData.tradeDate}")
-                return false
-            }
-            
-            // 2. 거래량 검증
-            if (chartData.volume < 0) {
-                logger.debug("유효하지 않은 거래량: ${chartData.volume}, stockCode: ${chartData.stockCode}")
-                return false
-            }
-            
-            // 3. 가격 범위 검증 (너무 비현실적인 가격 제외)
-            val maxPrice = maxOf(chartData.openPrice, chartData.highPrice, chartData.lowPrice, chartData.closePrice)
-            if (maxPrice > BigDecimal("1000000")) { // 1백만원 이상 주가는 비현실적
-                logger.debug("비현실적인 주가 데이터: $maxPrice, stockCode: ${chartData.stockCode}")
-                return false
-            }
-            
-            true
-            
-        } catch (exception: Exception) {
-            logger.debug("차트 데이터 검증 실패: ${chartData.stockCode}, ${chartData.tradeDate}", exception)
-            false
-        }
-    }
 }
 
 /**

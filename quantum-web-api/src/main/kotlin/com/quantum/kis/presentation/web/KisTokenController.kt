@@ -2,6 +2,8 @@ package com.quantum.kis.presentation.web
 
 import com.quantum.kis.application.service.*
 import com.quantum.kis.domain.KisEnvironment
+import com.quantum.kis.presentation.dto.KisAccountRequest
+import com.quantum.kis.presentation.dto.KisTokenInfo
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -14,6 +16,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.*
+import jakarta.validation.Valid
 import java.time.LocalDateTime
 
 /**
@@ -57,14 +60,14 @@ class KisTokenController(
     @SecurityRequirement(name = "bearerAuth")
     suspend fun validateAccount(
         @Parameter(description = "KIS 계정 검증 요청 정보", required = true)
-        @RequestBody request: KisAccountValidationRequest,
+        @RequestBody @Valid request: KisAccountValidationRequest,
         @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisAccountValidationResponse> {
         return try {
             val userId = authentication.name.toLong()
             logger.info("Validating KIS account for user: $userId, environment: ${request.environment}")
             
-            val accountRequest = KisAccountRequest(
+            val accountRequest = com.quantum.kis.application.dto.KisAccountRequest(
                 appKey = request.appKey,
                 appSecret = request.appSecret,
                 accountNumber = request.accountNumber,
@@ -128,14 +131,14 @@ class KisTokenController(
     @SecurityRequirement(name = "bearerAuth")
     suspend fun issueToken(
         @Parameter(description = "KIS 토큰 발급 요청 정보", required = true)
-        @RequestBody request: KisTokenIssueRequest,
+        @RequestBody @Valid request: KisTokenIssueRequest,
         @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenResponse> {
         return try {
             val userId = authentication.name.toLong()
             logger.info("Issuing KIS token for user: $userId, environment: ${request.environment}")
             
-            val accountRequest = KisAccountRequest(
+            val accountRequest = com.quantum.kis.application.dto.KisAccountRequest(
                 appKey = request.appKey,
                 appSecret = request.appSecret,
                 accountNumber = request.accountNumber,
@@ -188,7 +191,7 @@ class KisTokenController(
     @SecurityRequirement(name = "bearerAuth")
     suspend fun refreshToken(
         @Parameter(description = "KIS 토큰 갱신 요청 정보", required = true)
-        @RequestBody request: KisTokenRefreshRequest,
+        @RequestBody @Valid request: KisTokenRefreshRequest,
         @Parameter(hidden = true) authentication: Authentication
     ): ResponseEntity<KisTokenResponse> {
         return try {

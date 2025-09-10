@@ -212,8 +212,15 @@ class DomesticStocksDetail(
      */
     fun getOpenPrice(): Long? {
         return if (isChartData()) {
-            getChartDataList()?.firstOrNull()?.let { firstRecord ->
-                (firstRecord["stck_oprc"] as? String)?.toLongOrNull()
+            // 새로운 ohlcv 구조에서 추출
+            val ohlcvData = extractFromResponse("ohlcv") as? Map<*, *>
+            ohlcvData?.let { ohlcv ->
+                (ohlcv["open"] as? Number)?.toLong()
+            } ?: run {
+                // 기존 구조 fallback
+                getChartDataList()?.firstOrNull()?.let { firstRecord ->
+                    (firstRecord["stck_oprc"] as? String)?.toLongOrNull()
+                }
             }
         } else {
             null
@@ -225,8 +232,15 @@ class DomesticStocksDetail(
      */
     fun getHighPrice(): Long? {
         return if (isChartData()) {
-            getChartDataList()?.firstOrNull()?.let { firstRecord ->
-                (firstRecord["stck_hgpr"] as? String)?.toLongOrNull()
+            // 새로운 ohlcv 구조에서 추출
+            val ohlcvData = extractFromResponse("ohlcv") as? Map<*, *>
+            ohlcvData?.let { ohlcv ->
+                (ohlcv["high"] as? Number)?.toLong()
+            } ?: run {
+                // 기존 구조 fallback
+                getChartDataList()?.firstOrNull()?.let { firstRecord ->
+                    (firstRecord["stck_hgpr"] as? String)?.toLongOrNull()
+                }
             }
         } else {
             null
@@ -238,8 +252,15 @@ class DomesticStocksDetail(
      */
     fun getLowPrice(): Long? {
         return if (isChartData()) {
-            getChartDataList()?.firstOrNull()?.let { firstRecord ->
-                (firstRecord["stck_lwpr"] as? String)?.toLongOrNull()
+            // 새로운 ohlcv 구조에서 추출
+            val ohlcvData = extractFromResponse("ohlcv") as? Map<*, *>
+            ohlcvData?.let { ohlcv ->
+                (ohlcv["low"] as? Number)?.toLong()
+            } ?: run {
+                // 기존 구조 fallback
+                getChartDataList()?.firstOrNull()?.let { firstRecord ->
+                    (firstRecord["stck_lwpr"] as? String)?.toLongOrNull()
+                }
             }
         } else {
             null
@@ -251,8 +272,15 @@ class DomesticStocksDetail(
      */
     fun getClosePrice(): Long? {
         return if (isChartData()) {
-            getChartDataList()?.firstOrNull()?.let { firstRecord ->
-                (firstRecord["stck_clpr"] as? String)?.toLongOrNull()
+            // 새로운 ohlcv 구조에서 추출
+            val ohlcvData = extractFromResponse("ohlcv") as? Map<*, *>
+            ohlcvData?.let { ohlcv ->
+                (ohlcv["close"] as? Number)?.toLong()
+            } ?: run {
+                // 기존 구조 fallback
+                getChartDataList()?.firstOrNull()?.let { firstRecord ->
+                    (firstRecord["stck_clpr"] as? String)?.toLongOrNull()
+                }
             }
         } else {
             currentPrice
@@ -272,13 +300,23 @@ class DomesticStocksDetail(
     )
     
     fun getOhlcvData(): OhlcvData {
+        // volume을 ohlcv 구조에서도 시도해보기
+        val volumeValue = if (isChartData()) {
+            val ohlcvData = extractFromResponse("ohlcv") as? Map<*, *>
+            ohlcvData?.let { ohlcv ->
+                (ohlcv["volume"] as? Number)?.toLong()
+            } ?: volume
+        } else {
+            volume
+        }
+        
         return OhlcvData(
             date = tradeDate,
             open = getOpenPrice(),
             high = getHighPrice(),
             low = getLowPrice(),
             close = getClosePrice(),
-            volume = volume
+            volume = volumeValue
         )
     }
     

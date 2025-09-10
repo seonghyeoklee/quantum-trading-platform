@@ -1,5 +1,6 @@
 package com.quantum.kis.infrastructure.repository
 
+import com.quantum.kis.application.port.outgoing.KisAccountPort
 import com.quantum.kis.domain.KisAccount
 import com.quantum.kis.domain.KisEnvironment
 import org.springframework.data.jpa.repository.JpaRepository
@@ -12,19 +13,20 @@ import java.util.*
  * KIS 계정 레포지토리
  * 
  * 하이브리드 토큰 아키텍처에서 사용자별 KIS 계정 정보 관리
+ * 헥사고날 아키텍처의 KisAccountPort를 구현하여 의존성 역전
  */
 @Repository
-interface KisAccountRepository : JpaRepository<KisAccount, Long> {
+interface KisAccountRepository : JpaRepository<KisAccount, Long>, KisAccountPort {
     
     /**
      * 사용자별 활성 계정 조회
      */
-    fun findByUserIdAndIsActiveTrue(userId: Long): List<KisAccount>
+    override fun findByUserIdAndIsActiveTrue(userId: Long): List<KisAccount>
     
     /**
      * 사용자가 활성 계정을 가지고 있는지 확인
      */
-    fun existsByUserIdAndIsActiveTrue(userId: Long): Boolean
+    override fun existsByUserIdAndIsActiveTrue(userId: Long): Boolean
     
     /**
      * 사용자별 환경별 활성 계정 조회
@@ -37,7 +39,7 @@ interface KisAccountRepository : JpaRepository<KisAccount, Long> {
     /**
      * 사용자별 환경별 첫 번째 활성 계정 조회
      */
-    fun findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+    override fun findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
         userId: Long,
         environment: KisEnvironment
     ): Optional<KisAccount>

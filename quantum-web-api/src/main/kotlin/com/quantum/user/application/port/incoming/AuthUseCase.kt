@@ -39,7 +39,8 @@ data class LoginResult(
     val accessToken: String? = null,
     val expiresIn: Long? = null,
     val user: UserInfo? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val kisTokenStatus: KisTokenStatus? = null
 )
 
 /**
@@ -71,4 +72,13 @@ data class UserInfo(
 data class LogoutResult(
     val success: Boolean,
     val message: String
+)
+
+/**
+ * KIS 토큰 상태
+ */
+data class KisTokenStatus(
+    val hasKisAccount: Boolean,
+    val tokenIssued: Boolean,
+    val environment: String?
 )

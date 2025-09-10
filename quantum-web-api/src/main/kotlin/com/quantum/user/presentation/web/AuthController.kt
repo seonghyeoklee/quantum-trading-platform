@@ -9,6 +9,7 @@ import com.quantum.user.presentation.dto.LoginResponse
 import com.quantum.user.presentation.dto.UserResponse
 import com.quantum.user.presentation.dto.ErrorResponse
 import com.quantum.user.presentation.dto.SuccessResponse
+import com.quantum.user.presentation.dto.KisTokenStatusResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -78,10 +79,19 @@ class AuthController(
         val result = authUseCase.login(command)
         
         return if (result.success) {
+            val kisTokenStatusResponse = result.kisTokenStatus?.let { status ->
+                KisTokenStatusResponse(
+                    hasKisAccount = status.hasKisAccount,
+                    tokenIssued = status.tokenIssued,
+                    environment = status.environment
+                )
+            }
+            
             val response = LoginResponse(
                 accessToken = result.accessToken!!,
                 expiresIn = result.expiresIn!!,
-                user = mapToUserResponse(result.user!!)
+                user = mapToUserResponse(result.user!!),
+                kisTokenStatus = kisTokenStatusResponse
             )
             ResponseEntity.ok(response)
         } else {

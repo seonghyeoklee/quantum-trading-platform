@@ -4,6 +4,7 @@ import com.quantum.stock.application.service.DomesticStockService
 import com.quantum.stock.domain.DailyChartData
 import com.quantum.stock.domain.DomesticStocksDetail
 import com.quantum.stock.domain.StockDataType
+import com.quantum.stock.presentation.dto.DailyChartDataResponse
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
@@ -48,24 +49,27 @@ class DomesticStockDetailController(
     }
     
     /**
-     * 일별 차트 데이터 조회 (백테스팅 최적화)
+     * 일별 차트 데이터 조회 (프론트엔드 최적화)
      * 
      * @param stockCode 종목코드
      * @param startDate 조회 시작일
      * @param endDate 조회 종료일
-     * @return 검증된 OHLCV 차트 데이터
+     * @return 차트에 필요한 OHLCV 데이터만 포함한 경량화된 응답
      */
     @GetMapping("/chart")
     fun getDailyChartData(
         @RequestParam stockCode: String,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) startDate: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) endDate: LocalDate
-    ): List<DailyChartData> {
+    ): List<DailyChartDataResponse> {
         
-        return domesticStockService.getDailyChartData(
+        val stockDetails = domesticStockService.getStockDetailsByPeriod(
             stockCode = stockCode,
             startDate = startDate,
-            endDate = endDate
+            endDate = endDate,
+            dataType = StockDataType.CHART
         )
+        
+        return DailyChartDataResponse.fromDomesticStocksDetailList(stockDetails)
     }
 }

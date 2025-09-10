@@ -15,6 +15,7 @@ import java.util.*
  * KIS 토큰 레포지토리
  * 
  * 하이브리드 토큰 아키텍처에서 KIS 액세스 토큰 생명주기 관리
+ * 헥사고날 아키텍처의 KisTokenPort를 구현하여 의존성 역전
  */
 @Repository
 interface KisTokenRepository : JpaRepository<KisToken, Long> {

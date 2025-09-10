@@ -1,4 +1,4 @@
-package com.quantum.common.dto
+package com.quantum.common.presentation.dto
 
 import java.time.LocalDateTime
 
@@ -172,7 +172,7 @@ object ErrorCodes {
 /**
  * 사용자 친화적 메시지 상수
  */
-object UserMessages {
+object CommonMessages {
     // 데이터 관련
     const val STOCK_NOT_FOUND = "요청하신 종목 정보를 찾을 수 없습니다."
     const val CHART_DATA_NOT_AVAILABLE = "차트 데이터를 불러올 수 없습니다."

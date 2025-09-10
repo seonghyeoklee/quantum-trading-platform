@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import jakarta.validation.Valid
 
 /**
  * Spring AI 테스트 컨트롤러
@@ -89,7 +90,7 @@ class AITestController(
     )
     fun chatTest(
         @Parameter(description = "AI 채팅 테스트 요청", required = true)
-        @RequestBody request: ChatTestRequest
+        @RequestBody @Valid request: ChatTestRequest
     ): ResponseEntity<ChatTestResponse> {
         return try {
             logger.info("AI 채팅 테스트 요청: {}", request.message)

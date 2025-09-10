@@ -8,6 +8,7 @@ import com.quantum.user.domain.UserDomainService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import kotlinx.coroutines.runBlocking
 
 /**
  * 인증 관련 Use Case 구현체
@@ -18,7 +19,9 @@ class AuthUseCaseImpl(
     private val userRepository: UserRepository,
     private val passwordEncodingPort: PasswordEncodingPort,
     private val tokenManagementPort: TokenManagementPort,
-    private val userDomainService: UserDomainService
+    private val userDomainService: UserDomainService,
+    private val kisTokenService: com.quantum.kis.application.service.KisTokenService,
+    private val kisAccountRepository: com.quantum.kis.infrastructure.repository.KisAccountRepository
 ) : AuthUseCase {
     
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -69,11 +72,20 @@ class AuthUseCaseImpl(
             
             logger.info("Login successful for email: ${command.email}")
             
+            // KIS 토큰 자동 발급 시도 (실패해도 로그인은 성공 처리)
+            var kisTokenStatus: KisTokenStatus? = null
+            try {
+                kisTokenStatus = issueKisTokenIfAvailable(user.id)
+            } catch (exception: Exception) {
+                logger.warn("KIS token issuance failed for user ${user.id}", exception)
+            }
+            
             LoginResult(
                 success = true,
                 accessToken = accessToken,
                 expiresIn = expiresIn,
-                user = UserInfo.from(user)
+                user = UserInfo.from(user),
+                kisTokenStatus = kisTokenStatus
             )
             
         } catch (exception: Exception) {
@@ -107,6 +119,70 @@ class AuthUseCaseImpl(
         return LogoutResult(
             success = true,
             message = "로그아웃 완료"
+        )
+    }
+    
+    /**
+     * KIS 계정이 있는 사용자에게 KIS 토큰 자동 발급
+     */
+    private fun issueKisTokenIfAvailable(userId: Long): KisTokenStatus {
+        // KIS 계정 존재 여부 확인
+        val hasKisAccount = kisAccountRepository.existsByUserIdAndIsActiveTrue(userId)
+        
+        if (!hasKisAccount) {
+            return KisTokenStatus(
+                hasKisAccount = false,
+                tokenIssued = false,
+                environment = null
+            )
+        }
+        
+        // 우선순위: LIVE 환경 먼저 시도
+        val environments = listOf(
+            com.quantum.kis.domain.KisEnvironment.LIVE,
+            com.quantum.kis.domain.KisEnvironment.SANDBOX
+        )
+        
+        for (environment in environments) {
+            val kisAccount = kisAccountRepository
+                .findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+                    userId, environment
+                ).orElse(null)
+                
+            if (kisAccount != null) {
+                try {
+                    val request = com.quantum.kis.application.dto.KisAccountRequest(
+                        appKey = kisAccount.appKey,
+                        appSecret = kisAccount.appSecret,
+                        accountNumber = kisAccount.accountNumber,
+                        environment = environment,
+                        accountAlias = kisAccount.accountAlias
+                    )
+                    
+                    val kisTokenInfo = runBlocking {
+                        kisTokenService.issueToken(userId, request)
+                    }
+                    logger.info("KIS token issued for user $userId: ${kisTokenInfo.tokenId}")
+                    
+                    return KisTokenStatus(
+                        hasKisAccount = true,
+                        tokenIssued = true,
+                        environment = environment.displayName
+                    )
+                    
+                } catch (exception: Exception) {
+                    logger.warn("Failed to issue KIS token for user $userId in $environment", exception)
+                    // 다음 환경으로 계속 시도
+                    continue
+                }
+            }
+        }
+        
+        // 모든 환경에서 토큰 발급 실패
+        return KisTokenStatus(
+            hasKisAccount = true,
+            tokenIssued = false,
+            environment = null
         )
     }
 }

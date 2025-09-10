@@ -1,8 +1,8 @@
 package com.quantum.config
 
-import com.quantum.common.dto.ErrorCodes
-import com.quantum.common.dto.StandardErrorResponse
-import com.quantum.common.dto.UserMessages
+import com.quantum.common.presentation.dto.ErrorCodes
+import com.quantum.common.presentation.dto.StandardErrorResponse
+import com.quantum.common.presentation.dto.CommonMessages
 import com.quantum.stock.application.service.StockDataException
 import com.quantum.user.presentation.dto.ErrorResponse
 import jakarta.servlet.http.HttpServletRequest
@@ -133,7 +133,7 @@ class GlobalExceptionHandler {
         logger.error("Stock data service error: ${ex.message}", ex)
         
         val errorResponse = StandardErrorResponse.dataNotFound(
-            message = ex.message ?: UserMessages.STOCK_NOT_FOUND,
+            message = ex.message ?: CommonMessages.STOCK_NOT_FOUND,
             path = request.requestURI
         )
         
@@ -156,7 +156,7 @@ class GlobalExceptionHandler {
                 logger.error("KIS API error occurred: ${ex.message}", ex)
                 
                 val errorResponse = StandardErrorResponse.kisApiError(
-                    UserMessages.KIS_API_CONNECTION_FAILED
+                    CommonMessages.KIS_API_CONNECTION_FAILED
                 ).copy(path = request.requestURI)
                 
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorResponse)
@@ -167,7 +167,7 @@ class GlobalExceptionHandler {
                 
                 val errorResponse = StandardErrorResponse(
                     error = ErrorCodes.DATA_INTEGRITY_ERROR,
-                    message = UserMessages.CHART_DATA_NOT_AVAILABLE,
+                    message = CommonMessages.CHART_DATA_NOT_AVAILABLE,
                     details = "데이터 처리 중 오류가 발생했습니다.",
                     path = request.requestURI
                 )
@@ -178,7 +178,7 @@ class GlobalExceptionHandler {
                 logger.error("Runtime error occurred: ${ex.message}", ex)
                 
                 val errorResponse = StandardErrorResponse.internalServerError(
-                    UserMessages.SERVER_ERROR
+                    CommonMessages.SERVER_ERROR
                 ).copy(path = request.requestURI)
                 
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
@@ -196,7 +196,7 @@ class GlobalExceptionHandler {
         
         // 절대 더미 데이터를 생성하거나 성공으로 위장하지 않음
         val errorResponse = StandardErrorResponse.internalServerError(
-            UserMessages.SERVER_ERROR
+            CommonMessages.SERVER_ERROR
         ).copy(
             details = "예기치 않은 오류가 발생했습니다.",
             path = request.requestURI

@@ -2,9 +2,9 @@ package com.quantum.kis.presentation.web
 
 import com.quantum.kis.application.service.KisAccountService
 import com.quantum.kis.application.service.KisTokenService
-import com.quantum.kis.application.service.KisTokenInfo
 import com.quantum.kis.domain.KisEnvironment
 import com.quantum.kis.presentation.dto.KisAccountInfoResponse
+import com.quantum.kis.presentation.dto.KisTokenInfo
 import com.quantum.user.infrastructure.security.JwtTokenProvider
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import jakarta.validation.Valid
 
 /**
  * KIS 계정 관리 컨트롤러
@@ -82,7 +83,21 @@ class KisAccountController(
             val userId = getUserIdFromRequest(request)
             logger.info("KIS 계정 정보 조회 요청 - 사용자 ID: {}", userId)
             
-            val accountsInfo = kisAccountService.getUserKisAccounts(userId)
+            val accountsDto = kisAccountService.getUserKisAccounts(userId)
+            
+            // Application DTO를 Presentation DTO로 매핑
+            val accountsInfo = accountsDto.mapValues { (_, dto) ->
+                dto?.let { 
+                    KisAccountInfoResponse(
+                        appKey = it.appKey,
+                        appSecret = it.appSecret,
+                        accountNumber = it.accountNumber,
+                        accountAlias = it.accountAlias,
+                        lastValidatedAt = it.lastValidatedAt,
+                        lastTokenIssuedAt = it.lastTokenIssuedAt
+                    )
+                }
+            }
             
             logger.info("KIS 계정 정보 조회 완료 - 사용자 ID: {}, LIVE 계정: {}, SANDBOX 계정: {}", 
                 userId, 
@@ -132,7 +147,7 @@ class KisAccountController(
     )
     @SecurityRequirement(name = "bearerAuth")
     suspend fun issueTokenFromStoredAccount(
-        @RequestBody request: KisTokenIssueFromStoredAccountRequest,
+        @RequestBody @Valid request: KisTokenIssueFromStoredAccountRequest,
         httpRequest: jakarta.servlet.http.HttpServletRequest
     ): ResponseEntity<KisTokenIssueResponse> {
         return try {
@@ -208,7 +223,7 @@ class KisAccountController(
     )
     @SecurityRequirement(name = "bearerAuth")
     fun setupKisAccount(
-        @RequestBody request: KisAccountSetupRequest,
+        @RequestBody @Valid request: KisAccountSetupRequest,
         httpRequest: jakarta.servlet.http.HttpServletRequest
     ): ResponseEntity<KisAccountSetupResponse> {
         return try {

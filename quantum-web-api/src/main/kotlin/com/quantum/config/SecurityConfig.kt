@@ -74,8 +74,7 @@ class SecurityConfig(
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
 
-                    // TODO 개발용
-                    .requestMatchers("/api/v1/**").permitAll()
+                    // 나머지는 인증 필요
                     .anyRequest().authenticated()
             }
             .authenticationProvider(authenticationProvider())

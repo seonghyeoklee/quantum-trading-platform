@@ -4,12 +4,13 @@ import com.quantum.user.application.port.outgoing.UserRepository
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 
 /**
  * Spring Security UserDetailsService 구현체
+ * 인프라스트럭처 계층의 보안 어댑터
  */
-@Service
+@Component
 class CustomUserDetailsService(
     private val userRepository: UserRepository
 ) : UserDetailsService {

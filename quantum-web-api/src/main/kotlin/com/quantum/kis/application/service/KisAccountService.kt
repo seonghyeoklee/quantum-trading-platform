@@ -1,9 +1,9 @@
 package com.quantum.kis.application.service
 
+import com.quantum.kis.application.dto.KisAccountInfoDto
+import com.quantum.kis.application.port.outgoing.KisAccountPort
 import com.quantum.kis.domain.KisAccount
 import com.quantum.kis.domain.KisEnvironment
-import com.quantum.kis.infrastructure.repository.KisAccountRepository
-import com.quantum.kis.presentation.dto.KisAccountInfoResponse
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -13,22 +13,22 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class KisAccountService(
-    private val kisAccountRepository: KisAccountRepository
+    private val kisAccountPort: KisAccountPort
 ) {
     
     /**
      * 사용자의 KIS 계정 정보 조회
      */
     @Transactional(readOnly = true)
-    fun getUserKisAccounts(userId: Long): Map<String, KisAccountInfoResponse?> {
-        val accounts = kisAccountRepository.findByUserIdAndIsActiveTrue(userId)
+    fun getUserKisAccounts(userId: Long): Map<String, KisAccountInfoDto?> {
+        val accounts = kisAccountPort.findByUserIdAndIsActiveTrue(userId)
         
-        val result = mutableMapOf<String, KisAccountInfoResponse?>()
+        val result = mutableMapOf<String, KisAccountInfoDto?>()
         
         // LIVE 환경 계정 찾기
         val liveAccount = accounts.find { it.environment == KisEnvironment.LIVE }
         result["live"] = liveAccount?.let { account ->
-            KisAccountInfoResponse(
+            KisAccountInfoDto(
                 appKey = account.appKey,
                 appSecret = account.appSecret, // 암호화된 상태로 반환
                 accountNumber = account.accountNumber,
@@ -41,7 +41,7 @@ class KisAccountService(
         // SANDBOX 환경 계정 찾기
         val sandboxAccount = accounts.find { it.environment == KisEnvironment.SANDBOX }
         result["sandbox"] = sandboxAccount?.let { account ->
-            KisAccountInfoResponse(
+            KisAccountInfoDto(
                 appKey = account.appKey,
                 appSecret = account.appSecret, // 암호화된 상태로 반환
                 accountNumber = account.accountNumber,
@@ -59,7 +59,7 @@ class KisAccountService(
      */
     @Transactional(readOnly = true)
     fun getUserKisAccount(userId: Long, environment: KisEnvironment): KisAccount? {
-        return kisAccountRepository.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+        return kisAccountPort.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
             userId, environment
         ).orElse(null)
     }
@@ -69,7 +69,7 @@ class KisAccountService(
      */
     @Transactional(readOnly = true)
     fun hasKisAccount(userId: Long): Boolean {
-        return kisAccountRepository.existsByUserIdAndIsActiveTrue(userId)
+        return kisAccountPort.existsByUserIdAndIsActiveTrue(userId)
     }
     
     /**
@@ -77,7 +77,7 @@ class KisAccountService(
      */
     @Transactional(readOnly = true)
     fun hasKisAccount(userId: Long, environment: KisEnvironment): Boolean {
-        return kisAccountRepository.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+        return kisAccountPort.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
             userId, environment
         ).isPresent
     }
@@ -94,7 +94,7 @@ class KisAccountService(
         accountAlias: String? = null
     ): KisAccount {
         // 기존 계정이 있는지 확인
-        val existingAccount = kisAccountRepository.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+        val existingAccount = kisAccountPort.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
             userId, environment
         ).orElse(null)
         
@@ -106,7 +106,7 @@ class KisAccountService(
                 this.accountNumber = accountNumber
                 this.accountAlias = accountAlias
             }
-            kisAccountRepository.save(existingAccount)
+            kisAccountPort.save(existingAccount)
         } else {
             // 새 계정 생성
             val newAccount = KisAccount.create(
@@ -117,7 +117,7 @@ class KisAccountService(
                 environment = environment,
                 accountAlias = accountAlias
             )
-            kisAccountRepository.save(newAccount)
+            kisAccountPort.save(newAccount)
         }
     }
     
@@ -125,11 +125,11 @@ class KisAccountService(
      * KIS 계정 비활성화
      */
     fun deactivateKisAccount(userId: Long, environment: KisEnvironment) {
-        kisAccountRepository.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
+        kisAccountPort.findFirstByUserIdAndEnvironmentAndIsActiveTrueOrderByCreatedAtAsc(
             userId, environment
         ).ifPresent { account ->
             account.isActive = false
-            kisAccountRepository.save(account)
+            kisAccountPort.save(account)
         }
     }
 }

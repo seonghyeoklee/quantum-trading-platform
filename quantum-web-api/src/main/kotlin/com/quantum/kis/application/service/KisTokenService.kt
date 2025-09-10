@@ -5,6 +5,8 @@ import com.quantum.kis.infrastructure.client.KisApiClient
 import com.quantum.kis.infrastructure.client.KisApiException
 import com.quantum.kis.infrastructure.repository.KisAccountRepository
 import com.quantum.kis.infrastructure.repository.KisTokenRepository
+import com.quantum.kis.application.dto.KisAccountRequest
+import com.quantum.kis.application.dto.KisTokenDto
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -36,7 +38,7 @@ class KisTokenService(
      * @param request 계정 요청 정보
      * @return 발급된 토큰 정보
      */
-    suspend fun issueToken(userId: Long, request: KisAccountRequest): KisTokenInfo {
+    suspend fun issueToken(userId: Long, request: KisAccountRequest): KisTokenDto {
         logger.info("Issuing new KIS token for user: $userId, environment: ${request.environment}")
         
         try {
@@ -69,7 +71,7 @@ class KisTokenService(
             kisAccountRepository.save(kisAccount)
             
             logger.info("Successfully issued KIS token for user: $userId")
-            return KisTokenInfo.from(savedToken)
+            return KisTokenDto.from(savedToken)
             
         } catch (exception: Exception) {
             logger.error("Failed to issue KIS token for user: $userId", exception)
@@ -84,7 +86,7 @@ class KisTokenService(
      * @param environment KIS 환경
      * @return 갱신된 토큰 정보
      */
-    suspend fun refreshToken(userId: Long, environment: KisEnvironment): KisTokenInfo {
+    suspend fun refreshToken(userId: Long, environment: KisEnvironment): KisTokenDto {
         logger.info("Refreshing KIS token for user: $userId, environment: ${environment.displayName}")
         
         try {
@@ -119,7 +121,7 @@ class KisTokenService(
                 val refreshedToken = kisTokenRepository.save(existingToken)
                 
                 logger.info("Successfully refreshed KIS token for user: $userId")
-                return KisTokenInfo.from(refreshedToken)
+                return KisTokenDto.from(refreshedToken)
                 
             } else {
                 // 4b. 새 토큰 생성 (기존 토큰이 없는 경우)
@@ -134,7 +136,7 @@ class KisTokenService(
                 val savedToken = kisTokenRepository.save(newToken)
                 
                 logger.info("Created new KIS token for user: $userId (no existing token)")
-                return KisTokenInfo.from(savedToken)
+                return KisTokenDto.from(savedToken)
             }
             
         } catch (exception: Exception) {
@@ -187,14 +189,14 @@ class KisTokenService(
      * 사용자별 환경별 활성 토큰 조회
      */
     @Transactional(readOnly = true)
-    fun getActiveToken(userId: Long, environment: KisEnvironment): KisTokenInfo? {
+    fun getActiveToken(userId: Long, environment: KisEnvironment): KisTokenDto? {
         return kisTokenRepository.findFirstByUserIdAndEnvironmentAndStatusOrderByCreatedAtDesc(
             userId, environment, TokenStatus.ACTIVE
         ).map { token ->
             // 토큰 사용 기록
             token.markUsed()
             kisTokenRepository.save(token)
-            KisTokenInfo.from(token)
+            KisTokenDto.from(token)
         }.orElse(null)
     }
     
@@ -308,41 +310,6 @@ class KisTokenService(
     }
 }
 
-/**
- * KIS 계정 요청 DTO
- */
-data class KisAccountRequest(
-    val appKey: String,
-    val appSecret: String,
-    val accountNumber: String,
-    val environment: KisEnvironment,
-    val accountAlias: String? = null
-)
-
-/**
- * KIS 토큰 정보 DTO
- */
-data class KisTokenInfo(
-    val tokenId: Long,
-    val accessToken: String,
-    val expiresAt: LocalDateTime,
-    val environment: KisEnvironment,
-    val status: TokenStatus,
-    val remainingTimeMinutes: Long
-) {
-    companion object {
-        fun from(kisToken: KisToken): KisTokenInfo {
-            return KisTokenInfo(
-                tokenId = kisToken.id,
-                accessToken = kisToken.accessToken,
-                expiresAt = kisToken.expiresAt,
-                environment = kisToken.environment,
-                status = kisToken.status,
-                remainingTimeMinutes = kisToken.getRemainingTime().toMinutes()
-            )
-        }
-    }
-}
 
 /**
  * KIS 토큰 예외 클래스
