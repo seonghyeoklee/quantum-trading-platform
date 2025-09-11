@@ -22,6 +22,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Auto Data Splitting**: Handles large date ranges by splitting into 90-day chunks
 - **AI-Enhanced Analysis**: Comprehensive batch analysis system with PostgreSQL storage
 - **Real-time Data**: WebSocket endpoint for live market data streaming
+- **DINO Test System**: Automated stock scoring system with 15-point scale analysis
+- **Database Token Management**: PostgreSQL-based KIS token storage and management
 
 ## Development Commands
 
@@ -83,6 +85,22 @@ uv run python test_single_stock.py
 uv run python test_ai_features.py
 ```
 
+### DINO Test System
+```bash
+# Test financial analysis (5-point scale)
+uv run python test_dino_finance.py
+
+# Test technical analysis (5-point scale)  
+uv run python test_dino_technical.py
+
+# Test price analysis (5-point scale)
+uv run python test_dino_price.py
+
+# Test specific stock with detailed output
+uv run python test_dino_finance.py 005930
+uv run python test_dino_price.py 000660
+```
+
 ## Project Structure
 
 ### Dual Architecture System
@@ -129,6 +147,28 @@ sector_trading_test/
 └── manual_trader.py                 # Interactive trading console
 ```
 
+### DINO Test System
+```
+dino_test/
+├── finance_scorer.py                # Financial analysis scoring (5 points)
+├── finance_data_collector.py        # KIS financial data collection
+├── technical_analyzer.py            # Technical analysis scoring (5 points) 
+├── technical_data_collector.py      # Chart data collection with indicators
+├── price_analyzer.py                # Price analysis scoring (5 points)
+├── price_data_collector.py          # 52-week high/low analysis
+├── __init__.py                      # Package initialization
+└── [future] material_analyzer.py    # Material analysis scoring (5 points - pending)
+```
+
+### Database Token Management
+```
+db_token_manager.py                   # PostgreSQL direct connection for KIS tokens
+├── DBTokenManager class              # Token management with database
+├── get_kis_token_from_db()          # Retrieve valid tokens by user
+├── get_token_status_from_db()       # Check token validity and expiration
+└── is_db_available()                # Database connection health check
+```
+
 ## KIS API Configuration
 
 ### Authentication Setup
@@ -149,7 +189,9 @@ sector_trading_test/
    ka.auth(svr="vps", product="01")
    ```
 
-3. **Token Storage**: Configured in `examples_llm/kis_auth.py` line 35-41
+3. **Token Storage**: 
+   - **Database**: PostgreSQL-based token management via `db_token_manager.py` (preferred)
+   - **File-based**: Configured in `examples_llm/kis_auth.py` line 35-41 (fallback)
    ```python
    config_root = os.path.join(os.path.expanduser("~"), "KIS", "config")
    ```
@@ -176,6 +218,14 @@ GET /domestic/holiday                     # Market holidays
 GET /overseas/{exchange}/price/{symbol}        # Current price
 GET /overseas/{exchange}/chart/{symbol}        # Chart data
 GET /overseas/{exchange}/index/{index_code}    # Index prices
+```
+
+### DINO Test Endpoints
+```
+GET /dino-test/finance/{stock_code}            # Financial analysis (5-point scale)
+GET /dino-test/technical/{stock_code}          # Technical analysis (5-point scale)
+GET /dino-test/price/{stock_code}              # Price analysis (5-point scale)
+GET /dino-test/finance-batch                   # Batch financial analysis
 ```
 
 ### Utility Endpoints
@@ -268,3 +318,25 @@ The server uses uvicorn's auto-reload feature. Changes to `main.py` or imported 
 - **Sector Configuration**: `sector_trading_test/config/sectors_2025.yaml`
 - **Strategy Configuration**: Multiple YAML files for different strategies
 - **Risk Management**: Separate configuration for risk parameters
+
+## DINO Test System Details
+
+### Scoring Architecture
+The DINO Test system implements a comprehensive 15-point stock analysis framework:
+
+- **Financial Area (5 points)**: Revenue growth, operating profit, margins, retained earnings, debt ratio
+- **Technical Area (5 points)**: OBV analysis, RSI indicators, investor sentiment, MACD signals  
+- **Price Area (5 points)**: 52-week high/low positioning with risk assessment
+- **Material Area (5 points)**: [Future] Dividend rate, earnings surprise, institutional investment, themes
+
+### Implementation Architecture
+- **Excel Formula Integration**: Implements `MAX(0,MIN(5,2+SUM(individual_scores)))` calculation
+- **Real Data Processing**: Uses actual KIS API data, no mock or sample data
+- **Multi-batch Collection**: Overcomes KIS API 100-record limits with sequential calls
+- **Korean User Interface**: Raw data presented with Korean keys and formatted values
+
+### Key Technical Features
+- **Financial Data Sources**: 5 KIS APIs (income_statement, balance_sheet, financial_ratio, etc.)
+- **Technical Indicators**: pandas_ta integration for OBV, RSI, Stochastic, MACD calculations
+- **Price Analysis**: 52-week high/low analysis with momentum and risk scoring
+- **Database Integration**: PostgreSQL storage with multi-user JWT support

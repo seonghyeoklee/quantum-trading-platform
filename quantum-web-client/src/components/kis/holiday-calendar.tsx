@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { KisHolidayApiResponse, KisHolidayItem } from '@/types/kis-holiday';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
 
 // react-calendar의 Value 타입 정의
 type ValuePiece = Date | null;
@@ -65,25 +66,14 @@ export default function HolidayCalendar({ className }: HolidayCalendarProps) {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
 
-      const apiUrl = `http://api.quantum-trading.com:8080/api/v1/kis/holidays/calendar?startDate=${startDate}&endDate=${endDate}`;
+      const endpoint = `/api/v1/kis/holidays/calendar?startDate=${startDate}&endDate=${endDate}`;
       
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await apiClient.get<KisHolidayApiResponse>(endpoint, true);
 
-      if (!response.ok) {
-        throw new Error(`API 호출 실패: ${response.status}`);
-      }
-
-      const data: KisHolidayApiResponse = await response.json();
-      
-      if (data.success && data.data) {
-        setHolidayData(data.data);
+      if (response.data?.success && response.data?.data) {
+        setHolidayData(response.data.data);
       } else {
-        console.warn('휴장일 데이터가 없거나 형식이 올바르지 않습니다:', data);
+        console.warn('휴장일 데이터가 없거나 형식이 올바르지 않습니다:', response.data);
         setHolidayData([]);
       }
     } catch (error) {

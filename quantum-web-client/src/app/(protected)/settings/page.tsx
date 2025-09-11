@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { getApiBaseUrl } from '@/lib/api-config';
+import { apiClient } from '@/lib/api';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -88,25 +88,12 @@ function SettingsPage() {
   useEffect(() => {
     const fetchTwoFactorStatus = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return;
+        console.log('🔒 [Settings] Checking 2FA status');
+        const response = await apiClient.get<{ success: boolean; data: TwoFactorStatus }>('/api/v1/auth/2fa/status', true);
 
-        const apiBaseUrl = getApiBaseUrl();
-        console.log('🔒 [Settings] Checking 2FA status at:', `${apiBaseUrl}/api/v1/auth/2fa/status`);
-        const response = await fetch(`${apiBaseUrl}/api/v1/auth/2fa/status`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setTwoFactorEnabled(data.data.enabled);
-            setTwoFactorStatus(data.data);
-          }
+        if (response.data?.success) {
+          setTwoFactorEnabled(response.data.data.enabled);
+          setTwoFactorStatus(response.data.data);
         }
       } catch (error) {
         console.error('2FA 상태 조회 실패:', error);
@@ -120,27 +107,14 @@ function SettingsPage() {
   useEffect(() => {
     const fetchTradingSettings = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return;
+        console.log('🔧 [Settings] Fetching trading settings');
+        const response = await apiClient.get<TradingConfigResponse>('/api/v1/trading/config/settings', true);
 
-        const apiBaseUrl = getApiBaseUrl();
-        console.log('🔧 [Settings] Fetching trading settings from:', `${apiBaseUrl}/api/v1/trading/config/settings`);
-        const response = await fetch(`${apiBaseUrl}/api/v1/trading/config/settings`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const result: TradingConfigResponse = await response.json();
-          if (result.success && result.data) {
-            setTradingSettings(result.data);
-            console.log('✅ [Settings] Trading settings loaded:', result.data);
-          }
+        if (response.data?.success && response.data.data) {
+          setTradingSettings(response.data.data);
+          console.log('✅ [Settings] Trading settings loaded:', response.data.data);
         } else {
-          console.warn('⚠️ [Settings] Failed to load trading settings:', response.status);
+          console.warn('⚠️ [Settings] Failed to load trading settings');
         }
       } catch (error) {
         console.error('❌ [Settings] Error fetching trading settings:', error);
@@ -158,25 +132,15 @@ function SettingsPage() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const apiBaseUrl = getApiBaseUrl();
-      console.log('❌ [Settings] Disabling 2FA at:', `${apiBaseUrl}/api/v1/auth/2fa/disable`);
-      const response = await fetch(`${apiBaseUrl}/api/v1/auth/2fa/disable`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
+      console.log('❌ [Settings] Disabling 2FA');
+      const response = await apiClient.post<{ success: boolean; error?: string }>('/api/v1/auth/2fa/disable', {}, true);
 
-      const data = await response.json();
-      if (data.success) {
+      if (response.data?.success) {
         setTwoFactorEnabled(false);
         setTwoFactorStatus(null);
         alert('2단계 인증이 비활성화되었습니다.');
       } else {
-        alert(`오류: ${data.error || '2FA 비활성화에 실패했습니다.'}`);
+        alert(`오류: ${response.data?.error || '2FA 비활성화에 실패했습니다.'}`);
       }
     } catch (error) {
       alert('2FA 비활성화 중 오류가 발생했습니다.');
@@ -211,11 +175,7 @@ function SettingsPage() {
 
     setTradingLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) throw new Error('인증 토큰이 없습니다.');
-
-      const apiBaseUrl = getApiBaseUrl();
-      console.log(`🔄 [Settings] Changing trading mode to ${newMode}:`, `${apiBaseUrl}/api/v1/trading/config/mode`);
+      console.log(`🔄 [Settings] Changing trading mode to ${newMode}`);
       
       const requestData: {
         tradingMode: 'SANDBOX' | 'PRODUCTION';
@@ -230,28 +190,18 @@ function SettingsPage() {
         requestData.totpCode = totpCode;
       }
 
-      const response = await fetch(`${apiBaseUrl}/api/v1/trading/config/mode`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestData)
-      });
-
-      const result: TradingConfigResponse = await response.json();
+      const response = await apiClient.post<TradingConfigResponse>('/api/v1/trading/config/mode', requestData, true);
       
-      if (response.ok && result.success && result.data) {
-        setTradingSettings(result.data);
+      if (response.data?.success && response.data?.data) {
+        setTradingSettings(response.data.data);
         setShowTotpInput(false);
         setTotpCode('');
         alert(`트레이딩 모드가 ${newMode === 'PRODUCTION' ? '실전투자' : '모의투자'}로 변경되었습니다.`);
-        console.log('✅ [Settings] Trading mode changed successfully:', result.data);
+        console.log('✅ [Settings] Trading mode changed successfully:', response.data.data);
       } else {
-        const errorMessage = result.error || '트레이딩 모드 변경에 실패했습니다.';
+        const errorMessage = response.data?.error || '트레이딩 모드 변경에 실패했습니다.';
         alert(`오류: ${errorMessage}`);
-        console.error('❌ [Settings] Trading mode change failed:', result);
+        console.error('❌ [Settings] Trading mode change failed:', response.data);
       }
     } catch (error) {
       alert('트레이딩 모드 변경 중 오류가 발생했습니다.');
@@ -267,32 +217,18 @@ function SettingsPage() {
   const handleTradingSettingsUpdate = async (updates: Partial<TradingSettings>) => {
     setTradingLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) throw new Error('인증 토큰이 없습니다.');
-
-      const apiBaseUrl = getApiBaseUrl();
       console.log('🔧 [Settings] Updating trading settings:', updates);
       
-      const response = await fetch(`${apiBaseUrl}/api/v1/trading/config/settings`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          ...tradingSettings,
-          ...updates
-        })
-      });
-
-      const result: TradingConfigResponse = await response.json();
+      const response = await apiClient.put<TradingConfigResponse>('/api/v1/trading/config/settings', {
+        ...tradingSettings,
+        ...updates
+      }, true);
       
-      if (response.ok && result.success && result.data) {
-        setTradingSettings(result.data);
-        console.log('✅ [Settings] Trading settings updated:', result.data);
+      if (response.data?.success && response.data?.data) {
+        setTradingSettings(response.data.data);
+        console.log('✅ [Settings] Trading settings updated:', response.data.data);
       } else {
-        const errorMessage = result.error || '트레이딩 설정 업데이트에 실패했습니다.';
+        const errorMessage = response.data?.error || '트레이딩 설정 업데이트에 실패했습니다.';
         alert(`오류: ${errorMessage}`);
       }
     } catch (error) {

@@ -2223,6 +2223,219 @@ async def dino_test_interest_coverage_analysis(
         logger.error(f"D009 이자보상배율 분석 오류 - {stock_code}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"이자보상배율 분석 중 오류가 발생했습니다: {str(e)}")
 
+# ============================================
+# DINO 종합 테스트 엔드포인트
+# ============================================
+
+class ComprehensiveDinoRequest(BaseModel):
+    stock_code: str = Field(..., description="종목 코드 (예: 005930)")
+    company_name: Optional[str] = Field(None, description="회사명 (옵션)")
+    force_rerun: bool = Field(False, description="강제 재실행 여부")
+
+class ComprehensiveDinoResponse(BaseModel):
+    success: bool
+    stock_code: str
+    company_name: str
+    
+    # 9개 분석 영역 점수
+    finance_score: int
+    technical_score: int
+    price_score: int
+    material_score: int
+    event_score: int
+    theme_score: int
+    positive_news_score: int
+    interest_coverage_score: int
+    
+    total_score: int
+    analysis_grade: str
+    analysis_date: str
+    status: str
+    message: str
+
+class DinoResultsResponse(BaseModel):
+    success: bool
+    results: List[Dict[str, Any]]
+    total_count: int
+    message: str
+
+@app.post("/dino-test/comprehensive", response_model=ComprehensiveDinoResponse)
+async def run_comprehensive_dino_test(
+    request: ComprehensiveDinoRequest,
+    authorization: str = Header(None)
+):
+    """
+    종합 DINO 테스트 실행
+    
+    모든 분석 영역을 실행하고 결과와 Raw 데이터를 저장합니다.
+    - 하루 1회 분석 제한 (force_rerun=true로 우회 가능)
+    - 모든 Raw 데이터 및 AI 응답 저장
+    - 자동 등급 계산 (S/A/B/C/D)
+    """
+    try:
+        # 인증 컨텍스트 설정
+        setup_auth_context(authorization)
+        
+        # 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization or DEFAULT_ADMIN_TOKEN)
+        
+        logger.info(f"🚀 종합 DINO 분석 요청: {request.stock_code}, force_rerun={request.force_rerun}")
+        
+        # 종합 분석기 초기화
+        from dino_test.comprehensive_analyzer import ComprehensiveDinoAnalyzer
+        analyzer = ComprehensiveDinoAnalyzer()
+        
+        # 종합 분석 실행
+        result = analyzer.run_comprehensive_analysis(
+            stock_code=request.stock_code,
+            company_name=request.company_name,
+            user_id=user_id,
+            force_rerun=request.force_rerun
+        )
+        
+        if not result:
+            if not request.force_rerun and analyzer.check_existing_analysis(request.stock_code):
+                return ComprehensiveDinoResponse(
+                    success=False,
+                    stock_code=request.stock_code,
+                    company_name=request.company_name or request.stock_code,
+                    finance_score=0, technical_score=0, price_score=0, material_score=0,
+                    event_score=0, theme_score=0, positive_news_score=0, interest_coverage_score=0,
+                    total_score=0, analysis_grade="", analysis_date="", status="SKIPPED",
+                    message="오늘 이미 분석된 종목입니다. force_rerun=true로 재실행 가능합니다."
+                )
+            else:
+                raise HTTPException(status_code=500, detail="종합 분석 실행에 실패했습니다")
+        
+        # 자동 등급 계산 (트리거 함수에 의해 자동 계산됨)
+        grade_map = {35: "S", 30: "A", 25: "B", 20: "C"}
+        grade = "D"
+        for threshold, g in grade_map.items():
+            if result.total_score >= threshold:
+                grade = g
+                break
+        
+        logger.info(f"🎉 종합 DINO 분석 완료 - {result.company_name}: 총점 {result.total_score}점, 등급 {grade}")
+        
+        return ComprehensiveDinoResponse(
+            success=True,
+            stock_code=result.stock_code,
+            company_name=result.company_name,
+            finance_score=result.finance_score,
+            technical_score=result.technical_score,
+            price_score=result.price_score,
+            material_score=result.material_score,
+            event_score=result.event_score,
+            theme_score=result.theme_score,
+            positive_news_score=result.positive_news_score,
+            interest_coverage_score=result.interest_coverage_score,
+            total_score=result.total_score,
+            analysis_grade=grade,
+            analysis_date=result.analysis_date.isoformat(),
+            status=result.status,
+            message=f"종합 DINO 분석이 성공적으로 완료되었습니다. 총점: {result.total_score}점, 등급: {grade}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"종합 DINO 분석 오류 - {request.stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"종합 DINO 분석 중 오류가 발생했습니다: {str(e)}")
+
+@app.get("/dino-test/results", response_model=DinoResultsResponse)
+async def get_dino_test_results(
+    stock_code: Optional[str] = None,
+    analysis_date: Optional[str] = None,
+    limit: int = 100,
+    authorization: str = Header(None)
+):
+    """
+    DINO 테스트 결과 조회
+    
+    Args:
+        stock_code: 종목 코드 필터 (옵션)
+        analysis_date: 분석 날짜 필터 (YYYY-MM-DD 형식, 옵션)
+        limit: 최대 조회 건수 (기본: 100)
+    """
+    try:
+        # 인증 컨텍스트 설정
+        setup_auth_context(authorization)
+        
+        logger.info(f"📊 DINO 테스트 결과 조회: stock_code={stock_code}, date={analysis_date}, limit={limit}")
+        
+        # 종합 분석기 초기화
+        from dino_test.comprehensive_analyzer import ComprehensiveDinoAnalyzer
+        analyzer = ComprehensiveDinoAnalyzer()
+        
+        # 날짜 파싱
+        parsed_date = None
+        if analysis_date:
+            try:
+                from datetime import datetime
+                parsed_date = datetime.strptime(analysis_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="날짜 형식이 잘못되었습니다. YYYY-MM-DD 형식을 사용하세요.")
+        
+        # 결과 조회
+        results = analyzer.get_analysis_results(
+            stock_code=stock_code,
+            analysis_date=parsed_date,
+            limit=limit
+        )
+        
+        logger.info(f"✅ DINO 테스트 결과 조회 완료: {len(results)}건")
+        
+        return DinoResultsResponse(
+            success=True,
+            results=results,
+            total_count=len(results),
+            message=f"DINO 테스트 결과 {len(results)}건을 성공적으로 조회했습니다."
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"DINO 테스트 결과 조회 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"DINO 테스트 결과 조회 중 오류가 발생했습니다: {str(e)}")
+
+@app.get("/dino-test/results/{stock_code}/latest")
+async def get_latest_dino_result(
+    stock_code: str,
+    authorization: str = Header(None)
+):
+    """특정 종목의 최신 DINO 테스트 결과 조회"""
+    try:
+        # 인증 컨텍스트 설정
+        setup_auth_context(authorization)
+        
+        logger.info(f"📊 최신 DINO 결과 조회: {stock_code}")
+        
+        # 종합 분석기 초기화
+        from dino_test.comprehensive_analyzer import ComprehensiveDinoAnalyzer
+        analyzer = ComprehensiveDinoAnalyzer()
+        
+        # 해당 종목의 최신 결과 1건 조회
+        results = analyzer.get_analysis_results(stock_code=stock_code, limit=1)
+        
+        if not results:
+            raise HTTPException(status_code=404, detail=f"종목 {stock_code}의 DINO 테스트 결과를 찾을 수 없습니다.")
+        
+        latest_result = results[0]
+        
+        logger.info(f"✅ 최신 DINO 결과 조회 완료: {stock_code} - 총점 {latest_result.get('total_score', 0)}점")
+        
+        return {
+            "success": True,
+            "result": latest_result,
+            "message": f"종목 {stock_code}의 최신 DINO 테스트 결과입니다."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"최신 DINO 결과 조회 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"최신 DINO 결과 조회 중 오류가 발생했습니다: {str(e)}")
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",

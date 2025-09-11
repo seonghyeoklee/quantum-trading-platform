@@ -2,11 +2,20 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import StockSelector, { DomesticStock } from '@/components/stock/StockSelector';
+import StockSelector from '@/components/stock/StockSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, BarChart3, TrendingUp, Building2, Zap } from 'lucide-react';
+import { ArrowRight, BarChart3, TrendingUp, Building2, Zap, Activity, DollarSign, PieChart } from 'lucide-react';
+import { DomesticStock } from '@/types/stock';
+import { 
+  formatPrice,
+  formatPercent,
+  formatVolume,
+  formatMarketCap,
+  formatTradeAmount,
+  getPriceChangeDisplay
+} from '@/types/stock';
 
 export default function StocksPage() {
   const router = useRouter();
@@ -42,6 +51,7 @@ export default function StocksPage() {
             onStockSelect={handleStockSelect}
             showSearch={true}
             showFilter={true}
+            showKisDetail={true}
             pageSize={25}
             title="종목 목록"
             placeholder="종목명 또는 종목코드를 입력하세요 (예: 삼성전자, 005930)"

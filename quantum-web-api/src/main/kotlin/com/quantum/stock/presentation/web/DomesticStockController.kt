@@ -2,14 +2,17 @@ package com.quantum.stock.presentation.web
 
 import com.quantum.stock.domain.DomesticMarketType
 import com.quantum.stock.infrastructure.persistence.DomesticStockRepository
+import com.quantum.stock.application.service.DomesticStockService
 import com.quantum.stock.presentation.dto.DomesticStockDetailDto
 import com.quantum.stock.presentation.dto.DomesticStockListResponse
 import com.quantum.stock.presentation.dto.DomesticStockSearchRequest
+import com.quantum.stock.presentation.dto.DomesticStockWithKisDetailDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import kotlinx.coroutines.runBlocking
 
 /**
  * 국내주식 종목 API 컨트롤러
@@ -20,7 +23,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/v1/stocks/domestic")
 @CrossOrigin(origins = ["http://quantum-trading.com:3000", "http://localhost:3000"])
 class DomesticStockController(
-    private val domesticStockRepository: DomesticStockRepository
+    private val domesticStockRepository: DomesticStockRepository,
+    private val domesticStockService: DomesticStockService
 ) {
     
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -145,6 +149,49 @@ class DomesticStockController(
             
         } catch (exception: Exception) {
             logger.error("국내주식 종목 상세 조회 실패 - stockCode: $stockCode", exception)
+            ResponseEntity.internalServerError().build()
+        }
+    }
+    
+    /**
+     * KIS API 상세 정보가 포함된 종목 정보 조회
+     */
+    @GetMapping("/{stockCode}/detail")
+    fun getDomesticStockWithKisDetail(@PathVariable stockCode: String): ResponseEntity<DomesticStockWithKisDetailDto> {
+        
+        return try {
+            logger.info("국내주식 KIS 상세 정보 조회 - stockCode: $stockCode")
+            
+            // 종목코드 유효성 검증
+            if (!stockCode.matches(Regex("^[A-Z0-9]{6}$"))) {
+                logger.warn("유효하지 않은 종목코드 형식: $stockCode")
+                return ResponseEntity.badRequest().build()
+            }
+            
+            // 기본 종목 정보 조회
+            val stock = domesticStockRepository.findByStockCodeAndIsActiveTrue(stockCode)
+            if (stock == null) {
+                logger.warn("종목을 찾을 수 없음: $stockCode")
+                return ResponseEntity.notFound().build()
+            }
+            
+            // KIS API 상세 정보 조회 (비동기 처리)
+            val kisDetail = runBlocking {
+                domesticStockService.getKisStockDetail(stockCode)
+            }
+            
+            val response = DomesticStockWithKisDetailDto.from(stock, kisDetail)
+            
+            if (kisDetail != null) {
+                logger.info("국내주식 KIS 상세 정보 조회 완료 - ${stock.stockName} (${stock.stockCode}), 현재가: ${kisDetail.currentPrice}")
+            } else {
+                logger.warn("KIS API 상세 정보 조회 실패 - ${stock.stockName} (${stock.stockCode})")
+            }
+            
+            ResponseEntity.ok(response)
+            
+        } catch (exception: Exception) {
+            logger.error("국내주식 KIS 상세 정보 조회 실패 - stockCode: $stockCode", exception)
             ResponseEntity.internalServerError().build()
         }
     }

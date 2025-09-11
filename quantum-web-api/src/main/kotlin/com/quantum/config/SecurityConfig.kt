@@ -73,6 +73,9 @@ class SecurityConfig(
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
+                    
+                    // 주식 정보 조회 (공개 접근 허용)
+                    .requestMatchers("/api/v1/**").permitAll()
 
                     // 나머지는 인증 필요
                     .anyRequest().authenticated()

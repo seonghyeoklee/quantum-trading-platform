@@ -110,3 +110,102 @@ data class DomesticStockDetailDto(
         }
     }
 }
+
+/**
+ * KIS API 상세 정보가 포함된 종목 정보 DTO
+ * 
+ * 기본 종목 정보 + KIS API에서 가져온 실시간 데이터
+ */
+data class DomesticStockWithKisDetailDto(
+    // 기본 종목 정보
+    val stockCode: String,
+    val stockName: String,
+    val marketType: DomesticMarketType,
+    val sectorCode: String? = null,
+    val listingDate: LocalDate? = null,
+    
+    // KIS API 실시간 데이터
+    val kisDetail: KisStockDetailInfo? = null,
+    val dataUpdatedAt: LocalDateTime? = null
+) {
+    companion object {
+        fun from(stock: DomesticStock, kisDetail: KisStockDetailInfo? = null): DomesticStockWithKisDetailDto {
+            return DomesticStockWithKisDetailDto(
+                stockCode = stock.stockCode,
+                stockName = stock.stockName,
+                marketType = stock.marketType,
+                sectorCode = stock.sectorCode,
+                listingDate = stock.listingDate,
+                kisDetail = kisDetail,
+                dataUpdatedAt = if (kisDetail != null) LocalDateTime.now() else null
+            )
+        }
+    }
+}
+
+/**
+ * KIS API 상세 정보
+ * 
+ * KIS Adapter에서 받은 데이터를 클라이언트 친화적으로 변환
+ */
+data class KisStockDetailInfo(
+    // 현재가 정보
+    val currentPrice: Long,              // 현재가
+    val previousDayChange: Long,         // 전일대비
+    val changeRate: Double,              // 등락률 (%)
+    val changeSign: PriceChangeSign,     // 등락 구분
+    val volume: Long,                    // 거래량
+    val tradeAmount: Long,              // 거래대금
+    
+    // 가격 정보
+    val openPrice: Long,                // 시가
+    val highPrice: Long,                // 고가
+    val lowPrice: Long,                 // 저가
+    val upperLimit: Long,               // 상한가
+    val lowerLimit: Long,               // 하한가
+    
+    // 재무비율
+    val per: Double,                    // PER
+    val pbr: Double,                    // PBR
+    val eps: Long,                      // EPS
+    val bps: Long,                      // BPS
+    val marketCap: Long,                // 시가총액 (억원)
+    
+    // 기술적 지표
+    val week52High: Long,               // 52주 최고가
+    val week52Low: Long,                // 52주 최저가
+    val week52HighDate: String,         // 52주 최고가 달성일
+    val week52LowDate: String,          // 52주 최저가 달성일
+    val day250High: Long,               // 250일 최고가
+    val day250Low: Long,                // 250일 최저가
+    val yearHigh: Long,                 // 연중 최고가
+    val yearLow: Long,                  // 연중 최저가
+    
+    // 시장 정보
+    val foreignOwnership: Double,       // 외국인 지분율 (%)
+    val volumeTurnover: Double,         // 거래량 회전율
+    val marketName: String,             // 시장명
+    val sectorName: String,             // 업종명
+    
+    // 기타 정보
+    val listedShares: Long,             // 상장주수
+    val settlementMonth: String,        // 결산월
+    val capital: String,                // 자본금
+    val faceValue: Long                 // 액면가
+)
+
+/**
+ * 가격 변동 구분
+ */
+enum class PriceChangeSign(val code: String, val description: String, val displayName: String) {
+    RISE("2", "상승", "▲"),
+    FLAT("3", "보합", "-"),
+    FALL("5", "하락", "▼"),
+    UNKNOWN("", "알 수 없음", "?");
+    
+    companion object {
+        fun fromCode(code: String): PriceChangeSign {
+            return values().find { it.code == code } ?: UNKNOWN
+        }
+    }
+}

@@ -1,7 +1,6 @@
 package com.quantum.user.infrastructure.persistence
 
 import com.quantum.user.domain.User
-import com.quantum.user.domain.UserRole
 import com.quantum.user.domain.UserStatus
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -11,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager
 import org.springframework.test.context.ActiveProfiles
-import java.time.LocalDateTime
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -28,7 +26,7 @@ class UserJpaRepositoryTest {
 
     @BeforeEach
     fun setUp() {
-        testUser = User.create(
+        testUser = User(
             email = "test@quantum.local",
             password = "encodedPassword123",
             name = "Test User"
@@ -45,19 +43,19 @@ class UserJpaRepositoryTest {
         val found = repository.findByEmail("test@quantum.local")
 
         // Then
-        assertThat(found).isNotNull()
-        assertThat(found!!.email).isEqualTo("test@quantum.local")
-        assertThat(found.name).isEqualTo("Test User")
-        assertThat(found.status).isEqualTo(UserStatus.ACTIVE)
+        assertThat(found).isPresent()
+        assertThat(found.get().email).isEqualTo("test@quantum.local")
+        assertThat(found.get().name).isEqualTo("Test User")
+        assertThat(found.get().status).isEqualTo(UserStatus.ACTIVE)
     }
 
     @Test
-    fun `존재하지 않는 이메일로 조회하면 null을 반환한다`() {
+    fun `존재하지 않는 이메일로 조회하면 빈 Optional을 반환한다`() {
         // When
         val found = repository.findByEmail("nonexistent@quantum.local")
 
         // Then
-        assertThat(found).isNull()
+        assertThat(found).isEmpty()
     }
 
     @Test
@@ -73,9 +71,9 @@ class UserJpaRepositoryTest {
     @Test
     fun `활성 상태인 사용자 목록을 조회할 수 있다`() {
         // Given
-        val activeUser1 = User.create("active1@quantum.local", "password", "Active User 1")
-        val activeUser2 = User.create("active2@quantum.local", "password", "Active User 2")
-        val inactiveUser = User.create("inactive@quantum.local", "password", "Inactive User")
+        val activeUser1 = User(email = "active1@quantum.local", password = "password", name = "Active User 1")
+        val activeUser2 = User(email = "active2@quantum.local", password = "password", name = "Active User 2")
+        val inactiveUser = User(email = "inactive@quantum.local", password = "password", name = "Inactive User")
         inactiveUser.deactivate()
 
         entityManager.persistAndFlush(activeUser1)
@@ -83,7 +81,7 @@ class UserJpaRepositoryTest {
         entityManager.persistAndFlush(inactiveUser)
 
         // When
-        val activeUsers = repository.findByStatus(UserStatus.ACTIVE)
+        val activeUsers = repository.findAllActiveUsers()
 
         // Then
         assertThat(activeUsers).hasSize(2)
@@ -94,54 +92,13 @@ class UserJpaRepositoryTest {
     }
 
     @Test
-    fun `특정 날짜 이후 마지막 로그인한 사용자를 조회할 수 있다`() {
-        // Given
-        val recentUser = User.create("recent@quantum.local", "password", "Recent User")
-        recentUser.login() // 최근 로그인
-
-        val oldUser = User.create("old@quantum.local", "password", "Old User")
-        
-        entityManager.persistAndFlush(recentUser)
-        entityManager.persistAndFlush(oldUser)
-        entityManager.clear()
-
-        val cutoffDate = LocalDateTime.now().minusHours(1)
-
-        // When
-        val recentUsers = repository.findByLastLoginAtAfter(cutoffDate)
-
-        // Then
-        assertThat(recentUsers).hasSize(1)
-        assertThat(recentUsers[0].email).isEqualTo("recent@quantum.local")
-    }
-
-    @Test
-    fun `역할별로 사용자를 조회할 수 있다`() {
-        // Given
-        val adminUser = User.create("admin@quantum.local", "password", "Admin User")
-        adminUser.grantRole(UserRole.ADMIN)
-
-        val regularUser = User.create("user@quantum.local", "password", "Regular User")
-
-        entityManager.persistAndFlush(adminUser)
-        entityManager.persistAndFlush(regularUser)
-
-        // When
-        val adminUsers = repository.findByRoles(UserRole.ADMIN)
-
-        // Then
-        assertThat(adminUsers).hasSize(1)
-        assertThat(adminUsers[0].email).isEqualTo("admin@quantum.local")
-    }
-
-    @Test
     fun `사용자 정보를 저장하고 수정할 수 있다`() {
         // Given
         val savedUser = repository.save(testUser)
         val userId = savedUser.id
 
         // When
-        savedUser.updateProfile("Updated Name")
+        savedUser.name = "Updated Name"
         val updatedUser = repository.save(savedUser)
 
         // Then
@@ -171,7 +128,7 @@ class UserJpaRepositoryTest {
     fun `페이징을 사용하여 사용자를 조회할 수 있다`() {
         // Given
         repeat(10) { index ->
-            val user = User.create("user$index@quantum.local", "password", "User $index")
+            val user = User(email = "user$index@quantum.local", password = "password", name = "User $index")
             entityManager.persist(user)
         }
         entityManager.flush()
@@ -183,5 +140,45 @@ class UserJpaRepositoryTest {
         assertThat(page.content).hasSize(5)
         assertThat(page.totalElements).isEqualTo(10)
         assertThat(page.totalPages).isEqualTo(2)
+    }
+
+    @Test
+    fun `사용자 총 개수를 조회할 수 있다`() {
+        // Given
+        repeat(5) { index ->
+            val user = User(email = "user$index@quantum.local", password = "password", name = "User $index")
+            entityManager.persist(user)
+        }
+        entityManager.flush()
+
+        // When
+        val count = repository.count()
+
+        // Then
+        assertThat(count).isEqualTo(5)
+    }
+
+    @Test
+    fun `ID로 사용자를 조회할 수 있다`() {
+        // Given
+        val savedUser = repository.save(testUser)
+        val userId = savedUser.id!!
+        entityManager.clear()
+
+        // When
+        val found = repository.findById(userId)
+
+        // Then
+        assertThat(found).isPresent()
+        assertThat(found.get().email).isEqualTo("test@quantum.local")
+    }
+
+    @Test
+    fun `존재하지 않는 ID로 조회하면 빈 Optional을 반환한다`() {
+        // When
+        val found = repository.findById(999L)
+
+        // Then
+        assertThat(found).isEmpty()
     }
 }

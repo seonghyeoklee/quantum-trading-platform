@@ -5,25 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, TrendingUp, Building2 } from 'lucide-react';
+import { Search, Filter, TrendingUp, Building2, Activity, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-export interface DomesticStock {
-  stockCode: string;
-  stockName: string;
-  marketType: 'KOSPI' | 'KOSDAQ';
-  isActive: boolean;
-  sectorCode?: string;
-  listingDate?: string;
-}
-
-export interface StockListResponse {
-  stocks: DomesticStock[];
-  totalCount: number;
-  currentPage: number;
-  totalPages: number;
-  pageSize: number;
-}
+import { apiClient } from '@/lib/api';
+import { 
+  DomesticStock, 
+  StockListResponse, 
+  DomesticStockWithKisDetail, 
+  KisStockDetailInfo,
+  getPriceChangeDisplay,
+  formatPrice,
+  formatPercent,
+  formatVolume,
+  PriceChangeSign
+} from '@/types/stock';
 
 interface StockSelectorProps {
   onStockSelect?: (stock: DomesticStock) => void;
@@ -35,6 +30,7 @@ interface StockSelectorProps {
   selectedStocks?: DomesticStock[];
   placeholder?: string;
   title?: string;
+  showKisDetail?: boolean;  // KIS API 상세 정보 표시 여부
 }
 
 export default function StockSelector({
@@ -46,7 +42,8 @@ export default function StockSelector({
   selectionMode = 'single',
   selectedStocks = [],
   placeholder = '종목명 또는 종목코드 검색...',
-  title = '종목 선택'
+  title = '종목 선택',
+  showKisDetail = false
 }: StockSelectorProps) {
   const [stocks, setStocks] = useState<DomesticStock[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,6 +53,39 @@ export default function StockSelector({
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  
+  // KIS API 상세 정보 상태
+  const [stockDetails, setStockDetails] = useState<Map<string, KisStockDetailInfo>>(new Map());
+  const [loadingDetails, setLoadingDetails] = useState<Set<string>>(new Set());
+
+  // KIS API 상세 정보 가져오기
+  const fetchStockDetail = async (stockCode: string) => {
+    if (!showKisDetail || loadingDetails.has(stockCode)) {
+      return;
+    }
+
+    setLoadingDetails(prev => new Set([...prev, stockCode]));
+
+    try {
+      const response = await apiClient.get<DomesticStockWithKisDetail>(
+        `/api/v1/stocks/domestic/${stockCode}/detail`,
+        false
+      );
+      
+      if (response.data && response.data.kisDetail) {
+        setStockDetails(prev => new Map(prev).set(stockCode, response.data!.kisDetail!));
+      }
+    } catch (err) {
+      console.error(`KIS 상세 정보 조회 실패 - ${stockCode}:`, err);
+      // 에러 발생 시에도 로딩 상태를 제거하되, 무음으로 처리
+    } finally {
+      setLoadingDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(stockCode);
+        return newSet;
+      });
+    }
+  };
 
   // API 호출 함수들
   const fetchStocks = async (page: number = 0, keyword?: string, market?: string) => {
@@ -63,28 +93,32 @@ export default function StockSelector({
     setError(null);
 
     try {
-      let url = `/api/v1/stocks/domestic?page=${page}&size=${pageSize}`;
+      let endpoint = `/api/v1/stocks/domestic?page=${page}&size=${pageSize}`;
       
       if (keyword && keyword.trim()) {
-        url = `/api/v1/stocks/domestic/search?keyword=${encodeURIComponent(keyword.trim())}&page=${page}&size=${pageSize}`;
+        endpoint = `/api/v1/stocks/domestic/search?keyword=${encodeURIComponent(keyword.trim())}&page=${page}&size=${pageSize}`;
       }
       
       if (market && market !== 'ALL') {
-        url += `&marketType=${market}`;
+        endpoint += `&marketType=${market}`;
       }
 
-      const response = await fetch(url);
+      const response = await apiClient.get<StockListResponse>(endpoint, false);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.data) {
+        const stocks = response.data.stocks;
+        setStocks(stocks);
+        setCurrentPage(response.data.currentPage);
+        setTotalPages(response.data.totalPages);
+        setTotalCount(response.data.totalCount);
+        
+        // KIS 상세 정보가 활성화된 경우 각 종목의 상세 정보를 병렬로 가져오기
+        if (showKisDetail && stocks.length > 0) {
+          stocks.forEach(stock => {
+            fetchStockDetail(stock.stockCode);
+          });
+        }
       }
-      
-      const data: StockListResponse = await response.json();
-      
-      setStocks(data.stocks);
-      setCurrentPage(data.currentPage);
-      setTotalPages(data.totalPages);
-      setTotalCount(data.totalCount);
       
     } catch (err) {
       console.error('종목 조회 실패:', err);
@@ -230,6 +264,8 @@ export default function StockSelector({
               <div className="space-y-2">
                 {stocks.map((stock) => {
                   const isSelected = isStockSelected(stock);
+                  const kisDetail = stockDetails.get(stock.stockCode);
+                  const isLoadingDetail = loadingDetails.has(stock.stockCode);
                   
                   return (
                     <div
@@ -254,10 +290,57 @@ export default function StockSelector({
                               {stock.marketType}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {stock.stockCode}
-                            {stock.sectorCode && ` | ${stock.sectorCode}`}
-                          </p>
+                          
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <p>
+                              {stock.stockCode}
+                              {stock.sectorCode && ` | ${stock.sectorCode}`}
+                            </p>
+                            
+                            {/* KIS API 상세 정보 표시 */}
+                            {showKisDetail && (
+                              <div className="mt-2">
+                                {isLoadingDetail ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                                    <span className="text-xs text-muted-foreground">실시간 데이터 로딩 중...</span>
+                                  </div>
+                                ) : kisDetail ? (
+                                  <div className="space-y-1 text-xs">
+                                    <div className="flex items-center gap-4">
+                                      {/* 현재가와 등락률 */}
+                                      <div className="flex items-center gap-1">
+                                        <DollarSign className="w-3 h-3" />
+                                        <span className="font-medium">{formatPrice(kisDetail.currentPrice)}</span>
+                                        <span 
+                                          className={cn(
+                                            'flex items-center gap-1',
+                                            getPriceChangeDisplay(kisDetail.changeSign).color
+                                          )}
+                                        >
+                                          {getPriceChangeDisplay(kisDetail.changeSign).symbol}
+                                          {formatPercent(kisDetail.changeRate)}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* 거래량 */}
+                                      <div className="flex items-center gap-1">
+                                        <Activity className="w-3 h-3" />
+                                        <span>{formatVolume(kisDetail.volume)}</span>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* 재무비율 */}
+                                    <div className="flex items-center gap-3 text-muted-foreground">
+                                      <span>PER {kisDetail.per.toFixed(1)}</span>
+                                      <span>PBR {kisDetail.pbr.toFixed(2)}</span>
+                                      <span>시총 {(kisDetail.marketCap / 10000).toFixed(1)}조</span>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         
                         {isSelected && (

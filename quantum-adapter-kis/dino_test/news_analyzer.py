@@ -10,11 +10,11 @@ AI 기반 뉴스 분석기
 
 import logging
 import requests
-import openai
 import os
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from .ai_client import get_ai_client
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +39,15 @@ class NewsAnalyzer:
         self.base_url = external_api_base_url
         self.logger = logging.getLogger(__name__)
         
-        # OpenAI API 키 설정 (환경변수에서 읽기)
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
-            openai.api_key = openai_api_key
-            self.openai_available = True
-            self.logger.info("✅ OpenAI API 키 설정 완료")
+        # 통합 AI 클라이언트 초기화
+        self.ai_client = get_ai_client()
+        self.ai_available = self.ai_client.is_available()
+        
+        if self.ai_available:
+            providers = self.ai_client.get_available_providers()
+            self.logger.info(f"✅ AI 클라이언트 초기화 완료: {', '.join(providers)}")
         else:
-            self.openai_available = False
-            self.logger.warning("⚠️ OpenAI API 키가 없어서 AI 분석 비활성화")
+            self.logger.warning("⚠️ 사용 가능한 AI API가 없어서 키워드 분석만 사용")
         
         # 악재/호재 키워드 사전
         self.negative_keywords = [
@@ -81,9 +81,9 @@ class NewsAnalyzer:
             self.logger.error(f"뉴스 데이터 수집 실패 - {company_keyword}: {e}")
             return None
     
-    def analyze_with_openai(self, news_list: List[Dict]) -> Dict:
-        """OpenAI API를 이용한 뉴스 감정 분석"""
-        if not self.openai_available or not news_list:
+    def analyze_with_ai(self, news_list: List[Dict]) -> Dict:
+        """AI를 이용한 뉴스 감정 분석 (Claude 우선, OpenAI 폴백)"""
+        if not self.ai_available or not news_list:
             return {"sentiment_score": 0.0, "material_impact": 0, "analysis_summary": "AI 분석 불가"}
         
         try:
@@ -95,8 +95,10 @@ class NewsAnalyzer:
             
             news_text = "\n".join([f"{i+1}. {title}" for i, title in enumerate(news_titles)])
             
-            # GPT 프롬프트 구성
-            prompt = f"""
+            # AI 프롬프트 구성
+            system_prompt = "당신은 한국 증시 전문 애널리스트입니다. 뉴스를 분석하여 투자 관점에서 평가합니다."
+            
+            user_prompt = f"""
 다음 뉴스 제목들을 분석하여 해당 기업에 대한 투자 관점에서 평가해주세요.
 
 뉴스 제목들:
@@ -119,31 +121,28 @@ class NewsAnalyzer:
 }}
             """
             
-            # OpenAI API 호출
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "당신은 한국 증시 전문 애널리스트입니다. 뉴스를 분석하여 투자 관점에서 평가합니다."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=500,
-                temperature=0.1
+            # AI API 호출
+            result_text = self.ai_client.analyze_text(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=500
             )
             
-            result_text = response.choices[0].message.content.strip()
+            if not result_text:
+                self.logger.warning("AI API 호출 실패, 키워드 분석으로 폴백")
+                return self._fallback_analysis(news_list)
             
             # JSON 파싱 시도
-            import json
-            try:
-                result = json.loads(result_text)
-                self.logger.info(f"✅ OpenAI 분석 성공: {result.get('analysis_summary', 'N/A')}")
+            result = self.ai_client.parse_json_response(result_text)
+            if result:
+                self.logger.info(f"✅ AI 뉴스 분석 성공: {result.get('analysis_summary', 'N/A')}")
                 return result
-            except json.JSONDecodeError:
-                self.logger.warning(f"JSON 파싱 실패, 원본 응답: {result_text}")
+            else:
+                self.logger.warning(f"JSON 파싱 실패, 원본 응답: {result_text[:200]}...")
                 return self._fallback_analysis(news_list)
                 
         except Exception as e:
-            self.logger.error(f"OpenAI API 호출 실패: {e}")
+            self.logger.error(f"AI API 호출 실패: {e}")
             return self._fallback_analysis(news_list)
     
     def _fallback_analysis(self, news_list: List[Dict]) -> Dict:
@@ -258,7 +257,7 @@ class NewsAnalyzer:
                 return None
             
             # 2. AI 분석 수행
-            ai_result = self.analyze_with_openai(news_data)
+            ai_result = self.analyze_with_ai(news_data)
             
             # 3. 분석 결과 생성
             result = NewsAnalysisResult(

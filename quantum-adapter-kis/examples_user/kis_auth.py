@@ -24,6 +24,38 @@ import websockets
 
 # pip install PyYAML (패키지설치)
 import yaml
+
+# DB 토큰 관리자 import 시도 (PostgreSQL 직접 연결)
+db_token_available = False
+get_kis_token_from_db = None
+get_token_status_from_db = None
+
+try:
+    # 상위 디렉토리에서 db_token_manager import
+    import sys
+    import os
+    
+    # 현재 파일의 디렉토리 경로 얻기
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)  # quantum-adapter-kis 디렉토리
+    
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    
+    from db_token_manager import get_kis_token_from_db, get_token_status_from_db, is_db_available
+    db_token_available = is_db_available()
+    
+    if db_token_available:
+        print("✅ DB 토큰 관리자 성공적으로 로드됨 (PostgreSQL 직접 연결 사용 가능)")
+    else:
+        print("⚠️ DB 연결 실패 - 파일 기반 토큰 관리로 폴백")
+    
+except ImportError as e:
+    print(f"⚠️ DB 토큰 관리자 로드 실패: {e}")
+    print("파일 기반 토큰 관리로 폴백합니다.")
+    db_token_available = False
+    get_kis_token_from_db = None
+    get_token_status_from_db = None
 from Crypto.Cipher import AES
 
 # pip install pycryptodome
@@ -64,19 +96,97 @@ _base_headers = {
     "User-Agent": _cfg["my_agent"],
 }
 
+# DB 기반 토큰 관리를 위한 전역 변수
+_current_authorization = None  # 현재 요청의 Authorization 헤더
+_current_environment = "prod"  # 현재 환경 (prod 또는 vps)
+
+
+def set_auth_context(authorization: str, environment: str = "prod"):
+    """인증 컨텍스트 설정 (DB 기반 토큰 관리용)"""
+    global _current_authorization, _current_environment
+    _current_authorization = authorization
+    _current_environment = environment
+
+
+def get_auth_context():
+    """현재 인증 컨텍스트 반환"""
+    return _current_authorization, _current_environment
+
 
 # 토큰 발급 받아 저장 (토큰값, 토큰 유효시간,1일, 6시간 이내 발급신청시는 기존 토큰값과 동일, 발급시 알림톡 발송)
 def save_token(my_token, my_expired):
+    """
+    토큰 저장 (DB 기반 + 파일 폴백)
+    1차적으로 백엔드 API를 통해 DB에 저장을 시도하고,
+    실패시 파일 폴백을 사용합니다.
+    """
     # print(type(my_expired), my_expired)
     valid_date = datetime.strptime(my_expired, "%Y-%m-%d %H:%M:%S")
     # print('Save token date: ', valid_date)
-    with open(token_tmp, "w", encoding="utf-8") as f:
-        f.write(f"token: {my_token}\n")
-        f.write(f"valid-date: {valid_date}\n")
+    
+    # 1차: DB 기반 토큰 저장 시도
+    if backend_client and _current_authorization:
+        try:
+            # 현재 환경을 백엔드 API 환경으로 매핑
+            backend_env = map_environment(_current_environment)
+            
+            # 토큰 저장을 위한 API 호출 (백엔드에서 자동으로 처리)
+            # 실제로는 토큰 발급 시 백엔드가 자동으로 저장하므로
+            # 여기서는 토큰 갱신만 시도
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # 토큰 갱신을 통한 DB 저장 확인
+            refresh_result = loop.run_until_complete(
+                backend_client.refresh_kis_token(_current_authorization, backend_env)
+            )
+            
+            if refresh_result:
+                print(f"DB token storage verified through refresh for environment: {backend_env}")
+                return  # DB 저장 성공시 파일 저장 생략
+            else:
+                print(f"DB token storage verification failed for environment: {backend_env}")
+                
+        except Exception as e:
+            print(f"DB token storage failed: {e}")
+    
+    # 2차: 폴백용 파일 저장
+    try:
+        with open(token_tmp, "w", encoding="utf-8") as f:
+            f.write(f"token: {my_token}\n")
+            f.write(f"valid-date: {valid_date}\n")
+        print(f"Fallback token saved to file: {token_tmp}")
+    except Exception as e:
+        print(f"Warning: Failed to save fallback token to file: {e}")
 
 
 # 토큰 확인 (토큰값, 토큰 유효시간_1일, 6시간 이내 발급신청시는 기존 토큰값과 동일, 발급시 알림톡 발송)
 def read_token():
+    """
+    토큰 조회 (DB 우선 + 파일 폴백)
+    우선 DB에서 토큰을 직접 조회하고, 실패시 파일에서 조회합니다.
+    """
+    # 1차: DB 기반 토큰 조회 시도 (PostgreSQL 직접 연결)
+    if db_token_available and get_kis_token_from_db:
+        try:
+            # 현재 환경에 따른 토큰 조회 (기본값: admin 사용자 ID=1)
+            token = get_kis_token_from_db(user_id=1, environment=_current_environment)
+            
+            if token:
+                print(f"🔑 DB에서 토큰 조회 성공: 환경={_current_environment}")
+                return token
+            else:
+                print(f"🔑 DB에서 유효한 토큰 없음: 환경={_current_environment}")
+                
+        except Exception as e:
+            print(f"🔑 DB 토큰 조회 실패: {e}")
+    
+    # 2차: 파일 기반 폴백
+    print("Falling back to file-based token retrieval")
     try:
         # 토큰이 저장된 파일 읽기
         with open(token_tmp, encoding="UTF-8") as f:
@@ -90,12 +200,13 @@ def read_token():
         # print('expire dt: ', exp_dt, ' vs now dt:', now_dt)
         # 저장된 토큰 만료일자 체크 (만료일시 > 현재일시 인경우 보관 토큰 리턴)
         if exp_dt > now_dt:
+            print("Using fallback file token")
             return tkg_tmp["token"]
         else:
             # print('Need new token: ', tkg_tmp['valid-date'])
             return None
-    except Exception:
-        # print('read token error: ', e)
+    except Exception as e:
+        print(f"File token retrieval failed: {e}")
         return None
 
 
@@ -192,6 +303,10 @@ def _getResultObject(json_data):
 # Token 발급, 유효기간 1일, 6시간 이내 발급시 기존 token값 유지, 발급시 알림톡 무조건 발송
 # 모의투자인 경우  svr='vps', 투자계좌(01)이 아닌경우 product='XX' 변경하세요 (계좌번호 뒤 2자리)
 def auth(svr="prod", product=_cfg["my_prod"], url=None):
+    # 현재 환경 설정 (DB 기반 토큰 관리용)
+    global _current_environment
+    _current_environment = svr
+    
     p = {
         "grant_type": "client_credentials",
     }

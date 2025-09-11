@@ -15,11 +15,11 @@ D008: 호재뉴스 도배 분석기
 
 import logging
 import requests
-import openai
 import os
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from .ai_client import get_ai_client
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +44,15 @@ class PositiveNewsAnalyzer:
         self.base_url = external_api_base_url
         self.logger = logging.getLogger(__name__)
         
-        # OpenAI API 키 설정
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
-            openai.api_key = openai_api_key
-            self.openai_available = True
-            self.logger.info("✅ OpenAI API 키 설정 완료")
+        # 통합 AI 클라이언트 초기화
+        self.ai_client = get_ai_client()
+        self.ai_available = self.ai_client.is_available()
+        
+        if self.ai_available:
+            providers = self.ai_client.get_available_providers()
+            self.logger.info(f"✅ AI 클라이언트 초기화 완료: {', '.join(providers)}")
         else:
-            self.openai_available = False
-            self.logger.warning("⚠️ OpenAI API 키가 없어서 AI 분석 비활성화")
+            self.logger.warning("⚠️ 사용 가능한 AI API가 없어서 키워드 분석만 사용")
         
         # 호재성 키워드 정의 (기존 news_analyzer.py의 positive_keywords 확장)
         self.positive_keywords = [
@@ -97,9 +97,9 @@ class PositiveNewsAnalyzer:
             self.logger.error(f"뉴스 데이터 수집 실패 - {company_keyword}: {e}")
             return []
     
-    def analyze_with_openai(self, news_data: List[Dict], company_name: str) -> Dict:
-        """OpenAI를 활용한 호재뉴스 도배 분석"""
-        if not self.openai_available or not news_data:
+    def analyze_with_ai(self, news_data: List[Dict], company_name: str) -> Dict:
+        """AI를 활용한 호재뉴스 도배 분석 (Claude 우선, OpenAI 폴백)"""
+        if not self.ai_available or not news_data:
             return self._fallback_analysis(news_data, company_name)
         
         try:
@@ -115,8 +115,10 @@ class PositiveNewsAnalyzer:
             
             news_text = "\n".join([f"{i+1}. {title}" for i, title in enumerate(news_titles)])
             
-            # GPT 프롬프트 구성
-            prompt = f"""
+            # AI 프롬프트 구성
+            system_prompt = "당신은 한국 증시 뉴스 전문 분석가입니다. 호재 뉴스의 도배성과 과장성을 정확히 판단합니다."
+            
+            user_prompt = f"""
 다음은 {company_name}과 관련된 최근 뉴스입니다:
 
 {news_text}
@@ -149,31 +151,28 @@ JSON 형식으로 응답:
 }}
             """
             
-            # OpenAI API 호출
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "당신은 한국 증시 뉴스 전문 분석가입니다. 호재 뉴스의 도배성과 과장성을 정확히 판단합니다."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=800,
-                temperature=0.1
+            # AI API 호출
+            result_text = self.ai_client.analyze_text(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=800
             )
             
-            result_text = response.choices[0].message.content.strip()
+            if not result_text:
+                self.logger.warning("AI API 호출 실패, 키워드 분석으로 폴백")
+                return self._fallback_analysis(news_data, company_name)
             
             # JSON 파싱
-            import json
-            try:
-                result = json.loads(result_text)
-                self.logger.info(f"✅ OpenAI 호재뉴스 분석 성공: {result.get('analysis_summary', 'N/A')}")
+            result = self.ai_client.parse_json_response(result_text)
+            if result:
+                self.logger.info(f"✅ AI 호재뉴스 분석 성공: {result.get('analysis_summary', 'N/A')}")
                 return result
-            except json.JSONDecodeError:
-                self.logger.warning(f"JSON 파싱 실패, 원본 응답: {result_text}")
+            else:
+                self.logger.warning(f"JSON 파싱 실패, 원본 응답: {result_text[:200]}...")
                 return self._fallback_analysis(news_data, company_name)
                 
         except Exception as e:
-            self.logger.error(f"OpenAI API 호출 실패: {e}")
+            self.logger.error(f"AI API 호출 실패: {e}")
             return self._fallback_analysis(news_data, company_name)
     
     def _fallback_analysis(self, news_data: List[Dict], company_name: str) -> Dict:
@@ -257,7 +256,7 @@ JSON 형식으로 응답:
                 return None
             
             # 2. 호재뉴스 도배 분석 수행
-            ai_result = self.analyze_with_openai(news_data, search_keyword)
+            ai_result = self.analyze_with_ai(news_data, search_keyword)
             
             # 3. 결과 생성
             result = PositiveNewsAnalysisResult(

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePopularStocks } from "@/hooks/usePopularStocks";
 import { MARKET_FILTERS } from "@/types/popular-stocks";
 import StockSelector, { DomesticStock } from '@/components/stock/StockSelector';
+import { apiClient } from '@/lib/api';
 import { 
   Search,
   Star,
@@ -133,12 +134,12 @@ export default function DomesticChartsPage() {
 
     setSearchLoading(true);
     try {
-      const response = await fetch(`/api/v1/stocks/domestic/search?keyword=${encodeURIComponent(keyword)}&page=0&size=10`);
-      if (response.ok) {
-        const data = await response.json();
-        setRealStocks(data.stocks || []);
+      const endpoint = `/api/v1/stocks/domestic/search?keyword=${encodeURIComponent(keyword)}&page=0&size=10`;
+      const response = await apiClient.get<{ stocks: DomesticStock[] }>(endpoint, false);
+      
+      if (response.data) {
+        setRealStocks(response.data.stocks || []);
       } else {
-        console.error('Stock search failed:', response.status);
         setRealStocks([]);
       }
     } catch (error) {

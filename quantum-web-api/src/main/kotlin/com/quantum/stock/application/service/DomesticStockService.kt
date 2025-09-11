@@ -5,6 +5,10 @@ import com.quantum.stock.domain.DomesticStocksDetail
 import com.quantum.stock.domain.StockDataType
 import com.quantum.stock.infrastructure.persistence.DomesticStockRepository
 import com.quantum.stock.infrastructure.persistence.DomesticStocksDetailRepository
+import com.quantum.stock.infrastructure.client.KisAdapterClient
+import com.quantum.stock.infrastructure.client.KisStockOutput
+import com.quantum.stock.presentation.dto.KisStockDetailInfo
+import com.quantum.stock.presentation.dto.PriceChangeSign
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,7 +24,8 @@ import java.time.LocalDate
 @Transactional(readOnly = true)
 class DomesticStockService(
     private val domesticStockRepository: DomesticStockRepository,
-    private val domesticStocksDetailRepository: DomesticStocksDetailRepository
+    private val domesticStocksDetailRepository: DomesticStocksDetailRepository,
+    private val kisAdapterClient: KisAdapterClient
 ) {
     
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -143,6 +148,108 @@ class DomesticStockService(
         } catch (exception: Exception) {
             logger.debug("주식 상세정보 검증 실패: ${detail.stockCode}", exception)
             false
+        }
+    }
+    
+    /**
+     * KIS API를 통한 실시간 주식 상세 정보 조회
+     * 
+     * @param stockCode 종목코드 (6자리)
+     * @return KIS API 상세 정보 또는 null (오류 시)
+     */
+    suspend fun getKisStockDetail(stockCode: String): KisStockDetailInfo? {
+        return try {
+            logger.info("KIS API 주식 상세 정보 조회 - stockCode: $stockCode")
+            
+            // 1. 종목 존재 여부 검증 (활성 종목만)
+            val domesticStock = domesticStockRepository.findByStockCodeAndIsActiveTrue(stockCode)
+            if (domesticStock == null) {
+                logger.warn("활성 종목이 아니거나 존재하지 않음: $stockCode")
+                return null
+            }
+            
+            // 2. KIS Adapter API 호출
+            val kisResponse = kisAdapterClient.getDomesticStockDetail(stockCode)
+            
+            // 3. 응답 검증
+            if (kisResponse.rtCd != "0") {
+                logger.warn("KIS API 응답 오류 - stockCode: $stockCode, rtCd: ${kisResponse.rtCd}, msg: ${kisResponse.msg1}")
+                return null
+            }
+            
+            // 4. DTO 변환
+            val kisDetail = convertToKisDetailInfo(kisResponse.output)
+            
+            logger.info("KIS API 주식 상세 정보 조회 완료 - stockCode: $stockCode, 현재가: ${kisDetail.currentPrice}")
+            
+            return kisDetail
+            
+        } catch (exception: Exception) {
+            logger.error("KIS API 주식 상세 정보 조회 실패 - stockCode: $stockCode", exception)
+            // 절대로 가짜 데이터를 생성하지 않고 null 반환
+            null
+        }
+    }
+    
+    /**
+     * KIS API 응답을 클라이언트 친화적인 DTO로 변환
+     */
+    private fun convertToKisDetailInfo(output: KisStockOutput): KisStockDetailInfo {
+        return KisStockDetailInfo(
+            // 현재가 정보
+            currentPrice = output.currentPrice.toLongOrNull() ?: 0L,
+            previousDayChange = output.previousDayChange.toLongOrNull() ?: 0L,
+            changeRate = output.changeRate.toDoubleOrNull() ?: 0.0,
+            changeSign = PriceChangeSign.fromCode(output.changeSign),
+            volume = output.volume.toLongOrNull() ?: 0L,
+            tradeAmount = (output.tradeAmount.toLongOrNull() ?: 0L) / 1_000_000L, // 백만원 단위로 변환
+            
+            // 가격 정보
+            openPrice = output.openPrice.toLongOrNull() ?: 0L,
+            highPrice = output.highPrice.toLongOrNull() ?: 0L,
+            lowPrice = output.lowPrice.toLongOrNull() ?: 0L,
+            upperLimit = output.upperLimit.toLongOrNull() ?: 0L,
+            lowerLimit = output.lowerLimit.toLongOrNull() ?: 0L,
+            
+            // 재무비율
+            per = output.per.toDoubleOrNull() ?: 0.0,
+            pbr = output.pbr.toDoubleOrNull() ?: 0.0,
+            eps = output.eps.toLongOrNull() ?: 0L,
+            bps = output.bps.toLongOrNull() ?: 0L,
+            marketCap = (output.marketCap.toLongOrNull() ?: 0L) / 100L, // 억원 단위로 변환
+            
+            // 기술적 지표
+            week52High = output.week52High.toLongOrNull() ?: 0L,
+            week52Low = output.week52Low.toLongOrNull() ?: 0L,
+            week52HighDate = formatDate(output.week52HighDate),
+            week52LowDate = formatDate(output.week52LowDate),
+            day250High = output.day250High.toLongOrNull() ?: 0L,
+            day250Low = output.day250Low.toLongOrNull() ?: 0L,
+            yearHigh = output.yearHigh.toLongOrNull() ?: 0L,
+            yearLow = output.yearLow.toLongOrNull() ?: 0L,
+            
+            // 시장 정보
+            foreignOwnership = output.foreignOwnership.toDoubleOrNull() ?: 0.0,
+            volumeTurnover = output.volumeTurnover.toDoubleOrNull() ?: 0.0,
+            marketName = output.marketName,
+            sectorName = output.sectorName,
+            
+            // 기타 정보
+            listedShares = output.listedShares.toLongOrNull() ?: 0L,
+            settlementMonth = output.settlementMonth,
+            capital = output.capital,
+            faceValue = output.faceValue.toLongOrNull() ?: 0L
+        )
+    }
+    
+    /**
+     * 날짜 포맷 변환 (YYYYMMDD → YYYY-MM-DD)
+     */
+    private fun formatDate(dateStr: String): String {
+        return if (dateStr.length == 8) {
+            "${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}"
+        } else {
+            dateStr
         }
     }
     

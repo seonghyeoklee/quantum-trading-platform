@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import ChartContainer from '@/components/chart/ChartContainer';
 import { ArrowLeft, BarChart3, Building2, Calendar, Info, TrendingUp } from 'lucide-react';
+import { apiClient } from '@/lib/api';
 
 interface StockDetail {
   stockCode: string;
@@ -36,21 +37,22 @@ export default function StockDetailPage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/v1/stocks/domestic/${code}`);
+      const endpoint = `/api/v1/stocks/domestic/${code}`;
+      const response = await apiClient.get<StockDetail>(endpoint, false);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('종목을 찾을 수 없습니다.');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.data) {
+        setStockDetail(response.data);
+      } else {
+        throw new Error('종목 데이터를 받을 수 없습니다.');
       }
-      
-      const data: StockDetail = await response.json();
-      setStockDetail(data);
       
     } catch (err) {
       console.error('종목 상세 조회 실패:', err);
-      setError(err instanceof Error ? err.message : '종목 상세 조회에 실패했습니다.');
+      if (err instanceof Error && err.message.includes('404')) {
+        setError('종목을 찾을 수 없습니다.');
+      } else {
+        setError(err instanceof Error ? err.message : '종목 상세 조회에 실패했습니다.');
+      }
     } finally {
       setLoading(false);
     }
