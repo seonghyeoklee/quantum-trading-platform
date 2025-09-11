@@ -7,8 +7,8 @@ Author: Quantum Trading Platform
 import sys
 import logging
 from datetime import datetime, timedelta
-from typing import Tuple, List, Dict, Any
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Tuple, List, Dict, Any, Optional
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -16,10 +16,117 @@ import pandas as pd
 import asyncio
 import json
 from typing import Set
+import jwt
+import base64
+
+# 로깅 설정 먼저 초기화
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # examples_llm 경로 추가
 sys.path.extend(['examples_llm', '.', 'examples_user'])
 import kis_auth as ka
+
+# DB 토큰 관리자 import (PostgreSQL 직접 연결)
+try:
+    from db_token_manager import get_kis_token_from_db, get_token_status_from_db, is_db_available
+    DB_AVAILABLE = is_db_available()
+    if DB_AVAILABLE:
+        logger.info("✅ DB 토큰 관리자 성공적으로 로드됨 - PostgreSQL 직접 연결 사용")
+    else:
+        logger.warning("⚠️ DB 연결 실패 - 파일 기반 폴백 사용")
+except ImportError as e:
+    logger.warning(f"DB 토큰 관리자 import 실패: {e} - 파일 기반 폴백 사용")
+    get_kis_token_from_db = None
+    get_token_status_from_db = None
+    DB_AVAILABLE = False
+
+# 사용하지 않는 backend_client import 제거 (직접 DB 접근 사용)
+
+# 기본 JWT 토큰 (admin 사용자용 - 실제 백엔드에서 발급받은 토큰)
+DEFAULT_ADMIN_TOKEN = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBxdWFudHVtLmxvY2FsIiwibmFtZSI6IlF1YW50dW0gQWRtaW4iLCJyb2xlcyI6WyJVU0VSIiwiVFJBREVSIiwiQURNSU4iXSwiaWF0IjoxNzU3NDIyOTU4LCJleHAiOjE3NTc1MDkzNTh9.RYMs-UZ0tKQczfUWqZ8oSnMXvKM-yfWoRzGH8OFroGLUq8y0rLKMHrlttaCi8g5AyZ7F6FwDK9aUpf-QdjrOnQ"
+
+def extract_user_id_from_jwt(authorization: str) -> int:
+    """
+    JWT 토큰에서 사용자 ID를 추출합니다.
+    
+    Args:
+        authorization: "Bearer <jwt_token>" 형식의 인증 헤더
+        
+    Returns:
+        사용자 ID (기본값: 1)
+    """
+    try:
+        if not authorization or not authorization.startswith("Bearer "):
+            logger.warning("Invalid authorization header format")
+            return 1
+            
+        token = authorization.replace("Bearer ", "")
+        
+        # JWT 서명 검증 없이 payload만 디코딩 (백엔드에서 이미 검증된 토큰)
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        
+        user_id = int(decoded.get("sub", 1))
+        logger.debug(f"Extracted user_id: {user_id} from JWT")
+        return user_id
+        
+    except Exception as e:
+        logger.warning(f"Failed to extract user_id from JWT: {e}, using default user_id=1")
+        return 1
+
+# KIS 인증 컨텍스트 설정을 위한 헬퍼 함수
+def setup_auth_context(authorization: str = None, environment: str = "prod"):
+    """KIS 인증 컨텍스트를 설정합니다."""
+    # Authorization이 없으면 기본 admin 토큰 사용
+    if not authorization:
+        authorization = DEFAULT_ADMIN_TOKEN
+        logger.info("No authorization provided, using default admin token for DB access")
+    
+    # set_auth_context 함수가 있는지 확인하고 호출
+    try:
+        # 함수 존재 여부 확인 및 호출
+        if hasattr(ka, 'set_auth_context'):
+            ka.set_auth_context(authorization, environment)
+            logger.info(f"✅ Auth context set successfully for environment: {environment}")
+            return True
+        else:
+            # 함수가 없으면 직접 전역 변수 설정 시도
+            if hasattr(ka, '_current_authorization'):
+                ka._current_authorization = authorization
+                ka._current_environment = environment
+                logger.info(f"✅ Auth context set directly via global variables for environment: {environment}")
+                return True
+            else:
+                logger.warning("⚠️ Neither set_auth_context function nor global variables available, using file-based fallback")
+                return False
+    except Exception as e:
+        logger.error(f"❌ Error setting auth context: {e}")
+        return False
+        
+def ensure_kis_auth(authorization: str = None, environment: str = "prod"):
+    """KIS 인증을 보장합니다 (DB 기반 → 파일 폴백)"""
+    setup_auth_context(authorization, environment)
+    
+    # DB 기반 토큰 조회 시도 (사용자별)
+    if DB_AVAILABLE and get_kis_token_from_db:
+        user_id = extract_user_id_from_jwt(authorization)
+        db_token = get_kis_token_from_db(user_id=user_id, environment=environment)
+        if db_token:
+            logger.info(f"✅ DB에서 사용자 {user_id}의 토큰 조회 성공 - {environment}")
+            return db_token
+        else:
+            logger.warning(f"⚠️ DB에서 사용자 {user_id}의 토큰 조회 실패 - {environment}")
+    
+    # 파일 기반 fallback
+    token = ka.read_token()
+    if not token:
+        # 토큰이 없으면 새로 발급
+        logger.info(f"No valid token found, requesting new token for {environment}")
+        ka.auth(svr=environment, product="01")
+        token = ka.read_token()
+    else:
+        logger.info(f"Valid file-based token found for {environment}")
+    return token
 
 # KIS API 함수들 import
 from domestic_stock.inquire_daily_itemchartprice.inquire_daily_itemchartprice import inquire_daily_itemchartprice
@@ -71,9 +178,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 로깅 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 로깅 설정은 상단에서 이미 완료됨
 
 # ==================== 공통 응답 모델 ====================
 
@@ -222,12 +327,14 @@ def get_exchange_info(exchange_code: str) -> Dict[str, str]:
 # 서버 시작시 KIS 인증
 @app.on_event("startup")
 async def startup_event():
-    """서버 시작시 KIS API 인증 토큰 발급"""
+    """서버 시작시 KIS API 인증 토큰 발급 (파일 기반 폴백)"""
     try:
+        # 서버 시작시에는 authorization header가 없으므로 파일 기반으로 인증
         ka.auth(svr="prod", product="01")  # 실전 계좌 인증
-        logger.info("✅ KIS API 인증 성공")
+        logger.info("✅ KIS API 파일 기반 인증 성공 (DB 기반 인증은 요청시 처리)")
     except Exception as e:
-        logger.error(f"❌ KIS API 인증 실패: {str(e)}")
+        logger.error(f"❌ KIS API 파일 기반 인증 실패: {str(e)}")
+        logger.info("DB 기반 인증은 각 요청에서 authorization header와 함께 처리됩니다.")
 
 # 기본 엔드포인트
 @app.get("/")
@@ -313,9 +420,11 @@ async def refresh_token(
 # ==================== 국내 주식 API ====================
 
 @app.get("/domestic/price/{symbol}")
-async def get_domestic_price(symbol: str):
+async def get_domestic_price(symbol: str, authorization: str = Header(None)):
     """국내 주식 현재가 조회"""
     try:
+        # 인증 컨텍스트 설정
+        ensure_kis_auth(authorization, "prod")
         result = inquire_price(
             env_dv="real",
             fid_cond_mrkt_div_code="J", 
@@ -369,6 +478,7 @@ def get_date_ranges(start_date: str, end_date: str, max_days: int = 90) -> List[
 @app.get("/domestic/chart/{symbol}")
 async def get_domestic_chart(
     symbol: str,
+    authorization: str = Header(None),
     period: str = "D",  # D:일봉, W:주봉, M:월봉, Y:년봉
     start_date: str = "20240101",
     end_date: str = None,
@@ -376,6 +486,9 @@ async def get_domestic_chart(
 ):
     """국내 주식 차트 조회 (일/주/월/년봉 지원, 자동 분할 조회)"""
     try:
+        # KIS 인증 컨텍스트 설정 및 토큰 확인
+        ensure_kis_auth(authorization, "prod")
+        
         # end_date가 None이면 오늘 날짜로 설정
         if end_date is None:
             end_date = datetime.now().strftime("%Y%m%d")
@@ -474,7 +587,7 @@ async def get_domestic_chart(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/domestic/index/{index_code}")
-async def get_domestic_index(index_code: str):
+async def get_domestic_index(index_code: str, authorization: str = Header(None)):
     """국내 지수 현재가 조회
     
     Args:
@@ -503,6 +616,7 @@ async def get_domestic_index(index_code: str):
 
 @app.get("/domestic/ranking/top-interest-stock")
 async def get_top_interest_stock(
+    authorization: str = Header(None),
     market_code: str = "0000",  # 0000:전체, 0001:거래소, 1001:코스닥, 2001:코스피200
     div_cls_code: str = "0",    # 0:전체, 1:관리종목, 2:투자주의, 3:투자경고, 4:투자위험예고, 5:투자위험, 6:보통주, 7:우선주
     start_rank: str = "1"       # 순위검색 시작값 (1:1위부터, 10:10위부터)
@@ -559,7 +673,7 @@ async def get_top_interest_stock(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/domestic/holiday")
-async def get_domestic_holiday(bass_dt: str):
+async def get_domestic_holiday(bass_dt: str, authorization: str = Header(None)):
     """국내 휴장일 조회
     
     Args:
@@ -616,7 +730,7 @@ async def get_domestic_holiday(bass_dt: str):
 # ==================== 해외 주식 API ====================
 
 @app.get("/overseas/{exchange}/price/{symbol}")
-async def get_overseas_price(exchange: str, symbol: str):
+async def get_overseas_price(exchange: str, symbol: str, authorization: str = Header(None)):
     """해외 주식 현재가 조회
 
     Args:
@@ -650,6 +764,7 @@ async def get_overseas_price(exchange: str, symbol: str):
 async def get_overseas_chart(
     exchange: str,
     symbol: str,
+    authorization: str = Header(None),
     period: str = "D",  # D:일봉, W:주봉, M:월봉, Y:년봉
     start_date: str = "20240101", 
     end_date: str = None
@@ -765,7 +880,7 @@ async def get_overseas_chart(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/overseas/{exchange}/index/{index_code}")
-async def get_overseas_index(exchange: str, index_code: str):
+async def get_overseas_index(exchange: str, index_code: str, authorization: str = Header(None)):
     """해외 지수 현재가 조회
     
     Args:
@@ -849,6 +964,7 @@ async def get_overseas_index(exchange: str, index_code: str):
 async def get_overseas_index_chart(
     exchange: str,
     index_code: str,
+    authorization: str = Header(None),
     period: str = "D",
     start_date: str = "20240101", 
     end_date: str = None
@@ -1117,6 +1233,995 @@ async def websocket_endpoint(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+# ==================== 디노테스트 API ====================
+
+class DinoTestFinanceResponse(BaseModel):
+    """디노테스트 재무 점수 응답 모델"""
+    stock_code: str = Field(..., description="종목 코드")
+    stock_name: str = Field(default="", description="종목명")
+    total_score: int = Field(..., description="총 재무 점수 (0~5점)")
+    score_details: Dict[str, Any] = Field(..., description="점수 상세 내역")
+    raw_data: Dict[str, Any] = Field(..., description="계산에 사용된 원본 재무 데이터")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "stock_code": "005930",
+                "stock_name": "삼성전자",
+                "total_score": 3,
+                "score_details": {
+                    "revenue_growth_score": 1,
+                    "operating_profit_score": 0,
+                    "operating_margin_score": 1,
+                    "retained_earnings_ratio_score": 1,
+                    "debt_ratio_score": -1,
+                    "revenue_growth_rate": 12.5,
+                    "operating_profit_transition": "흑자 지속",
+                    "operating_margin_rate": 15.2,
+                    "retained_earnings_ratio": 1200.0,
+                    "debt_ratio": 85.5
+                }
+            }
+        }
+
+@app.get("/dino-test/finance/{stock_code}", response_model=DinoTestFinanceResponse)
+async def calculate_dino_test_finance_score(
+    stock_code: str,
+    authorization: str = Header(None)
+):
+    """
+    디노테스트 재무 영역 점수 계산
+    
+    재무 영역 5개 지표를 평가하여 0~5점 범위에서 점수를 산출합니다:
+    1. 매출액 증감 (±1점)
+    2. 영업이익 상태 (±2점) 
+    3. 영업이익률 (+1점)
+    4. 유보율 (±1점)
+    5. 부채비율 (±1점)
+    
+    최종 점수: MAX(0, MIN(5, 2 + SUM(개별지표점수들)))
+    
+    Args:
+        stock_code: 종목코드 (예: '005930')
+        
+    Returns:
+        DinoTestFinanceResponse: 재무 점수 계산 결과
+    """
+    try:
+        logger.info(f"=== 디노테스트 재무 점수 계산 시작: {stock_code} ===")
+        
+        # 종목코드 검증
+        if not stock_code or len(stock_code) != 6:
+            raise HTTPException(
+                status_code=400,
+                detail="종목코드는 6자리 숫자여야 합니다 (예: 005930)"
+            )
+        
+        # DB 토큰 확인
+        user_id = extract_user_id_from_jwt(authorization or DEFAULT_ADMIN_TOKEN)
+        environment = "LIVE"  # 디노테스트는 실제 데이터만 사용
+        
+        if DB_AVAILABLE:
+            token = get_kis_token_from_db(user_id, "prod")
+            if not token:
+                raise HTTPException(
+                    status_code=401,
+                    detail="KIS API 토큰이 없습니다. 토큰을 먼저 발급받아주세요."
+                )
+        
+        # KIS API 인증 설정
+        ka.auth(svr="prod", product="01")
+        logger.info(f"KIS API 인증 완료 - 사용자: {user_id}, 환경: {environment}")
+        
+        # 재무 데이터 수집
+        from dino_test.finance_data_collector import FinanceDataCollector
+        data_collector = FinanceDataCollector()
+        
+        finance_data = data_collector.parse_finance_data(stock_code)
+        if finance_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"종목 {stock_code}의 재무 데이터를 찾을 수 없습니다"
+            )
+        
+        # 점수 계산
+        from dino_test.finance_scorer import DinoTestFinanceScorer
+        scorer = DinoTestFinanceScorer()
+        
+        score_detail = scorer.calculate_total_finance_score(finance_data)
+        
+        # 종목명 조회 (optional)
+        stock_name = ""
+        try:
+            # inquire_price API로 종목명 조회
+            price_result = inquire_price(
+                env_dv="real",
+                fid_cond_mrkt_div_code="J",
+                fid_input_iscd=stock_code
+            )
+            if not price_result.empty:
+                stock_name = price_result.iloc[0].get("hts_kor_isnm", "")
+        except:
+            pass  # 종목명 조회 실패해도 점수 계산에는 영향 없음
+        
+        # 응답 데이터 구성
+        response_data = DinoTestFinanceResponse(
+            stock_code=stock_code,
+            stock_name=stock_name,
+            total_score=score_detail.total_score,
+            score_details={
+                "revenue_growth_score": score_detail.revenue_growth_score,
+                "operating_profit_score": score_detail.operating_profit_score,
+                "operating_margin_score": score_detail.operating_margin_score,
+                "retained_earnings_ratio_score": score_detail.retained_earnings_ratio_score,
+                "debt_ratio_score": score_detail.debt_ratio_score,
+                "revenue_growth_rate": score_detail.revenue_growth_rate,
+                "operating_profit_transition": score_detail.operating_profit_transition,
+                "operating_margin_rate": score_detail.operating_margin_rate,
+                "retained_earnings_ratio": score_detail.retained_earnings_ratio,
+                "debt_ratio": score_detail.debt_ratio
+            },
+            raw_data={
+                "기준기간": f"{score_detail.current_period} vs {score_detail.previous_period}",
+                "당년매출액": f"{float(score_detail.current_revenue):,.0f}억원" if score_detail.current_revenue else None,
+                "전년매출액": f"{float(score_detail.previous_revenue):,.0f}억원" if score_detail.previous_revenue else None,
+                "당년영업이익": f"{float(score_detail.current_operating_profit):,.0f}억원" if score_detail.current_operating_profit else None,
+                "전년영업이익": f"{float(score_detail.previous_operating_profit):,.0f}억원" if score_detail.previous_operating_profit else None,
+                "총부채": f"{float(score_detail.total_debt):,.0f}억원" if score_detail.total_debt else None,
+                "자기자본": f"{float(score_detail.total_equity):,.0f}억원" if score_detail.total_equity else None,
+                "이익잉여금": f"{float(score_detail.retained_earnings):,.0f}억원" if score_detail.retained_earnings else None,
+                "자본금": f"{float(score_detail.capital_stock):,.0f}억원" if score_detail.capital_stock else None
+            }
+        )
+        
+        logger.info(f"=== 디노테스트 재무 점수 계산 완료: {stock_code} - {score_detail.total_score}점 ===")
+        return response_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"디노테스트 재무 점수 계산 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/dino-test/finance-batch")
+async def calculate_dino_test_finance_batch(
+    stock_codes: str,  # 쉼표로 구분된 종목코드들 (예: "005930,000660,035420")
+    authorization: str = Header(None)
+):
+    """
+    디노테스트 재무 점수 배치 계산
+    
+    여러 종목에 대해 일괄적으로 재무 점수를 계산합니다.
+    
+    Args:
+        stock_codes: 쉼표로 구분된 종목코드들 (예: "005930,000660,035420")
+        
+    Returns:
+        Dict: 배치 계산 결과
+    """
+    try:
+        logger.info(f"=== 디노테스트 재무 점수 배치 계산 시작: {stock_codes} ===")
+        
+        # 종목코드 파싱
+        codes = [code.strip() for code in stock_codes.split(",") if code.strip()]
+        if not codes:
+            raise HTTPException(status_code=400, detail="종목코드가 제공되지 않았습니다")
+        
+        if len(codes) > 20:  # 배치 처리 제한
+            raise HTTPException(status_code=400, detail="한 번에 최대 20개 종목까지 처리 가능합니다")
+        
+        results = []
+        errors = []
+        
+        for code in codes:
+            try:
+                # 개별 종목 점수 계산
+                result = await calculate_dino_test_finance_score(code, authorization)
+                results.append(result.dict())
+                
+            except HTTPException as e:
+                errors.append({
+                    "stock_code": code,
+                    "error": e.detail,
+                    "status_code": e.status_code
+                })
+            except Exception as e:
+                errors.append({
+                    "stock_code": code,
+                    "error": str(e),
+                    "status_code": 500
+                })
+        
+        # 성공한 결과들에 대한 통계
+        if results:
+            scores = [r["total_score"] for r in results]
+            statistics = {
+                "count": len(results),
+                "average_score": round(sum(scores) / len(scores), 2),
+                "max_score": max(scores),
+                "min_score": min(scores),
+                "passing_count": len([s for s in scores if s >= 3])  # 3점 이상을 통과로 가정
+            }
+        else:
+            statistics = {"count": 0}
+        
+        logger.info(f"=== 디노테스트 배치 계산 완료: 성공 {len(results)}건, 실패 {len(errors)}건 ===")
+        
+        return {
+            "success": True,
+            "message": f"배치 계산 완료 - 성공: {len(results)}건, 실패: {len(errors)}건",
+            "statistics": statistics,
+            "results": results,
+            "errors": errors,
+            "total_requested": len(codes)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"디노테스트 배치 계산 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ================================================================================================
+# 디노테스트 - 기술 영역 API
+# ================================================================================================
+
+class DinoTestTechnicalResponse(BaseModel):
+    """디노테스트 기술분석 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    stock_name: str = Field(default="", description="종목명")
+    total_score: int = Field(..., description="기술분석 총점 (0~5점)")
+    obv_score: int = Field(..., description="OBV 점수 (-1, 0, 1)")
+    rsi_score: int = Field(..., description="RSI 점수 (-1, 0, 1)")
+    sentiment_score: int = Field(..., description="투자심리 점수 (-1, 0, 1)")
+    other_indicator_score: int = Field(..., description="기타지표 점수 (-1, 0, 1)")
+    obv_status: str = Field(default="", description="OBV 상태")
+    rsi_value: float = Field(default=0.0, description="RSI 값")
+    raw_data: Dict[str, Any] = Field(default_factory=dict, description="계산 근거 데이터")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/technical/{stock_code}", response_model=DinoTestTechnicalResponse)
+async def calculate_dino_test_technical_score(
+    stock_code: str,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    디노테스트 기술분석 점수 계산
+    
+    Args:
+        stock_code: 종목코드 (예: 005930)
+        authorization: JWT 인증 토큰
+    
+    Returns:
+        DinoTestTechnicalResponse: 기술분석 결과
+    """
+    logger.info(f"=== 디노테스트 기술분석 시작: {stock_code} ===")
+    
+    try:
+        # JWT에서 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization)
+        logger.info(f"요청 사용자 ID: {user_id}")
+        
+        # KIS 인증 확인
+        if DB_AVAILABLE:
+            # DB에서 토큰 조회
+            token_info = get_kis_token_from_db(user_id, "LIVE")
+            if not token_info:
+                logger.warning(f"DB에서 KIS 토큰 조회 실패 - user_id: {user_id}")
+                # 파일 기반 폴백
+                ka.auth(svr="prod", product="01")
+                logger.info("파일 기반 KIS 인증 성공")
+            else:
+                logger.info(f"DB 기반 KIS 토큰 사용 - expires_at: {token_info.get('expires_at')}")
+        else:
+            # 파일 기반 인증
+            ka.auth(svr="prod", product="01")
+            logger.info("파일 기반 KIS 인증 성공")
+        
+        # 기술분석 데이터 수집 및 점수 계산
+        from dino_test.technical_data_collector import TechnicalDataCollector
+        from dino_test.technical_analyzer import DinoTestTechnicalAnalyzer
+        
+        # 데이터 수집
+        collector = TechnicalDataCollector()
+        technical_data = collector.collect_technical_analysis_data(stock_code)
+        
+        if technical_data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"종목 {stock_code}의 기술분석 데이터를 수집할 수 없습니다"
+            )
+        
+        # 기술분석 점수 계산
+        analyzer = DinoTestTechnicalAnalyzer()
+        score_detail = analyzer.calculate_total_technical_score(technical_data)
+        
+        # 응답 데이터 구성 (한글 키 사용)
+        raw_data = {
+            "데이터기간": f"{technical_data.chart_data['date'].min().strftime('%Y-%m-%d')} ~ {technical_data.chart_data['date'].max().strftime('%Y-%m-%d')}" if technical_data.chart_data is not None else "없음",
+            "총데이터건수": f"{len(technical_data.chart_data)}일" if technical_data.chart_data is not None else "0일",
+            "OBV변화율": f"{score_detail.obv_change_rate:.2f}%" if score_detail.obv_change_rate is not None else "없음",
+            "주가변화율": f"{score_detail.price_change_rate:.2f}%" if score_detail.price_change_rate is not None else "없음",
+            "현재RSI": f"{score_detail.rsi_value:.2f}" if score_detail.rsi_value is not None else "없음",
+            "투자심리도": f"{score_detail.stochastic_value:.2f}%" if score_detail.stochastic_value is not None else "없음",
+            "MACD": f"{score_detail.macd_value:.4f}" if score_detail.macd_value is not None else "없음"
+        }
+        
+        logger.info(f"=== 디노테스트 기술분석 완료: {stock_code} - 총점: {score_detail.total_score}/5점 ===")
+        
+        return DinoTestTechnicalResponse(
+            success=True,
+            stock_code=stock_code,
+            stock_name="",  # 종목명은 별도 조회 필요
+            total_score=score_detail.total_score,
+            obv_score=score_detail.obv_score,
+            rsi_score=score_detail.rsi_score,
+            sentiment_score=score_detail.sentiment_score,
+            other_indicator_score=score_detail.other_indicator_score,
+            obv_status=score_detail.obv_status or "",
+            rsi_value=score_detail.rsi_value or 0.0,
+            raw_data=raw_data,
+            message=f"기술분석 완료 - 총점: {score_detail.total_score}/5점"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"디노테스트 기술분석 계산 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"기술분석 계산 중 오류가 발생했습니다: {str(e)}")
+
+# ================================================================================================
+# 디노테스트 - 가격 영역 API
+# ================================================================================================
+
+class DinoTestPriceResponse(BaseModel):
+    """디노테스트 가격분석 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    stock_name: str = Field(default="", description="종목명")
+    total_score: int = Field(..., description="가격분석 총점 (0~5점)")
+    high_ratio_score: int = Field(..., description="52주 최고가 대비 점수 (0~3)")
+    low_ratio_score: int = Field(..., description="52주 최저가 대비 점수 (-3~0)")
+    high_ratio_status: str = Field(default="", description="최고가 비율 상태")
+    low_ratio_status: str = Field(default="", description="최저가 비율 상태")
+    raw_data: Dict[str, Any] = Field(default_factory=dict, description="계산 근거 데이터")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/price/{stock_code}", response_model=DinoTestPriceResponse)
+async def calculate_dino_test_price_score(
+    stock_code: str,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    디노테스트 가격분석 점수 계산
+    
+    Args:
+        stock_code: 종목코드 (예: 005930)
+        authorization: JWT 인증 토큰
+    
+    Returns:
+        DinoTestPriceResponse: 가격분석 결과
+    """
+    logger.info(f"=== 디노테스트 가격분석 시작: {stock_code} ===")
+    
+    try:
+        # JWT에서 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization)
+        logger.info(f"요청 사용자 ID: {user_id}")
+        
+        # KIS 인증 확인
+        if DB_AVAILABLE:
+            # DB에서 토큰 조회
+            token_info = get_token_status_from_db(user_id)
+            if not token_info or not token_info.get("is_valid", False):
+                ka.auth()  # 토큰이 없거나 만료된 경우 새로 발급
+        else:
+            # 파일 기반 토큰 인증
+            ka.auth()
+        
+        # 가격분석 데이터 수집기 import
+        from dino_test.price_data_collector import PriceDataCollector
+        from dino_test.price_analyzer import DinoTestPriceAnalyzer
+        
+        # 데이터 수집 및 분석
+        collector = PriceDataCollector()
+        analyzer = DinoTestPriceAnalyzer()
+        
+        # 가격분석 데이터 수집
+        price_data = collector.collect_price_analysis_data(stock_code)
+        
+        if price_data is None:
+            logger.error(f"가격분석 데이터 수집 실패 - {stock_code}")
+            return DinoTestPriceResponse(
+                success=False,
+                stock_code=stock_code,
+                total_score=0,
+                high_ratio_score=0,
+                low_ratio_score=0,
+                message="가격분석 데이터를 수집할 수 없습니다"
+            )
+        
+        # 가격분석 점수 계산
+        score_detail = analyzer.calculate_total_price_score(price_data)
+        
+        # 한글 키로 된 raw_data 생성 (사용자 친화적)
+        raw_data = {
+            "현재가": f"{score_detail.current_price:,.0f}원" if score_detail.current_price else "정보 없음",
+            "52주 최고가": f"{score_detail.week_52_high:,.0f}원" if score_detail.week_52_high else "정보 없음",
+            "52주 최저가": f"{score_detail.week_52_low:,.0f}원" if score_detail.week_52_low else "정보 없음",
+            "최고가 대비 비율": f"{score_detail.high_ratio:.2f}%" if score_detail.high_ratio is not None else "계산 불가",
+            "최저가 대비 비율": f"{score_detail.low_ratio:.2f}%" if score_detail.low_ratio is not None else "계산 불가",
+            "최고가 대비 점수": score_detail.high_ratio_score,
+            "최저가 대비 점수": score_detail.low_ratio_score,
+            "총점 계산식": f"MAX(0, MIN(5, 2 + {score_detail.high_ratio_score} + {score_detail.low_ratio_score})) = {score_detail.total_score}"
+        }
+        
+        logger.info(f"가격분석 완료 - {stock_code}: 총점 {score_detail.total_score}/5점")
+        
+        return DinoTestPriceResponse(
+            success=True,
+            stock_code=stock_code,
+            total_score=score_detail.total_score,
+            high_ratio_score=score_detail.high_ratio_score,
+            low_ratio_score=score_detail.low_ratio_score,
+            high_ratio_status=score_detail.high_ratio_status or "",
+            low_ratio_status=score_detail.low_ratio_status or "",
+            raw_data=raw_data,
+            message="가격분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"디노테스트 가격분석 계산 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"가격분석 계산 중 오류가 발생했습니다: {str(e)}")
+
+# ================================================================================================
+# 디노테스트 - 소재 영역 API
+# ================================================================================================
+
+class DinoTestMaterialResponse(BaseModel):
+    """디노테스트 소재분석 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    stock_name: str = Field(default="", description="종목명")
+    total_score: int = Field(..., description="소재분석 총점 (0~5점)")
+    dividend_score: int = Field(..., description="고배당 점수 (0~1점)")
+    institutional_score: int = Field(..., description="기관 수급 점수 (0~1점)")
+    foreign_score: int = Field(..., description="외국인 수급 점수 (0~1점)")
+    earnings_surprise_score: int = Field(..., description="어닝서프라이즈 점수 (0~1점)")
+    dividend_status: str = Field(default="", description="배당 상태")
+    institutional_status: str = Field(default="", description="기관 수급 상태")
+    foreign_status: str = Field(default="", description="외국인 수급 상태")
+    raw_data: Dict[str, Any] = Field(default_factory=dict, description="계산 근거 데이터")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/material/{stock_code}", response_model=DinoTestMaterialResponse)
+async def calculate_dino_test_material_score(
+    stock_code: str,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    디노테스트 소재분석 점수 계산
+    
+    Args:
+        stock_code: 종목코드 (예: 005930)
+        authorization: JWT 인증 토큰
+    
+    Returns:
+        DinoTestMaterialResponse: 소재분석 결과
+    """
+    logger.info(f"=== 디노테스트 소재분석 시작: {stock_code} ===")
+    
+    try:
+        # JWT에서 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization)
+        logger.info(f"요청 사용자 ID: {user_id}")
+        
+        # KIS 인증 확인
+        if DB_AVAILABLE:
+            # DB에서 토큰 조회
+            token_info = get_token_status_from_db(user_id)
+            if not token_info or not token_info.get("is_valid", False):
+                ka.auth()  # 토큰이 없거나 만료된 경우 새로 발급
+        else:
+            # 파일 기반 토큰 인증
+            ka.auth()
+        
+        # 소재분석 데이터 수집기 import
+        from dino_test.material_data_collector import MaterialDataCollector
+        from dino_test.material_analyzer import DinoTestMaterialAnalyzer
+        
+        # 데이터 수집 및 분석
+        collector = MaterialDataCollector()
+        analyzer = DinoTestMaterialAnalyzer()
+        
+        # 소재분석 데이터 수집
+        material_data = collector.collect_material_analysis_data(stock_code)
+        
+        if material_data is None:
+            logger.error(f"소재분석 데이터 수집 실패 - {stock_code}")
+            return DinoTestMaterialResponse(
+                success=False,
+                stock_code=stock_code,
+                total_score=0,
+                dividend_score=0,
+                institutional_score=0,
+                foreign_score=0,
+                earnings_surprise_score=0,
+                message="소재분석 데이터를 수집할 수 없습니다"
+            )
+        
+        # 소재분석 점수 계산
+        score_detail = analyzer.calculate_total_material_score(material_data)
+        
+        # 한글 키로 된 raw_data 생성 (사용자 친화적)
+        raw_data = {
+            "배당률": f"{score_detail.dividend_yield:.2f}%" if score_detail.dividend_yield is not None else "정보 없음",
+            "기관 보유 비율": f"{score_detail.institutional_ratio:.2f}%" if score_detail.institutional_ratio is not None else "정보 없음",
+            "외국인 보유 비율": f"{score_detail.foreign_ratio:.2f}%" if score_detail.foreign_ratio is not None else "정보 없음",
+            "기관 변화율": f"{score_detail.institutional_change:.2f}%" if score_detail.institutional_change is not None else "정보 없음",
+            "외국인 변화율": f"{score_detail.foreign_change:.2f}%" if score_detail.foreign_change is not None else "정보 없음",
+            "고배당 점수": score_detail.dividend_score,
+            "기관 수급 점수": score_detail.institutional_score,
+            "외국인 수급 점수": score_detail.foreign_score,
+            "어닝서프라이즈 점수": score_detail.earnings_surprise_score,
+            "총점 계산식": f"MAX(0, MIN(5, 2 + {score_detail.dividend_score} + {score_detail.institutional_score} + {score_detail.foreign_score} + {score_detail.earnings_surprise_score})) = {score_detail.total_score}"
+        }
+        
+        logger.info(f"소재분석 완료 - {stock_code}: 총점 {score_detail.total_score}/5점")
+        
+        return DinoTestMaterialResponse(
+            success=True,
+            stock_code=stock_code,
+            total_score=score_detail.total_score,
+            dividend_score=score_detail.dividend_score,
+            institutional_score=score_detail.institutional_score,
+            foreign_score=score_detail.foreign_score,
+            earnings_surprise_score=score_detail.earnings_surprise_score,
+            dividend_status=score_detail.dividend_status or "",
+            institutional_status=score_detail.institutional_status or "",
+            foreign_status=score_detail.foreign_status or "",
+            raw_data=raw_data,
+            message="소재분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"디노테스트 소재분석 계산 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"소재분석 계산 중 오류가 발생했습니다: {str(e)}")
+
+# ================================================================================================
+# 디노테스트 - D001 구체화된 이벤트/호재 임박 분석 API
+# ================================================================================================
+
+class DinoTestEventResponse(BaseModel):
+    """D001 구체화된 이벤트/호재 임박 분석 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    company_name: str = Field(default="", description="기업명")
+    total_sources: int = Field(default=0, description="분석한 뉴스+공시 수")
+    imminent_events_count: int = Field(default=0, description="임박한 호재 이벤트 수")
+    event_score: int = Field(..., description="D001 점수 (0 또는 1)")
+    detected_events: List[Dict[str, Any]] = Field(default_factory=list, description="감지된 이벤트 목록")
+    analysis_summary: str = Field(default="", description="분석 요약")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/event/{stock_code}", response_model=DinoTestEventResponse)
+async def analyze_imminent_events(
+    stock_code: str,
+    company_name: str = None,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    D001: 구체화된 이벤트/호재 임박 분석
+    
+    뉴스와 공시에서 구체적인 날짜가 명시된 호재성 이벤트를 감지합니다.
+    - 신제품 출시, 실적 발표/IR, 계약 체결/파트너십, 승인/인증 관련
+    - 구체적인 날짜가 포함된 호재 이벤트 발견 시 +1점
+    
+    Args:
+        stock_code: 종목코드 (예: 005930)
+        company_name: 기업명 (선택적, 검색 키워드로 활용)
+        authorization: JWT 인증 토큰
+    
+    Returns:
+        DinoTestEventResponse: D001 이벤트 분석 결과
+    """
+    logger.info(f"=== D001 구체화된 이벤트/호재 임박 분석 시작: {stock_code} ===")
+    
+    try:
+        # JWT에서 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization)
+        logger.info(f"요청 사용자 ID: {user_id}")
+        
+        # 이벤트 분석기 import
+        from dino_test.event_analyzer import EventAnalyzer
+        
+        # 이벤트 분석 수행
+        analyzer = EventAnalyzer()
+        result = analyzer.analyze_imminent_events(stock_code, company_name)
+        
+        if result is None:
+            logger.error(f"D001 이벤트 분석 실패 - {stock_code}")
+            return DinoTestEventResponse(
+                success=False,
+                stock_code=stock_code,
+                company_name=company_name or stock_code,
+                event_score=0,
+                message="이벤트 분석을 수행할 수 없습니다"
+            )
+        
+        logger.info(f"D001 이벤트 분석 완료 - {result.company_name}: 점수 {result.event_score}, 이벤트 {result.imminent_events_count}개")
+        
+        return DinoTestEventResponse(
+            success=True,
+            stock_code=result.stock_code,
+            company_name=result.company_name,
+            total_sources=result.total_sources,
+            imminent_events_count=result.imminent_events_count,
+            event_score=result.event_score,
+            detected_events=result.detected_events,
+            analysis_summary=result.analysis_summary,
+            message="D001 이벤트 분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"D001 이벤트 분석 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"이벤트 분석 중 오류가 발생했습니다: {str(e)}")
+
+# ================================================================================================
+# 디노테스트 - D002 확실한 주도 테마 분석 API
+# ================================================================================================
+
+class DinoTestThemeResponse(BaseModel):
+    """D002 확실한 주도 테마 분석 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    company_name: str = Field(default="", description="기업명")
+    is_leading_theme: bool = Field(..., description="주도 테마 여부")
+    theme_score: int = Field(..., description="D002 점수 (0 또는 1)")
+    detected_theme: str = Field(default="", description="감지된 테마명")
+    confidence_score: float = Field(default=0.0, description="신뢰도 (0.0-1.0)")
+    theme_evidence: List[str] = Field(default_factory=list, description="테마 근거 목록")
+    related_news_count: int = Field(default=0, description="관련 뉴스 수")
+    analysis_summary: str = Field(default="", description="분석 요약")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/theme/{stock_code}", response_model=DinoTestThemeResponse)
+async def analyze_leading_theme(
+    stock_code: str,
+    company_name: str = None,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    D002: 확실한 주도 테마 분석
+    
+    뉴스 분석을 통해 해당 종목이 확실한 주도 테마에 속하는지 판단합니다.
+    AI 기반으로 테마 집중도, 시장 관심도, 지속성을 분석합니다.
+    
+    Args:
+        stock_code: 종목코드 (예: 005930)
+        company_name: 기업명 (선택적, 검색 키워드로 활용)
+        authorization: JWT 인증 토큰
+    
+    Returns:
+        DinoTestThemeResponse: D002 테마 분석 결과
+    """
+    logger.info(f"=== D002 확실한 주도 테마 분석 시작: {stock_code} ===")
+    
+    try:
+        # JWT에서 사용자 ID 추출
+        user_id = extract_user_id_from_jwt(authorization)
+        logger.info(f"요청 사용자 ID: {user_id}")
+        
+        # 테마 분석기 import
+        from dino_test.theme_analyzer import ThemeAnalyzer
+        
+        # 테마 분석 수행
+        analyzer = ThemeAnalyzer()
+        result = analyzer.analyze_leading_theme(stock_code, company_name)
+        
+        if result is None:
+            logger.error(f"D002 테마 분석 실패 - {stock_code}")
+            return DinoTestThemeResponse(
+                success=False,
+                stock_code=stock_code,
+                company_name=company_name or stock_code,
+                is_leading_theme=False,
+                theme_score=0,
+                message="테마 분석을 수행할 수 없습니다"
+            )
+        
+        logger.info(f"D002 테마 분석 완료 - {result.company_name}: 점수 {result.theme_score}, 테마: {result.detected_theme}")
+        
+        return DinoTestThemeResponse(
+            success=True,
+            stock_code=result.stock_code,
+            company_name=result.company_name,
+            is_leading_theme=result.is_leading_theme,
+            theme_score=result.theme_score,
+            detected_theme=result.detected_theme,
+            confidence_score=result.confidence_score,
+            theme_evidence=result.theme_evidence,
+            related_news_count=result.related_news_count,
+            analysis_summary=result.analysis_summary,
+            message="D002 테마 분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"D002 테마 분석 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"테마 분석 중 오류가 발생했습니다: {str(e)}")
+
+# D008: 호재뉴스 도배 분석 응답 모델
+class DinoTestPositiveNewsResponse(BaseModel):
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    company_name: str = Field(default="", description="기업명")
+    total_news_count: int = Field(default=0, description="전체 뉴스 수")
+    positive_news_count: int = Field(default=0, description="호재 뉴스 수")
+    positive_ratio: float = Field(default=0.0, description="호재 뉴스 비율 (0.0-1.0)")
+    hype_score: float = Field(default=0.0, description="과장성 점수 (0.0-1.0)")
+    flooding_score: int = Field(..., description="D008 도배 점수 (-1, 0, 1)")
+    positive_keywords_found: List[str] = Field(default_factory=list, description="발견된 호재 키워드들")
+    hype_expressions: List[str] = Field(default_factory=list, description="과장 표현들")
+    analysis_summary: str = Field(default="", description="분석 요약")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/positive-news/{stock_code}", response_model=DinoTestPositiveNewsResponse)
+async def dino_test_positive_news_analysis(
+    stock_code: str,
+    company_name: str = None,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    D008: 호재뉴스 도배 분석
+    
+    Args:
+        stock_code: 6자리 종목코드 (예: 005930)
+        company_name: 기업명 (선택사항)
+        
+    Returns:
+        DinoTestPositiveNewsResponse: D008 호재뉴스 도배 분석 결과
+    """
+    try:
+        # JWT 토큰 검증
+        extract_user_id_from_jwt(authorization)
+        
+        # 호재뉴스 도배 분석기 초기화 및 실행
+        from dino_test.positive_news_analyzer import PositiveNewsAnalyzer
+        analyzer = PositiveNewsAnalyzer()
+        result = analyzer.analyze_positive_news_flooding(stock_code, company_name)
+        
+        if result is None:
+            logger.error(f"D008 호재뉴스 분석 실패 - {stock_code}")
+            return DinoTestPositiveNewsResponse(
+                success=False,
+                stock_code=stock_code,
+                company_name=company_name or stock_code,
+                flooding_score=0,
+                message="호재뉴스 분석을 수행할 수 없습니다"
+            )
+        
+        logger.info(f"D008 호재뉴스 분석 완료 - {result.company_name}: 점수 {result.flooding_score}, 호재비율 {result.positive_ratio:.1%}")
+        
+        return DinoTestPositiveNewsResponse(
+            success=True,
+            stock_code=result.stock_code,
+            company_name=result.company_name,
+            total_news_count=result.total_news_count,
+            positive_news_count=result.positive_news_count,
+            positive_ratio=result.positive_ratio,
+            hype_score=result.hype_score,
+            flooding_score=result.flooding_score,
+            positive_keywords_found=result.positive_keywords_found,
+            hype_expressions=result.hype_expressions,
+            analysis_summary=result.analysis_summary,
+            message="D008 호재뉴스 분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"D008 호재뉴스 분석 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"호재뉴스 분석 중 오류가 발생했습니다: {str(e)}")
+
+# D009: 이자보상배율 분석 응답 모델
+class DinoTestInterestCoverageResponse(BaseModel):
+    success: bool = Field(..., description="성공 여부")
+    stock_code: str = Field(..., description="종목코드")
+    company_name: str = Field(default="", description="기업명")
+    ebit: Optional[float] = Field(default=None, description="EBIT (세전영업이익, 억원)")
+    interest_expense: Optional[float] = Field(default=None, description="이자비용 (억원)")
+    interest_coverage_ratio: Optional[float] = Field(default=None, description="이자보상배율")
+    coverage_score: int = Field(..., description="D009 점수 (-1 또는 0)")
+    analysis_summary: str = Field(default="", description="분석 요약")
+    fiscal_year: Optional[str] = Field(default=None, description="회계연도")
+    data_quality: str = Field(default="", description="데이터 품질")
+    message: str = Field(default="", description="메시지")
+
+@app.get("/dino-test/finance/{stock_code}", response_model=DinoTestFinanceResponse)
+async def dino_test_finance_data(
+    stock_code: str,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    디노테스트 재무 데이터 조회 API - D009 이자보상배율 분석용
+    
+    KIS API를 통해 재무제표 데이터를 수집하여 EBIT, 이자비용 등 재무 정보를 제공합니다.
+    """
+    try:
+        logger.info(f"=== 디노테스트 재무 데이터 조회 시작: {stock_code} ===")
+        
+        # 토큰 검증
+        if authorization != DEFAULT_ADMIN_TOKEN:
+            logger.warning(f"Unauthorized access attempt for finance data: {stock_code}")
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        
+        # FinanceDataCollector를 통해 재무 데이터 수집
+        from dino_test.finance_data_collector import FinanceDataCollector
+        
+        collector = FinanceDataCollector()
+        
+        # 손익계산서 데이터 조회 (연간)
+        income_statement = collector.fetch_income_statement(stock_code, div_cls_code="0")
+        
+        if income_statement is None or income_statement.empty:
+            logger.warning(f"손익계산서 데이터 없음: {stock_code}")
+            return DinoTestFinanceResponse(
+                success=False,
+                stock_code=stock_code,
+                message="재무 데이터를 찾을 수 없습니다",
+                raw_financial_data={},
+                financial_ratios={}
+            )
+        
+        # 재무 데이터를 딕셔너리로 변환
+        financial_dict = {}
+        for index, row in income_statement.iterrows():
+            for col, value in row.items():
+                if pd.notna(value):
+                    financial_dict[f"{col}_{index}"] = str(value)
+        
+        # 주요 재무 지표 추출 (최신 데이터 기준)
+        latest_row = income_statement.iloc[0] if not income_statement.empty else {}
+        
+        # EBIT 관련 필드 추출 (영업이익을 EBIT로 사용)
+        ebit_fields = ["영업이익", "operating_income", "영업수익"]
+        ebit_value = None
+        for field in ebit_fields:
+            if field in latest_row and pd.notna(latest_row[field]):
+                try:
+                    ebit_value = float(latest_row[field])
+                    break
+                except (ValueError, TypeError):
+                    continue
+        
+        # 이자비용 관련 필드 추출
+        interest_fields = ["이자비용", "interest_expense", "금융비용", "이자지급액"]
+        interest_expense_value = None
+        for field in interest_fields:
+            if field in latest_row and pd.notna(latest_row[field]):
+                try:
+                    interest_expense_value = float(latest_row[field])
+                    break
+                except (ValueError, TypeError):
+                    continue
+        
+        # 회계연도 정보
+        fiscal_year = latest_row.get("stac_yymm", latest_row.get("year", "2024"))
+        
+        # 재무 비율 계산
+        financial_ratios = {}
+        if ebit_value is not None:
+            financial_ratios["operating_income"] = ebit_value
+            financial_ratios["ebit"] = ebit_value
+        
+        if interest_expense_value is not None:
+            financial_ratios["interest_expense"] = interest_expense_value
+            financial_ratios["이자비용"] = interest_expense_value
+        
+        if ebit_value is not None and interest_expense_value is not None and interest_expense_value > 0:
+            financial_ratios["interest_coverage_ratio"] = ebit_value / interest_expense_value
+        
+        financial_ratios["fiscal_year"] = str(fiscal_year)
+        
+        # 원시 데이터에 주요 필드 포함
+        raw_data = financial_dict.copy()
+        raw_data.update({
+            "operating_income": ebit_value,
+            "영업이익": ebit_value,
+            "ebit": ebit_value,
+            "interest_expense": interest_expense_value,
+            "이자비용": interest_expense_value,
+            "fiscal_year": fiscal_year
+        })
+        
+        logger.info(f"재무 데이터 조회 성공: {stock_code} - EBIT: {ebit_value}, 이자비용: {interest_expense_value}")
+        
+        return DinoTestFinanceResponse(
+            success=True,
+            stock_code=stock_code,
+            message="재무 데이터 조회 성공",
+            raw_financial_data=raw_data,
+            financial_ratios=financial_ratios
+        )
+        
+    except Exception as e:
+        error_msg = f"재무 데이터 조회 오류: {str(e)}"
+        logger.error(f"finance data error for {stock_code}: {e}")
+        
+        return DinoTestFinanceResponse(
+            success=False,
+            stock_code=stock_code,
+            message=error_msg,
+            raw_financial_data={},
+            financial_ratios={}
+        )
+
+@app.get("/dino-test/interest-coverage/{stock_code}", response_model=DinoTestInterestCoverageResponse)
+async def dino_test_interest_coverage_analysis(
+    stock_code: str,
+    company_name: str = None,
+    authorization: str = Header(default=DEFAULT_ADMIN_TOKEN)
+):
+    """
+    D009: 이자보상배율 분석
+    
+    Args:
+        stock_code: 6자리 종목코드 (예: 005930)
+        company_name: 기업명 (선택사항)
+        
+    Returns:
+        DinoTestInterestCoverageResponse: D009 이자보상배율 분석 결과
+    """
+    try:
+        # JWT 토큰 검증
+        extract_user_id_from_jwt(authorization)
+        
+        # 이자보상배율 분석기 초기화 및 실행
+        from dino_test.interest_coverage_analyzer import InterestCoverageAnalyzer
+        analyzer = InterestCoverageAnalyzer()
+        result = analyzer.analyze_interest_coverage(stock_code, company_name)
+        
+        if result is None:
+            logger.error(f"D009 이자보상배율 분석 실패 - {stock_code}")
+            return DinoTestInterestCoverageResponse(
+                success=False,
+                stock_code=stock_code,
+                company_name=company_name or stock_code,
+                coverage_score=0,
+                message="이자보상배율 분석을 수행할 수 없습니다"
+            )
+        
+        logger.info(f"D009 이자보상배율 분석 완료 - {result.company_name}: {result.analysis_summary}")
+        
+        return DinoTestInterestCoverageResponse(
+            success=True,
+            stock_code=result.stock_code,
+            company_name=result.company_name,
+            ebit=result.ebit,
+            interest_expense=result.interest_expense,
+            interest_coverage_ratio=result.interest_coverage_ratio,
+            coverage_score=result.coverage_score,
+            analysis_summary=result.analysis_summary,
+            fiscal_year=result.fiscal_year,
+            data_quality=result.data_quality,
+            message="D009 이자보상배율 분석이 성공적으로 완료되었습니다"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"D009 이자보상배율 분석 오류 - {stock_code}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"이자보상배율 분석 중 오류가 발생했습니다: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(

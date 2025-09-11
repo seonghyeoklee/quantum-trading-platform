@@ -30,4 +30,7 @@ dependencies = [
     "numpy>=1.26.0",
     "scipy>=1.11.0",
     "psycopg2-binary>=2.9.10",
+    "httpx>=0.28.1",
+    "pyjwt>=2.10.1",
+    "openai>=1.107.0",
 ]

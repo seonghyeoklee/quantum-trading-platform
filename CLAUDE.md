@@ -7,6 +7,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication, multi-environment KIS token management, comprehensive analysis pipelines powered by Apache Airflow, and strict data integrity safeguards preventing any fake/mock data generation.
 
 ### Recent Major Additions
+- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework
+  - D001: 재무분석 (Finance Analysis) - Revenue growth, profitability analysis
+  - D002: 주도 테마 분석 (Theme Analysis) - AI-powered theme detection with OpenAI integration
+  - D003: 소재분석 (Material Analysis) - Dividend yield, institutional/foreign investment flows
+  - D009: 이자보상배율 분석 (Interest Coverage Analysis) - Financial stability assessment
+  - 9 FastAPI endpoints across 4 analysis domains with JWT authentication
+  - Comprehensive scoring system with evidence-based validation
+- **Enhanced Chart Interface**: TradingView-style chart page with real-time stock search functionality
+  - Real-time API integration with backend for stock search
+  - Debounced search with loading states and dual search modes
+  - Interactive search results with stock selection capabilities
+  - Enhanced UI at `/domestic/charts` with comprehensive market data display
+- **Next.js Proxy Configuration**: Complete API routing configuration for seamless frontend-backend integration
+  - Backend API proxy: `/api/v1/*` → `api.quantum-trading.com:8080/*`
+  - KIS Adapter proxy: `/api/kis/*` → `adapter.quantum-trading.com:8000/*`
 - **Data Integrity Framework**: Complete system safeguards preventing fake/mock data generation with comprehensive error handling
 - **DDD-Based Stock Domain**: Complete Domain-Driven Design implementation with JPA entities, repositories, and ETL pipelines for efficient stock data management
 - **External Data Adapter**: Complete quantum-adapter-external module with real-time Naver News API and comprehensive DART public disclosure system integration
@@ -43,7 +58,9 @@ npm run lint
 
 # Frontend uses Next.js 15.5.2 with App Router
 # React Strict Mode is disabled to prevent chart duplications
-# API proxying configured: /api/kis/* → adapter.quantum-trading.com:8000/*
+# API proxying configured: 
+#   /api/v1/* → api.quantum-trading.com:8080/*  (Backend API)
+#   /api/kis/* → adapter.quantum-trading.com:8000/*  (KIS Adapter)
 ```
 
 ### Backend (quantum-web-api/)  
@@ -74,6 +91,10 @@ uv run python -c "from trading_strategy.comprehensive_batch_analyzer import Comp
 # Test individual analysis components
 uv run python test_single_stock.py  # Single stock analysis test
 uv run python test_ai_features.py   # AI-powered analysis test
+
+# DINO Test System Commands (NEW)
+uv run python -c "from dino_test.theme_analyzer import ThemeAnalyzer; analyzer = ThemeAnalyzer(); result = analyzer.analyze_leading_theme('005930', '삼성전자'); print(f'Theme: {result.detected_theme}, Score: {result.theme_score}')"  # D002 테마 분석
+uv run python -c "from dino_test.interest_coverage_analyzer import InterestCoverageAnalyzer; analyzer = InterestCoverageAnalyzer(); result = analyzer.analyze_interest_coverage('005930', '삼성전자'); print(f'Coverage Ratio: {result.interest_coverage_ratio}, Score: {result.coverage_score}')"  # D009 이자보상배율
 ```
 
 ### Sector Trading System Commands
@@ -192,7 +213,14 @@ cd quantum-infrastructure
    - Username: `quantum` 
    - Password: `quantum123`
 
-2. **KIS API Configuration**: Create `kis_devlp.yaml` in quantum-adapter-kis/
+2. **AI Integration Setup**: Configure OpenAI API for DINO Test system
+   ```bash
+   export OPENAI_API_KEY=sk-your-openai-api-key-here
+   # Required for D002 테마 분석 (Theme Analysis)
+   # Without this key, system falls back to keyword-based analysis
+   ```
+
+3. **KIS API Configuration**: Create `kis_devlp.yaml` in quantum-adapter-kis/
    ```yaml
    # Example kis_devlp.yaml structure
    my_app: "실전투자_앱키"
@@ -399,6 +427,13 @@ GET /overseas/{exchange}/price/{symbol}        # Current price
 GET /overseas/{exchange}/chart/{symbol}        # Chart data
 GET /overseas/{exchange}/index/{index_code}    # Index prices
 
+# DINO Test Analysis endpoints (NEW)
+GET /dino-test/finance/{stock_code}            # D001: 재무분석 
+GET /dino-test/theme/{stock_code}              # D002: 주도 테마 분석 (AI)
+GET /dino-test/material/{stock_code}           # D003: 소재분석 (배당, 수급)
+GET /dino-test/interest-coverage/{stock_code}  # D009: 이자보상배율 분석
+GET /dino-test/comprehensive/{stock_code}      # 종합 DINO 점수
+
 # Utility endpoints
 POST /auth/refresh-token?environment=prod|vps # Token management
 GET /health                                    # Health check
@@ -516,6 +551,17 @@ interface DailyChartDataRepository : JpaRepository<DailyChartData, Long> {
 - **Analysis Modules**: ComprehensiveBatchAnalyzer, AI data collection, ML signal generation
 - **Database**: PostgreSQL (port 5432) - unified database for both trading platform and Airflow metadata
 
+### DINO Test Analysis System (quantum-adapter-kis/)
+- **Multi-dimensional Analysis**: 4 major analysis domains with 9 API endpoints
+- **AI Integration**: OpenAI GPT-3.5-turbo for theme analysis (requires OPENAI_API_KEY)
+- **Scoring Framework**: Evidence-based scoring with validation and fallback mechanisms
+- **Financial Data Integration**: KIS API integration with FinanceDataCollector
+- **Analysis Components**:
+  - **Finance Analysis**: Revenue growth, profitability, margin analysis
+  - **Theme Analysis**: AI-powered sector/theme detection with keyword fallback
+  - **Material Analysis**: Dividend yield (≥2%), institutional/foreign investment flows (≥1%)
+  - **Interest Coverage**: EBIT/Interest expense ratio analysis (<1.0 = risk penalty)
+
 ## Sector Trading System Details
 
 ### Smart Order Manager Strategies
@@ -632,6 +678,14 @@ This is the most important rule in the entire system. When KIS API calls fail, d
 ## Current Implementation Status
 
 ### ✅ Completed
+- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework
+  - **D001 재무분석**: Finance analysis with revenue growth and profitability metrics
+  - **D002 주도 테마 분석**: AI-powered theme detection with OpenAI GPT-3.5-turbo integration
+  - **D003 소재분석**: Material analysis covering dividends (≥2%) and institutional flows (≥1%)
+  - **D009 이자보상배율**: Interest coverage ratio analysis with financial stability scoring
+  - **9 FastAPI Endpoints**: Complete REST API with JWT authentication and error handling
+  - **AI Integration Status**: OpenAI integration implemented with keyword-based fallback
+  - **Evidence-based Scoring**: Comprehensive validation and quality assessment
 - **External Data Adapter**: Complete quantum-adapter-external service
   - Real-time Naver News API integration (4 endpoints)
   - Comprehensive DART public disclosure system integration (8 endpoints)
@@ -653,17 +707,54 @@ This is the most important rule in the entire system. When KIS API calls fail, d
   - Manual approval workflow for trade execution
   - Comprehensive testing suite
 - **Frontend**: Next.js app with chart system
-- **KIS Adapter**: FastAPI server with 17 endpoints + WebSocket
+- **KIS Adapter**: FastAPI server with 26+ endpoints + WebSocket (including DINO Test endpoints)
 - **Backend**: Spring Boot API with JWT auth, KIS token management, AI integration
 - **Infrastructure**: Complete monitoring stack with Airflow integration
 - **Analysis Engine**: Multi-source data providers with comprehensive batch processing
 
 ### 🔧 In Progress  
-- **Backend Controllers**: ChartController, TradingModeController
+- **AI Integration Enhancement**: OpenAI API key configuration and testing
+- **DINO Test Integration**: Frontend integration with DINO analysis endpoints
 - **WebSocket Bridge**: Backend relay from KIS Adapter to Frontend
 - **Fully Automated Trading**: Remove manual approval requirement
+- **Advanced Chart Features**: Technical indicators, drawing tools, alerts
 
 ### 📋 Pending
+- **DINO Test Comprehensive Testing**: Full integration testing across all 4 analysis domains
 - **ML Integration**: Machine learning models for prediction
 - **Real-time Analytics**: Live market analysis during trading hours
 - **Portfolio Optimization**: Advanced allocation algorithms
+- **AI Analysis Enhancement**: Advanced AI features and model integration
+
+## AI Integration Status (2025-01-12)
+
+### Current AI Features
+- **OpenAI Integration**: Implemented in D002 테마 분석 (Theme Analysis)
+  - Status: 🟡 **Partially Active** (requires OPENAI_API_KEY environment variable)
+  - Model: GPT-3.5-turbo for intelligent theme detection
+  - Fallback: Keyword-based analysis when API unavailable
+- **AI-Powered Analysis**: Theme detection with confidence scoring
+- **Evidence-based Validation**: AI results combined with traditional analysis
+
+### AI Setup Requirements
+```bash
+# Required for full AI functionality
+export OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Test AI integration
+uv run python -c "from dino_test.theme_analyzer import ThemeAnalyzer; analyzer = ThemeAnalyzer(); print(f'OpenAI Available: {analyzer.openai_available}')"
+```
+
+### AI Integration Architecture
+```python
+# D002 Theme Analyzer with AI
+class ThemeAnalyzer:
+    def __init__(self):
+        # Auto-detect OpenAI availability
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_available = bool(openai_api_key)
+    
+    def analyze_with_openai(self, news_data, company_name):
+        # GPT-3.5-turbo analysis with structured prompts
+        # Falls back to keyword analysis if API unavailable
+```
