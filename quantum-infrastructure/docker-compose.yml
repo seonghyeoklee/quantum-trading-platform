@@ -52,7 +52,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "quantum"]
+      test: ["CMD", "pg_isready", "-U", "quantum", "-d", "quantum_trading"]
       interval: 10s
       retries: 5
       start_period: 5s
