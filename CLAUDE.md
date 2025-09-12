@@ -80,6 +80,9 @@ export OPENAI_API_KEY=sk-your-api-key-here
 uv sync                  # Install dependencies with uv (Python 3.13+ required)
 uv run python main.py    # Run FastAPI server on port 8000
 
+# Check Python version compatibility
+python --version         # Should be >= 3.13
+
 # Run sector trading test system
 cd sector_trading_test
 uv run python manual_trader.py      # Interactive trading console
@@ -114,8 +117,11 @@ uv run python test_system.py        # Basic system test
 ### External Adapter (quantum-adapter-external/)
 ```bash
 # CRITICAL: uv is required for dependency management (much faster than pip)
-uv sync                  # Install dependencies with uv (Python 3.13+ required)
+uv sync                  # Install dependencies with uv (Python 3.11+ required)
 uv run python main.py    # Run FastAPI server on port 8001
+
+# Check Python version compatibility  
+python --version         # Should be >= 3.11
 
 # Test API endpoints with custom domain (hosts configured)
 curl "http://external-api.quantum-trading.com:8001/health"                   # Health check
