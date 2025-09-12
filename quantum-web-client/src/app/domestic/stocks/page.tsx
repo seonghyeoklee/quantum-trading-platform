@@ -27,7 +27,7 @@ export default function StocksPage() {
 
   const handleViewChart = () => {
     if (selectedStock) {
-      router.push(`/stocks/${selectedStock.stockCode}`);
+      router.push(`/domestic/charts?stockCode=${selectedStock.stockCode}`);
     }
   };
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,9 @@ const marketHours = {
 };
 
 export default function DomesticChartsPage() {
+  const searchParams = useSearchParams();
+  const stockCodeFromUrl = searchParams.get('stockCode');
+  
   // Popular stocks hook
   const { stocks: popularStocks, loading: popularLoading, error: popularError } = usePopularStocks({
     marketCode: '0000', // All markets
@@ -206,6 +210,31 @@ export default function DomesticChartsPage() {
       clearInterval(progressInterval)
     }
   }, [])
+
+  // URL 파라미터로부터 종목 자동 선택
+  useEffect(() => {
+    if (stockCodeFromUrl) {
+      // Mock 데이터에서 해당 종목 찾기
+      const foundStock = domesticStocks.find(stock => stock.symbol === stockCodeFromUrl);
+      if (foundStock) {
+        setSelectedStock(foundStock);
+      } else {
+        // Mock 데이터에 없으면 API를 통해 실제 종목 데이터 조회
+        searchRealStocks(stockCodeFromUrl);
+      }
+    }
+  }, [stockCodeFromUrl])
+
+  // 실제 주식 검색 결과 자동 선택
+  useEffect(() => {
+    if (stockCodeFromUrl && realStocks.length > 0) {
+      const foundRealStock = realStocks.find(stock => stock.stockCode === stockCodeFromUrl);
+      if (foundRealStock) {
+        const convertedStock = convertRealStockToSelected(foundRealStock);
+        setSelectedStock(convertedStock);
+      }
+    }
+  }, [realStocks, stockCodeFromUrl])
 
   // ESC 키로 전체화면 종료
   useEffect(() => {
@@ -453,7 +482,7 @@ export default function DomesticChartsPage() {
                     ))
                   ) : (
                     <div className="text-center py-4 text-muted-foreground text-sm">
-                      "{searchQuery}"에 대한 실시간 검색 결과가 없습니다
+                      &quot;{searchQuery}&quot;에 대한 실시간 검색 결과가 없습니다
                     </div>
                   )
                 ) : (
@@ -495,7 +524,7 @@ export default function DomesticChartsPage() {
                     ))
                   ) : (
                     <div className="text-center py-4 text-muted-foreground text-sm">
-                      "{searchQuery}"에 대한 검색 결과가 없습니다
+                      &quot;{searchQuery}&quot;에 대한 검색 결과가 없습니다
                     </div>
                   )
                 )}

@@ -27,7 +27,8 @@ import {
   Calendar,
   Building2,
   DollarSign,
-  Newspaper
+  Newspaper,
+  Brain
 } from "lucide-react";
 
 interface HeaderProps {
@@ -47,6 +48,7 @@ export default function Header({ className }: HeaderProps) {
   const isStocksPage = pathname === '/stocks' || pathname.startsWith('/stocks/');
   const isProfilePage = pathname === '/profile';
   const isSettingsPage = pathname === '/settings';
+  const isDinoTestPage = pathname === '/domestic/dino-tests' || pathname.startsWith('/domestic/dino-tests/');
 
   // ESC 키로 모바일 메뉴 닫기
   useEffect(() => {
@@ -173,6 +175,20 @@ export default function Header({ className }: HeaderProps) {
                     >
                       <Newspaper className="w-4 h-4" />
                       뉴스
+                    </Link>
+                    
+                    {/* 분석 섹션 구분선 */}
+                    <div className="mx-4 my-2 border-t border-border"></div>
+                    <div className="px-4 py-1">
+                      <span className="text-xs text-muted-foreground font-medium">분석 도구</span>
+                    </div>
+                    
+                    <Link 
+                      href="/domestic/dino-tests"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <Brain className="w-4 h-4" />
+                      DINO 테스트
                     </Link>
                   </div>
                 </div>
@@ -406,6 +422,12 @@ export default function Header({ className }: HeaderProps) {
               <>
                 <span>•</span>
                 <span className="text-primary font-medium">시스템 설정</span>
+              </>
+            )}
+            {isDinoTestPage && (
+              <>
+                <span>•</span>
+                <span className="text-primary font-medium">DINO 분석</span>
               </>
             )}
             </div>
