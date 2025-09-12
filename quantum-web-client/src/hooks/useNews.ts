@@ -31,7 +31,7 @@ export function useNews(options: UseNewsOptions = {}): UseNewsReturn {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [lastQuery, setLastQuery] = useState<string>('');
-  const [lastOptions, setLastOptions] = useState<any>(null);
+  const [lastOptions, setLastOptions] = useState<Record<string, unknown> | null>(null);
 
   const { autoLoad = false, category = 'general' } = options;
 

@@ -38,7 +38,7 @@ interface StrategyCardProps {
 }
 
 // 아이콘 매핑
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, React.ComponentType> = {
   TrendingUp,
   BarChart3,
   Calculator,

@@ -6,8 +6,8 @@ import { apiClient } from '@/lib/api';
 interface KISApiResponse {
   success: boolean;
   data: {
-    records?: any[];
-  } | any;
+    records?: Record<string, unknown>[];
+  } | Record<string, unknown>;
   message: string;
   timestamp: string;
 }

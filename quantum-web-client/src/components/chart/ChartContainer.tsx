@@ -9,7 +9,7 @@ import ChartControls from './ChartControls';
 import { CandlestickData, ChartConfig } from './types';
 
 interface ChartContainerProps {
-  data: CandlestickData[];
+  data: CandlestickData[] | undefined;
   symbol: string;
   stockName?: string;
   height?: number;
@@ -39,7 +39,7 @@ export default function ChartContainer({
 
   // 가격 변화 계산
   const getPriceChange = () => {
-    if (data.length < 2) return { change: 0, changePercent: 0, trend: 'neutral' as const };
+    if (!data || data.length < 2) return { change: 0, changePercent: 0, trend: 'neutral' as const };
     
     const latest = data[data.length - 1];
     const previous = data[data.length - 2];
@@ -66,7 +66,7 @@ export default function ChartContainer({
   };
 
   const priceChange = getPriceChange();
-  const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
+  const currentPrice = data && data.length > 0 ? data[data.length - 1].close : 0;
 
   return (
     <Card className={`w-full ${className}`}>
@@ -124,7 +124,7 @@ export default function ChartContainer({
           {/* 차트 상태 표시 */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <BarChart3 className="w-4 h-4" />
-            <span>{data.length}개 데이터</span>
+            <span>{data ? data.length : 0}개 데이터</span>
           </div>
         </div>
       </CardHeader>
@@ -141,7 +141,7 @@ export default function ChartContainer({
         {/* 차트 */}
         <div className="w-full border border-border rounded-lg overflow-hidden bg-card">
           <SimpleChart
-            data={data}
+            data={data || []}
             config={chartConfig}
             height={height - 150} // 헤더와 컨트롤 높이 제외
             className="w-full"
@@ -149,7 +149,7 @@ export default function ChartContainer({
         </div>
 
         {/* 차트 정보 푸터 */}
-        {data.length > 0 && (
+        {data && data.length > 0 && (
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
             <div className="flex items-center gap-4">
               <span>기간: {chartConfig.timeframe}</span>
