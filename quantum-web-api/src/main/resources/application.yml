@@ -86,6 +86,7 @@ springdoc:
     defaultModelsExpandDepth: 2
     defaultModelExpandDepth: 2
 
+
 # Logging - 개발 집중 모드 (모니터링 비활성화)
 logging:
   level:

@@ -73,6 +73,9 @@ class SecurityConfig(
                     .requestMatchers("/v3/api-docs/**").permitAll()
                     .requestMatchers("/swagger-resources/**").permitAll()
                     .requestMatchers("/webjars/**").permitAll()
+                    // Swagger LLM 엔드포인트 (AI 친화적 API 문서)
+                    .requestMatchers("/v3/api-llm/**").permitAll()
+                    .requestMatchers("/v3/api-llm").permitAll()
                     
                     // 주식 정보 조회 (공개 접근 허용)
                     .requestMatchers("/api/v1/**").permitAll()

@@ -16,10 +16,13 @@ java {
 }
 
 repositories {
+    mavenLocal() // 로컬 Maven 저장소를 우선으로
     mavenCentral()
     // Spring AI 마일스톤 및 스냅샷 레포지토리
     maven { url = uri("https://repo.spring.io/milestone") }
     maven { url = uri("https://repo.spring.io/snapshot") }
+    // JitPack repository for our Swagger LLM library
+    maven { url = uri("https://jitpack.io") }
 }
 
 dependencies {
@@ -52,6 +55,9 @@ dependencies {
     
     // OpenAPI Documentation - Spring Boot 3.3과 확실히 호환되는 검증된 버전
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0")
+    
+    // Swagger LLM Spring Boot Starter - LLM 친화적 API 문서 자동 생성 (GitHub JitPack)
+    implementation("com.github.seonghyeoklee:swagger-llm-spring-boot-starter:v1.0.3")
     
     // macOS DNS 네이티브 리졸버 (WebClient 성능 최적화)
     runtimeOnly("io.netty:netty-resolver-dns-native-macos")
