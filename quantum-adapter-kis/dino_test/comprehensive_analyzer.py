@@ -471,32 +471,37 @@ class ComprehensiveDinoAnalyzer:
     
     def get_analysis_results(self, stock_code: str = None, analysis_date: date = None, 
                            limit: int = 100) -> List[Dict]:
-        """분석 결과 조회"""
+        """분석 결과 조회 (raw_data 포함)"""
         
         try:
             with psycopg2.connect(**self.db_config) as conn:
                 with conn.cursor() as cursor:
                     query = """
                         SELECT 
-                            stock_code, company_name, 
-                            finance_score, technical_score, price_score, material_score,
-                            event_score, theme_score, positive_news_score, interest_coverage_score,
-                            total_score, analysis_grade,
-                            analysis_date, created_at, status
-                        FROM dino_test_results 
+                            dtr.stock_code, dtr.company_name, 
+                            dtr.finance_score, dtr.technical_score, dtr.price_score, dtr.material_score,
+                            dtr.event_score, dtr.theme_score, dtr.positive_news_score, dtr.interest_coverage_score,
+                            dtr.total_score, dtr.analysis_grade,
+                            dtr.analysis_date, dtr.created_at, dtr.status,
+                            dtr.id as result_id,
+                            dr.news_raw_data, dr.disclosure_raw_data, dr.financial_raw_data, dr.technical_raw_data,
+                            dr.price_raw_data, dr.material_raw_data, dr.ai_theme_response, dr.ai_news_response,
+                            dr.ai_event_response, dr.ai_positive_news_response, dr.analysis_environment, dr.ai_model_info
+                        FROM dino_test_results dtr
+                        LEFT JOIN dino_test_raw_data dr ON dtr.id = dr.dino_test_result_id
                         WHERE 1=1
                     """
                     params = []
                     
                     if stock_code:
-                        query += " AND stock_code = %s"
+                        query += " AND dtr.stock_code = %s"
                         params.append(stock_code)
                     
                     if analysis_date:
-                        query += " AND analysis_date = %s"
+                        query += " AND dtr.analysis_date = %s"
                         params.append(analysis_date)
                     
-                    query += " ORDER BY created_at DESC LIMIT %s"
+                    query += " ORDER BY dtr.created_at DESC LIMIT %s"
                     params.append(limit)
                     
                     cursor.execute(query, params)
@@ -511,6 +516,44 @@ class ComprehensiveDinoAnalyzer:
                             result['analysis_date'] = result['analysis_date'].isoformat()
                         if result.get('created_at'):
                             result['created_at'] = result['created_at'].isoformat()
+                        
+                        # raw_data 필드들을 구조화된 형태로 조합
+                        raw_data = {}
+                        if result.get('news_raw_data'):
+                            raw_data['news'] = result['news_raw_data']
+                        if result.get('disclosure_raw_data'):
+                            raw_data['disclosure'] = result['disclosure_raw_data']
+                        if result.get('financial_raw_data'):
+                            raw_data['financial'] = result['financial_raw_data']
+                        if result.get('technical_raw_data'):
+                            raw_data['technical'] = result['technical_raw_data']
+                        if result.get('price_raw_data'):
+                            raw_data['price'] = result['price_raw_data']
+                        if result.get('material_raw_data'):
+                            raw_data['material'] = result['material_raw_data']
+                        if result.get('ai_theme_response'):
+                            raw_data['ai_theme'] = result['ai_theme_response']
+                        if result.get('ai_news_response'):
+                            raw_data['ai_news'] = result['ai_news_response']
+                        if result.get('ai_event_response'):
+                            raw_data['ai_event'] = result['ai_event_response']
+                        if result.get('ai_positive_news_response'):
+                            raw_data['ai_positive_news'] = result['ai_positive_news_response']
+                        if result.get('analysis_environment'):
+                            raw_data['analysis_environment'] = result['analysis_environment']
+                        if result.get('ai_model_info'):
+                            raw_data['ai_model_info'] = result['ai_model_info']
+                        
+                        # raw_data 필드 추가
+                        result['raw_data'] = raw_data
+                        
+                        # 개별 raw data 컬럼들은 제거 (중복 방지)
+                        raw_fields = ['news_raw_data', 'disclosure_raw_data', 'financial_raw_data', 'technical_raw_data',
+                                    'price_raw_data', 'material_raw_data', 'ai_theme_response', 'ai_news_response',
+                                    'ai_event_response', 'ai_positive_news_response', 'analysis_environment', 'ai_model_info']
+                        for field in raw_fields:
+                            result.pop(field, None)
+                        
                         results.append(result)
                     
                     return results
