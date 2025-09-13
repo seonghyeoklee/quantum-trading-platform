@@ -361,7 +361,24 @@ const ScoreSummaryCard = ({ scores }: { scores: DinoAnalysisData['평가점수']
   );
 };
 
-// 메인 컴포넌트
+// 개별 영역 시각화 컴포넌트 (종합 점수 없이)
+export function DinoSectionVisualization({ data }: DinoAnalysisVisualizationProps) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <FinanceAnalysisTable items={data.재무} />
+        <TechnicalAnalysisCard items={data.기술} />
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <PriceAnalysisCard data={data.가격} />
+        <MaterialAnalysisCard items={data.재료} />
+      </div>
+    </div>
+  );
+}
+
+// 메인 컴포넌트 (종합 점수 포함)
 export default function DinoAnalysisVisualization({ data }: DinoAnalysisVisualizationProps) {
   return (
     <div className="space-y-6">

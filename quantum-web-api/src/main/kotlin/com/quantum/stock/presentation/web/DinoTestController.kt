@@ -215,13 +215,6 @@ class DinoTestController(
                 dinoTestService.getLatestDinoTestResult(stockCode)
             }
             
-            if (result.result != null) {
-                logger.info("최신 DINO 테스트 결과 조회 완료 - stockCode: $stockCode, 총점: ${result.result.totalScore}점")
-            } else {
-                logger.warn("DINO 테스트 결과를 찾을 수 없음 - stockCode: $stockCode")
-                return ResponseEntity.notFound().build()
-            }
-            
             ResponseEntity.ok(result)
             
         } catch (exception: Exception) {

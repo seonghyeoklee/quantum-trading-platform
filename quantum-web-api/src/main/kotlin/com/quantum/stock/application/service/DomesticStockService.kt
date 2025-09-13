@@ -9,6 +9,7 @@ import com.quantum.stock.infrastructure.client.KisAdapterClient
 import com.quantum.stock.infrastructure.client.KisStockOutput
 import com.quantum.stock.presentation.dto.KisStockDetailInfo
 import com.quantum.stock.presentation.dto.PriceChangeSign
+// import io.github.logtree.spring.annotation.Traceable // 자동 추적으로 더 이상 불필요
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -38,6 +39,7 @@ class DomesticStockService(
      * - 데이터 검증 실패 시 빈 결과 반환
      * - 모든 DB 오류를 적절히 처리
      */
+    // @Traceable - 자동 추적으로 더 이상 불필요
     fun getStockDetailsByPeriod(
         stockCode: String,
         startDate: LocalDate,
@@ -157,6 +159,7 @@ class DomesticStockService(
      * @param stockCode 종목코드 (6자리)
      * @return KIS API 상세 정보 또는 null (오류 시)
      */
+    // @Traceable - 자동 추적으로 더 이상 불필요
     suspend fun getKisStockDetail(stockCode: String): KisStockDetailInfo? {
         return try {
             logger.info("KIS API 주식 상세 정보 조회 - stockCode: $stockCode")

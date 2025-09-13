@@ -11,8 +11,8 @@ spring:
 
   # Database Configuration - PostgreSQL
   datasource:
-    url: jdbc:p6spy:postgresql://localhost:5432/quantum_trading
-    driver-class-name: com.p6spy.engine.spy.P6SpyDriver
+    url: jdbc:postgresql://localhost:5432/quantum_trading
+    driver-class-name: org.postgresql.Driver
     username: quantum
     password: quantum123
 
@@ -20,7 +20,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false  # p6spy가 처리하므로 비활성화
+    show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -51,6 +51,31 @@ quantum:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:8080
+
+# LogTree Configuration - 계층형 트레이싱 로깅 (Logbook처럼 자동 적용)
+logtree:
+  enabled: true
+  auto-trace-controllers: true   # 🔥 모든 컨트롤러 자동 추적 (어노테이션 불필요)
+  auto-trace-services: true      # 🔥 모든 서비스 자동 추적 (어노테이션 불필요)
+  auto-trace-repositories: true  # 🔥 모든 리포지토리 자동 추적
+  include-headers: false         # 민감한 정보 포함 금지 (Logbook과 동일)
+  include-args: true             # 메서드 인자 자동 포함
+  include-result: false          # 결과값은 보안상 제외
+  track-errors: true             # 에러 자동 추적 (Causality Chain)
+  exclude-urls:                  # Logbook과 동일한 제외 URL
+    - /actuator/**
+    - /docs/**
+    - /v3/api-docs/**
+    - /health
+    - /error
+    - /favicon.ico
+    - /swagger-ui/**
+  exclude-packages:              # 특정 패키지 제외
+    - org.springframework.boot.actuate
+    - org.springframework.security
+  max-depth: 15                  # 충분한 깊이 허용
+  colored-output: true
+  log-style: tree                # tree 구조로 시각화
 
 # Actuator 설정 (모니터링 포함)
 management:
@@ -94,8 +119,8 @@ logging:
     org.springframework.security: WARN  # 시큐리티 로그 최소화
     io.netty.resolver.dns: ERROR  # 네티 경고 완전 제거
 
-    # Logbook HTTP 로깅 - 개발용만 활성화
-    org.zalando.logbook: INFO
+    # LogTree HTTP 로깅 (Logbook 대체)
+    io.github.logtree: DEBUG
 
     # Spring Web 로깅 최소화
     org.springframework.web: WARN
@@ -111,16 +136,5 @@ logging:
     io.micrometer: OFF
     org.springframework.web.filter: ERROR
 
-# Logbook 설정 - 개발 집중 모드
-logbook:
-  filter:
-    enabled: true
-  write:
-    chunk-size: 1000
-  minimum-status: 200
-  obfuscate:
-    headers:
-      - Authorization
-      - X-API-KEY
-  format:
-    style: http  # 개발자 친화적 HTTP 형태
+# LogTree 통합 로깅 - HTTP + 메서드 계층 추적
+# (Logbook 대체 - HTTP 요청/응답 + 메서드 트레이싱 통합)

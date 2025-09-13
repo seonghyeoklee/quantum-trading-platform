@@ -59,6 +59,9 @@ dependencies {
     // Swagger LLM Spring Boot Starter - LLM 친화적 API 문서 자동 생성 (GitHub JitPack)
     implementation("com.github.seonghyeoklee:swagger-llm-spring-boot-starter:v1.0.3")
     
+    // LogTree Spring Boot Starter - 계층형 트레이싱 로깅 라이브러리 (Local Maven for now)
+    implementation("com.github.logtree:logtree-spring-boot-starter:1.0.0")
+    
     // macOS DNS 네이티브 리졸버 (WebClient 성능 최적화)
     runtimeOnly("io.netty:netty-resolver-dns-native-macos")
     
@@ -71,9 +74,8 @@ dependencies {
     // JSON 로깅 - Logstash Encoder (Grafana 연동용)
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
     
-    // 개발 필수 도구만 활성화
-    implementation("org.zalando:logbook-spring-boot-starter:3.5.0")  // HTTP 로깅 (개발용)
-    implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")  // SQL 로깅 (개발용)
+    // 개발 필수 도구만 활성화 (LogTree로 HTTP 로깅 통합)
+//    implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")  // SQL 로깅 (개발용)
     
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")

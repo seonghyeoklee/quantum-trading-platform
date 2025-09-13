@@ -33,7 +33,9 @@ import {
   Terminal,
   Wifi
 } from 'lucide-react';
-import DinoAnalysisVisualization from '@/components/dino/DinoAnalysisVisualization';
+import DinoAnalysisVisualization, { DinoSectionVisualization } from '@/components/dino/DinoAnalysisVisualization';
+import DinoAdvancedAnalysisVisualization from '@/components/dino/DinoAdvancedAnalysisVisualization';
+import DinoTestTable from '@/components/dino/DinoTestTable';
 import { parseDinoRawData } from '@/lib/dino-data-parser';
 
 // 8개 디노 테스트 영역 정의 (실제 DB 구조 기반)
@@ -126,6 +128,7 @@ export default function DinoTestsPage() {
   const [selectedLogTest, setSelectedLogTest] = useState<string | null>(null);
   const [realTimeMonitoring, setRealTimeMonitoring] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connected');
+  const [showDetailedView, setShowDetailedView] = useState(false);
   const [systemStats, setSystemStats] = useState({
     apiCalls: 0,
     totalExecutionTime: 0,
@@ -165,30 +168,46 @@ export default function DinoTestsPage() {
     interest_coverage_score: 4
   });
 
-  // 기존 결과 로드
-  useEffect(() => {
-    const loadExistingResults = async () => {
-      try {
-        const latestResult = await fetchLatestTestResult(selectedStock);
+  // 전체 결과 상태 추가
+  const [fullResult, setFullResult] = useState<any>(null);
+
+  // 로딩 상태 추가
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // 결과 로드 함수 (중복 방지)
+  const loadTestResults = async (stockCode: string, isRefresh: boolean = false) => {
+    if (isLoading && !isRefresh) {
+      console.log('이미 로딩 중이므로 요청 무시');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const latestResult = await fetchLatestTestResult(stockCode);
+      
+      if (latestResult.success && latestResult.result) {
+        const result = latestResult.result;
         
-        if (latestResult.success && latestResult.result) {
-          const result = latestResult.result;
-          setTestResults({
-            stockCode: result.stockCode,
-            companyName: result.companyName || '삼성전자',
-            analysisDate: result.analysisDate,
-            status: result.status,
-            totalScore: result.totalScore,
-            analysisGrade: result.analysisGrade,
-            finance_score: result.financeScore,
-            technical_score: result.technicalScore,
-            price_score: result.priceScore,
-            material_score: result.materialScore,
-            event_score: result.eventScore,
-            theme_score: result.themeScore,
-            positive_news_score: result.positiveNewsScore,
-            interest_coverage_score: result.interestCoverageScore
-          });
+        // 전체 결과 저장 (rawData 포함)
+        setFullResult(result);
+        
+        setTestResults({
+          stockCode: result.stockCode,
+          companyName: result.companyName || '삼성전자',
+          analysisDate: result.analysisDate,
+          status: result.status,
+          totalScore: result.totalScore,
+          analysisGrade: result.analysisGrade,
+          finance_score: result.financeScore,
+          technical_score: result.technicalScore,
+          price_score: result.priceScore,
+          material_score: result.materialScore,
+          event_score: result.eventScore,
+          theme_score: result.themeScore,
+          positive_news_score: result.positiveNewsScore,
+          interest_coverage_score: result.interestCoverageScore
+        });
           
           // 기존 결과를 테스트 상태에도 반영
           const scoreMap: Record<string, number> = {
@@ -245,58 +264,40 @@ export default function DinoTestsPage() {
             return updated;
           });
           
-          console.log(`기존 DINO 분석 결과 로드됨 - ${result.companyName}: 총점 ${result.totalScore}점, 등급 ${result.analysisGrade}`);
-          console.log('API 응답 result 구조:', result);
-          console.log('rawData 존재 여부:', !!result.rawData);
-          if (result.rawData) {
-            console.log('rawData keys:', Object.keys(result.rawData));
-            console.log('rawData news 존재:', !!result.rawData.news);
-            console.log('rawData disclosure 존재:', !!result.rawData.disclosure);
-          }
-          
-          // UI 강제 리렌더링을 위한 상태 업데이트
-          setTestStates(prev => ({ ...prev }));
-        }
+        console.log(`DINO 분석 결과 로드됨 - ${result.companyName}: 총점 ${result.totalScore}점, 등급 ${result.analysisGrade}`);
+        console.log('rawData 존재 여부:', !!result.rawData);
         
-      } catch (error) {
-        console.log('기존 결과 없음 또는 로드 실패:', error);
+        // UI 강제 리렌더링을 위한 상태 업데이트
+        setTestStates(prev => ({ ...prev }));
+      }
+      
+    } catch (error) {
+      console.log('결과 로드 실패:', error);
+      if (!isRefresh) {
         // 에러 시에는 기본 Mock 데이터 유지
       }
-    };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    loadExistingResults();
+  // 기존 결과 로드 (컴포넌트 마운트 시)
+  useEffect(() => {
+    loadTestResults(selectedStock);
   }, [selectedStock]);
 
-  // 결과 새로고침 함수
+  // 결과 새로고침 함수 (중복 요청 방지)
   const refreshResults = async () => {
+    if (isLoading) {
+      console.log('이미 로딩 중이므로 새로고침 무시');
+      return;
+    }
+    
     try {
       setConnectionStatus('connecting');
-      
-      const latestResult = await fetchLatestTestResult(selectedStock);
-      
-      if (latestResult.success && latestResult.result) {
-        const result = latestResult.result;
-        setTestResults({
-          stockCode: result.stockCode,
-          companyName: result.companyName || '삼성전자',
-          analysisDate: result.analysisDate,
-          status: result.status,
-          totalScore: result.totalScore,
-          analysisGrade: result.analysisGrade,
-          finance_score: result.financeScore,
-          technical_score: result.technicalScore,
-          price_score: result.priceScore,
-          material_score: result.materialScore,
-          event_score: result.eventScore,
-          theme_score: result.themeScore,
-          positive_news_score: result.positiveNewsScore,
-          interest_coverage_score: result.interestCoverageScore
-        });
-        
-        console.log(`DINO 결과 새로고침 완료 - ${result.companyName}: 총점 ${result.totalScore}점`);
-      }
-      
+      await loadTestResults(selectedStock, true); // 새로고침 모드
       setConnectionStatus('connected');
+      console.log(`DINO 결과 새로고침 완료`);
       
     } catch (error) {
       console.error('결과 새로고침 실패:', error);
@@ -335,7 +336,7 @@ export default function DinoTestsPage() {
   // 실제 API 호출 함수들
   const runDinoTestAPI = async (testKey: string, stockCode: string) => {
     try {
-      const response = await fetch(`http://api.quantum-trading.com:8080/api/v1/dino-test/${testKey}/${stockCode}`, {
+      const response = await fetch(`/api/v1/dino-test/${testKey}/${stockCode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -355,7 +356,7 @@ export default function DinoTestsPage() {
 
   const runComprehensiveDinoTest = async (stockCode: string, companyName: string) => {
     try {
-      const response = await fetch(`http://api.quantum-trading.com:8080/api/v1/dino-test/comprehensive`, {
+      const response = await fetch(`/api/v1/dino-test/comprehensive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -377,7 +378,7 @@ export default function DinoTestsPage() {
   const fetchTestResults = async (stockCode?: string) => {
     try {
       const queryParams = stockCode ? `?stockCode=${stockCode}` : '';
-      const response = await fetch(`http://api.quantum-trading.com:8080/api/v1/dino-test/results${queryParams}`);
+      const response = await fetch(`/api/v1/dino-test/results${queryParams}`);
       if (!response.ok) throw new Error('결과 조회 실패');
       
       return await response.json();
@@ -389,10 +390,15 @@ export default function DinoTestsPage() {
 
   const fetchLatestTestResult = async (stockCode: string) => {
     try {
-      const response = await fetch(`http://api.quantum-trading.com:8080/api/v1/dino-test/results/${stockCode}/latest`);
+      console.log('🌐 Fetching latest DINO test result for:', stockCode);
+      const response = await fetch(`/api/v1/dino-test/results/${stockCode}/latest`);
+      console.log('🌐 Response status:', response.status, response.ok);
+      
       if (!response.ok) throw new Error('최신 결과 조회 실패');
       
-      return await response.json();
+      const result = await response.json();
+      console.log('🌐 Fetched result:', result);
+      return result;
     } catch (error) {
       console.error('최신 결과 조회 API 오류:', error);
       throw error;
@@ -401,6 +407,12 @@ export default function DinoTestsPage() {
 
   // 로그 뷰어 토글
   const showTestLogs = (testKey: string) => {
+    setSelectedLogTest(testKey);
+    setShowLogViewer(true);
+  };
+
+  // 테스트 세부사항 보기
+  const viewTestDetails = (testKey: string) => {
     setSelectedLogTest(testKey);
     setShowLogViewer(true);
   };
@@ -829,6 +841,30 @@ export default function DinoTestsPage() {
         </Card>
       </div>
 
+      {/* AI 기반 고급 분석 결과 (한 번만 표시) */}
+      {fullResult?.rawData && (() => {
+        const hasAdvancedData = fullResult.rawData.news || fullResult.rawData.disclosure || fullResult.rawData.ai_theme;
+        if (hasAdvancedData) {
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-purple-600" />
+                  AI 기반 종합 분석 결과
+                  <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                    {testResults.companyName}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DinoAdvancedAnalysisVisualization rawData={fullResult.rawData} />
+              </CardContent>
+            </Card>
+          );
+        }
+        return null;
+      })()}
+
       {/* 실시간 시스템 모니터링 */}
       {realTimeMonitoring && (runningCount > 0 || completedCount > 0 || failedCount > 0) && (
         <Card>
@@ -886,192 +922,52 @@ export default function DinoTestsPage() {
         </Card>
       )}
 
-      {/* 8개 테스트 영역 실행 */}
+      {/* DINO 테스트 결과표 */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">개별 테스트 실행</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {dinoTestAreas.map(area => {
-            const IconComponent = area.icon;
-            const testState = testStates[area.key];
-            const isRunning = runningTests.has(area.key);
-            
-            return (
-              <Card key={area.key}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <IconComponent className="w-5 h-5 text-primary" />
-                      <div>
-                        <CardTitle className="text-base font-medium">{area.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground">{area.description}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(testState.status)}
-                      {getStatusBadge(testState.status)}
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  {/* 진행률 표시 */}
-                  {testState.status === 'running' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>진행률</span>
-                        <span>{Math.round(testState.progress)}%</span>
-                      </div>
-                      <Progress value={testState.progress} />
-                    </div>
-                  )}
-
-                  {/* 테스트 결과 */}
-                  {testState.status === 'completed' && testState.result && (
-                    <div className="space-y-3">
-                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-sm font-medium text-green-800">테스트 완료</span>
-                        </div>
-                        <div className="text-lg font-bold text-green-700">
-                          점수: {testState.result.score} / {area.maxScore}
-                        </div>
-                        {testState.duration && (
-                          <div className="text-xs text-green-600 mt-1">
-                            실행시간: {(testState.duration / 1000).toFixed(1)}초
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* DINO 분석 결과 시각화 */}
-                      {testState.result?.details?.rawData && (() => {
-                        const parsedData = parseDinoRawData(testState.result.details.rawData);
-                        
-                        if (parsedData) {
-                          return (
-                            <div className="mt-4">
-                              <DinoAnalysisVisualization data={parsedData} />
-                            </div>
-                          );
-                        }
-                        
-                        // 파싱에 실패한 경우 기존 JSON 표시 방식을 fallback으로 사용
-                        return (
-                          <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="w-4 h-4 text-gray-600" />
-                              <span className="text-sm font-medium text-gray-800">원시 분석 데이터</span>
-                              <Badge variant="outline" className="text-xs">
-                                파싱 실패
-                              </Badge>
-                              <button
-                                onClick={() => {
-                                  const dataString = JSON.stringify(testState.result.details.rawData, null, 2);
-                                  navigator.clipboard.writeText(dataString);
-                                }}
-                                className="ml-auto text-xs text-blue-600 hover:text-blue-800"
-                              >
-                                복사
-                              </button>
-                            </div>
-                            <details className="cursor-pointer">
-                              <summary className="text-xs text-gray-600 hover:text-gray-800">
-                                Raw 데이터 보기 (클릭하여 펼치기)
-                              </summary>
-                              <pre className="mt-2 p-2 bg-white rounded border text-xs overflow-auto max-h-48">
-                                {JSON.stringify(testState.result.details.rawData, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
-                        );
-                      })()}
-                      
-                      {/* 분석 요약 (material, event, theme 등에서 제공) */}
-                      {testState.result.details && testState.result.details.analysisSummary && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <BarChart3 className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-800">분석 요약</span>
-                          </div>
-                          <p className="text-sm text-blue-700">
-                            {testState.result.details.analysisSummary}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 실패 결과 */}
-                  {testState.status === 'failed' && (
-                    <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-red-600" />
-                        <span className="text-sm font-medium text-red-800">테스트 실패</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 테스트 정보 */}
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <div>카테고리: {area.category}</div>
-                    <div>점수 범위: {area.minScore || 0} - {area.maxScore}점</div>
-                    {testState.startTime && (
-                      <div>시작: {testState.startTime.toLocaleTimeString()}</div>
-                    )}
-                  </div>
-
-                  {/* 액션 버튼 */}
-                  <div className="flex gap-2">
-                    {isRunning ? (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => stopTest(area.key)}
-                      >
-                        <Square className="w-4 h-4 mr-2" />
-                        중지
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => runTest(area.key)}
-                        disabled={runningCount > 0 && !isRunning}
-                      >
-                        <Play className="w-4 h-4 mr-2" />
-                        실행
-                      </Button>
-                    )}
-                    
-                    {testState.logs && testState.logs.length > 0 && (
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => showTestLogs(area.key)}
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        로그 ({testState.logs.length})
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">DINO 테스트 결과표</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showDetailedView ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowDetailedView(!showDetailedView)}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              {showDetailedView ? '간단히 보기' : '자세히 보기'}
+            </Button>
+            <Button 
+              onClick={runAllTests}
+              disabled={runningCount > 0}
+              className="bg-green-600 hover:bg-green-700"
+              size="sm"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              전체 실행
+            </Button>
+          </div>
         </div>
+        
+        <DinoTestTable 
+          testAreas={dinoTestAreas}
+          testStates={testStates}
+          runningTests={runningTests}
+          onRunTest={runTest}
+          onStopTest={stopTest}
+          onViewDetails={viewTestDetails}
+        />
       </div>
 
       {/* 간단한 액션 버튼 */}
-      <div className="flex gap-4">
-        <Button size="lg" className="flex-1">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Button size="lg" onClick={runAllTests} disabled={runningCount > 0} className="bg-blue-600 hover:bg-blue-700">
           <TestTube className="w-4 h-4 mr-2" />
-          새로운 분석 실행
+          새로운 종합 분석 실행
         </Button>
-        <Button variant="outline" size="lg">
+        <Button variant="outline" size="lg" onClick={() => setShowDetailedView(!showDetailedView)}>
           <BarChart3 className="w-4 h-4 mr-2" />
-          상세 결과 보기
+          {showDetailedView ? '간단한' : '상세한'} 결과 보기
         </Button>
-        <Button variant="outline" size="lg">
+        <Button variant="outline" size="lg" onClick={() => window.open(`/api/v1/dino-test/results/${selectedStock}/export`, '_blank')}>
           <Download className="w-4 h-4 mr-2" />
           결과 내보내기
         </Button>

@@ -7,6 +7,7 @@ import com.quantum.stock.presentation.dto.DomesticStockDetailDto
 import com.quantum.stock.presentation.dto.DomesticStockListResponse
 import com.quantum.stock.presentation.dto.DomesticStockSearchRequest
 import com.quantum.stock.presentation.dto.DomesticStockWithKisDetailDto
+// import io.github.logtree.spring.annotation.Traceable // 자동 추적으로 더 이상 불필요
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -33,6 +34,7 @@ class DomesticStockController(
      * 국내주식 종목 전체 리스트 조회 (페이징)
      */
     @GetMapping
+    // @Traceable - 자동 추적으로 더 이상 불필요
     fun getDomesticStocks(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
@@ -73,6 +75,7 @@ class DomesticStockController(
      * 국내주식 종목 검색 (종목명, 종목코드)
      */
     @GetMapping("/search")
+    // @Traceable - 자동 추적으로 더 이상 불필요
     fun searchDomesticStocks(
         @RequestParam keyword: String,
         @RequestParam(required = false) marketType: DomesticMarketType?,
@@ -123,6 +126,7 @@ class DomesticStockController(
      * 특정 종목 상세 정보 조회
      */
     @GetMapping("/{stockCode}")
+    // @Traceable - 자동 추적으로 더 이상 불필요
     fun getDomesticStock(@PathVariable stockCode: String): ResponseEntity<DomesticStockDetailDto> {
         
         return try {
@@ -157,6 +161,7 @@ class DomesticStockController(
      * KIS API 상세 정보가 포함된 종목 정보 조회
      */
     @GetMapping("/{stockCode}/detail")
+    // @Traceable - 자동 추적으로 더 이상 불필요
     fun getDomesticStockWithKisDetail(@PathVariable stockCode: String): ResponseEntity<DomesticStockWithKisDetailDto> {
         
         return try {
