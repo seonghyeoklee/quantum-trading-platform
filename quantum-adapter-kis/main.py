@@ -8,7 +8,7 @@ import sys
 import logging
 from datetime import datetime, timedelta
 from typing import Tuple, List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -18,13 +18,15 @@ import json
 from typing import Set
 import jwt
 import base64
+import uuid
+from pathlib import Path
 
 # 로깅 설정 먼저 초기화
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # examples_llm 경로 추가
-sys.path.extend(['examples_llm', '.', 'examples_user'])
+sys.path.extend(['examples_llm', '.', 'examples_user', 'trading_strategy'])
 import kis_auth as ka
 
 # DB 토큰 관리자 import (PostgreSQL 직접 연결)
@@ -179,6 +181,34 @@ app.add_middleware(
 )
 
 # 로깅 설정은 상단에서 이미 완료됨
+
+# ==================== 백테스팅 전역 변수 및 모델 ====================
+
+# 백테스팅 작업 상태 저장소
+backtesting_tasks = {}
+
+class BacktestingRequest(BaseModel):
+    """백테스팅 요청 모델"""
+    symbols: List[str] = Field(..., description="테스트할 종목 코드 리스트")
+    periods: List[int] = Field([1, 2, 3, 5, 7], description="확정 기간 리스트")
+    initial_cash: int = Field(10_000_000, description="초기 자금 (원)")
+    commission: float = Field(0.00015, description="수수료")
+    
+class BacktestingStatus(BaseModel):
+    """백테스팅 상태 모델"""
+    task_id: str = Field(..., description="작업 ID")
+    status: str = Field(..., description="상태: pending/running/completed/failed")
+    progress: int = Field(0, description="진행률 (0-100)")
+    current_stock: Optional[str] = Field(None, description="현재 처리 중인 종목")
+    message: str = Field("", description="상태 메시지")
+    results: Optional[List[Dict[str, Any]]] = Field(None, description="백테스팅 결과")
+    
+class BacktestingResponse(BaseModel):
+    """백테스팅 응답 모델"""
+    success: bool = Field(..., description="성공 여부")
+    task_id: str = Field(..., description="작업 ID")
+    status: str = Field(..., description="상태")
+    message: str = Field("", description="응답 메시지")
 
 # ==================== 공통 응답 모델 ====================
 
@@ -2435,6 +2465,201 @@ async def get_latest_dino_result(
     except Exception as e:
         logger.error(f"최신 DINO 결과 조회 오류 - {stock_code}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"최신 DINO 결과 조회 중 오류가 발생했습니다: {str(e)}")
+
+# ==================== 백테스팅 API ====================
+
+def run_backtest_task(task_id: str, request: BacktestingRequest):
+    """백테스팅 백그라운드 작업"""
+    try:
+        logger.info(f"🚀 백테스팅 시작: {task_id}")
+        
+        # 작업 상태 업데이트
+        backtesting_tasks[task_id] = {
+            "status": "running",
+            "progress": 0,
+            "current_stock": None,
+            "message": "백테스팅을 시작합니다...",
+            "results": None
+        }
+        
+        # 백테스팅 실행 (기존 run_backtest.py 로직 활용)
+        try:
+            import trading_strategy.run_backtest as backtest_module
+            
+            # KIS API 인증
+            backtesting_tasks[task_id]["message"] = "KIS API 인증 중..."
+            ka.auth()
+            
+            # 백테스터 초기화
+            from trading_strategy.core.backtester import GoldenCrossBacktester
+            backtester = GoldenCrossBacktester(
+                initial_cash=request.initial_cash, 
+                commission=request.commission
+            )
+            
+            all_results = {}
+            summary_results = []
+            total_symbols = len(request.symbols)
+            
+            # 각 종목별 백테스팅 실행
+            for idx, symbol in enumerate(request.symbols):
+                try:
+                    # 진행률 업데이트
+                    progress = int((idx / total_symbols) * 80)  # 80%까지는 데이터 수집 및 백테스팅
+                    backtesting_tasks[task_id].update({
+                        "progress": progress,
+                        "current_stock": symbol,
+                        "message": f"{symbol} 백테스팅 중... ({idx+1}/{total_symbols})"
+                    })
+                    
+                    # 종목명 찾기
+                    symbol_names = {
+                        "005930": "삼성전자",
+                        "035720": "카카오", 
+                        "009540": "HD한국조선해양",
+                        "012450": "한화에어로스페이스",
+                        "010060": "OCI"
+                    }
+                    name = symbol_names.get(symbol, symbol)
+                    
+                    # 데이터 수집
+                    data = backtest_module.get_stock_data(symbol)
+                    if data is None or len(data) < 50:
+                        logger.warning(f"⚠️ {name}({symbol}): 데이터 부족으로 스킵")
+                        continue
+                    
+                    # 확정 기간별 백테스팅
+                    results = backtester.compare_confirmation_periods(data, symbol, name)
+                    all_results[symbol] = results
+                    
+                    # 최적 결과 요약에 추가
+                    if results:
+                        best_period = max(results.keys(), key=lambda k: results[k]['total_return'])
+                        best_result = results[best_period]
+                        
+                        summary_results.append({
+                            'symbol': symbol,
+                            'name': name,
+                            'optimal_days': best_period,
+                            'return': best_result['total_return'],
+                            'initial': best_result['initial_value'],
+                            'final': best_result['final_value']
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"❌ {symbol} 백테스팅 실패: {e}")
+                    continue
+            
+            # 최종 결과 처리
+            backtesting_tasks[task_id].update({
+                "status": "completed",
+                "progress": 100,
+                "current_stock": None,
+                "message": f"백테스팅 완료! {len(summary_results)}개 종목 분석됨",
+                "results": summary_results
+            })
+            
+            logger.info(f"✅ 백테스팅 완료: {task_id}")
+            
+        except Exception as e:
+            logger.error(f"백테스팅 실행 오류: {e}")
+            backtesting_tasks[task_id].update({
+                "status": "failed",
+                "progress": 0,
+                "message": f"백테스팅 실패: {str(e)}"
+            })
+            
+    except Exception as e:
+        logger.error(f"백테스팅 작업 오류: {e}")
+        backtesting_tasks[task_id] = {
+            "status": "failed",
+            "progress": 0,
+            "message": f"작업 실행 실패: {str(e)}"
+        }
+
+@app.post("/backtesting/start", response_model=BacktestingResponse)
+async def start_backtesting(
+    request: BacktestingRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None)
+):
+    """
+    골든크로스 백테스팅 시작
+    
+    배경 작업으로 실행되며, 진행 상황은 /backtesting/status/{task_id}로 확인 가능
+    """
+    try:
+        # 인증 컨텍스트 설정
+        setup_auth_context(authorization)
+        
+        # 작업 ID 생성
+        task_id = str(uuid.uuid4())
+        
+        # 초기 상태 설정
+        backtesting_tasks[task_id] = {
+            "status": "pending",
+            "progress": 0,
+            "current_stock": None,
+            "message": "백테스팅 대기 중...",
+            "results": None
+        }
+        
+        # 백그라운드 작업 시작
+        background_tasks.add_task(run_backtest_task, task_id, request)
+        
+        logger.info(f"🚀 백테스팅 작업 시작: {task_id}, 종목: {request.symbols}")
+        
+        return BacktestingResponse(
+            success=True,
+            task_id=task_id,
+            status="pending",
+            message="백테스팅이 시작되었습니다."
+        )
+        
+    except Exception as e:
+        logger.error(f"백테스팅 시작 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"백테스팅 시작 중 오류가 발생했습니다: {str(e)}")
+
+@app.get("/backtesting/status/{task_id}", response_model=BacktestingStatus)
+async def get_backtesting_status(task_id: str):
+    """백테스팅 진행 상황 조회"""
+    try:
+        if task_id not in backtesting_tasks:
+            raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다")
+        
+        task_data = backtesting_tasks[task_id]
+        
+        return BacktestingStatus(
+            task_id=task_id,
+            status=task_data["status"],
+            progress=task_data["progress"],
+            current_stock=task_data.get("current_stock"),
+            message=task_data["message"],
+            results=task_data.get("results")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"백테스팅 상태 조회 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"상태 조회 중 오류가 발생했습니다: {str(e)}")
+
+@app.delete("/backtesting/task/{task_id}")
+async def delete_backtesting_task(task_id: str):
+    """백테스팅 작업 삭제"""
+    try:
+        if task_id not in backtesting_tasks:
+            raise HTTPException(status_code=404, detail="작업을 찾을 수 없습니다")
+        
+        del backtesting_tasks[task_id]
+        
+        return {"success": True, "message": "작업이 삭제되었습니다"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"백테스팅 작업 삭제 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"작업 삭제 중 오류가 발생했습니다: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(

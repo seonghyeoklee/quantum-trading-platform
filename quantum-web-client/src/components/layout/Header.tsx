@@ -190,6 +190,14 @@ export default function Header({ className }: HeaderProps) {
                       <Brain className="w-4 h-4" />
                       DINO 테스트
                     </Link>
+                    
+                    <Link 
+                      href="/domestic/backtesting"
+                      className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      골든크로스 백테스팅
+                    </Link>
                   </div>
                 </div>
               </div>

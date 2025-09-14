@@ -22,6 +22,9 @@ sys.path.append(str(current_dir.parent))
 # trading_strategy 모듈 import
 from core.backtester import GoldenCrossBacktester, convert_kis_data
 
+# KIS API import
+from domestic_stock.inquire_daily_itemchartprice.inquire_daily_itemchartprice import inquire_daily_itemchartprice
+
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
 logger = logging.getLogger(__name__)

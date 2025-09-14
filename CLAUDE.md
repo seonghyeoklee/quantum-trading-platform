@@ -7,13 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Quantum Trading Platform** is an automated stock trading system built around Korea Investment & Securities (KIS) Open API integration. The platform uses a hybrid microservices architecture with JWT-based authentication, multi-environment KIS token management, comprehensive analysis pipelines powered by Apache Airflow, and strict data integrity safeguards preventing any fake/mock data generation.
 
 ### Recent Major Additions
-- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework
-  - D001: 재무분석 (Finance Analysis) - Revenue growth, profitability analysis
-  - D002: 주도 테마 분석 (Theme Analysis) - AI-powered theme detection with OpenAI integration
-  - D003: 소재분석 (Material Analysis) - Dividend yield, institutional/foreign investment flows
-  - D009: 이자보상배율 분석 (Interest Coverage Analysis) - Financial stability assessment
-  - 9 FastAPI endpoints across 4 analysis domains with JWT authentication
-  - Comprehensive scoring system with evidence-based validation
+- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework with Frontend UI
+  - **D001**: 재무분석 (Finance Analysis) - Revenue growth, profitability analysis with Excel-style UI
+  - **D002**: 주도 테마 분석 (Theme Analysis) - AI-powered theme detection with OpenAI integration
+  - **D003**: 소재분석 (Material Analysis) - Dividend yield, institutional/foreign investment flows
+  - **D009**: 이자보상배율 분석 (Interest Coverage Analysis) - Financial stability assessment
+  - **Frontend Integration**: Complete DINO Test page at `/domestic/dino-test` with Excel-style UI
+  - **9 FastAPI endpoints** across 4 analysis domains with JWT authentication
+  - **Comprehensive scoring system** with evidence-based validation and raw data storage
 - **Enhanced Chart Interface**: TradingView-style chart page with real-time stock search functionality
   - Real-time API integration with backend for stock search
   - Debounced search with loading states and dual search modes
@@ -98,6 +99,11 @@ uv run python test_ai_features.py   # AI-powered analysis test
 # DINO Test System Commands (NEW)
 uv run python -c "from dino_test.theme_analyzer import ThemeAnalyzer; analyzer = ThemeAnalyzer(); result = analyzer.analyze_leading_theme('005930', '삼성전자'); print(f'Theme: {result.detected_theme}, Score: {result.theme_score}')"  # D002 테마 분석
 uv run python -c "from dino_test.interest_coverage_analyzer import InterestCoverageAnalyzer; analyzer = InterestCoverageAnalyzer(); result = analyzer.analyze_interest_coverage('005930', '삼성전자'); print(f'Coverage Ratio: {result.interest_coverage_ratio}, Score: {result.coverage_score}')"  # D009 이자보상배율
+
+# Frontend DINO Test Integration (NEW)
+# Visit: http://quantum-trading.com:3000/domestic/dino-test
+# Excel-style UI for comprehensive stock analysis with real-time data
+# Supports all 4 DINO analysis domains with interactive scoring display
 ```
 
 ### Sector Trading System Commands
@@ -684,7 +690,7 @@ This is the most important rule in the entire system. When KIS API calls fail, d
 ## Current Implementation Status
 
 ### ✅ Completed
-- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework
+- **DINO Test Analysis System**: Complete multi-dimensional stock analysis framework with Frontend UI
   - **D001 재무분석**: Finance analysis with revenue growth and profitability metrics
   - **D002 주도 테마 분석**: AI-powered theme detection with OpenAI GPT-3.5-turbo integration
   - **D003 소재분석**: Material analysis covering dividends (≥2%) and institutional flows (≥1%)
@@ -692,6 +698,8 @@ This is the most important rule in the entire system. When KIS API calls fail, d
   - **9 FastAPI Endpoints**: Complete REST API with JWT authentication and error handling
   - **AI Integration Status**: OpenAI integration implemented with keyword-based fallback
   - **Evidence-based Scoring**: Comprehensive validation and quality assessment
+  - **Frontend Integration**: Excel-style UI at `/domestic/dino-test` with real-time analysis display
+  - **PostgreSQL Health Check**: Fixed database connectivity issues for production environment
 - **External Data Adapter**: Complete quantum-adapter-external service
   - Real-time Naver News API integration (4 endpoints)
   - Comprehensive DART public disclosure system integration (8 endpoints)
@@ -719,18 +727,18 @@ This is the most important rule in the entire system. When KIS API calls fail, d
 - **Analysis Engine**: Multi-source data providers with comprehensive batch processing
 
 ### 🔧 In Progress  
-- **AI Integration Enhancement**: OpenAI API key configuration and testing
-- **DINO Test Integration**: Frontend integration with DINO analysis endpoints
-- **WebSocket Bridge**: Backend relay from KIS Adapter to Frontend
-- **Fully Automated Trading**: Remove manual approval requirement
-- **Advanced Chart Features**: Technical indicators, drawing tools, alerts
+- **AI Integration Enhancement**: Advanced AI features and model integration beyond OpenAI
+- **WebSocket Bridge**: Backend relay from KIS Adapter to Frontend for real-time updates
+- **Fully Automated Trading**: Remove manual approval requirement from sector trading system
+- **Advanced Chart Features**: Technical indicators, drawing tools, alerts for TradingView-style interface
+- **DINO Test Performance Optimization**: Batch processing and caching improvements
 
 ### 📋 Pending
-- **DINO Test Comprehensive Testing**: Full integration testing across all 4 analysis domains
-- **ML Integration**: Machine learning models for prediction
-- **Real-time Analytics**: Live market analysis during trading hours
-- **Portfolio Optimization**: Advanced allocation algorithms
-- **AI Analysis Enhancement**: Advanced AI features and model integration
+- **ML Integration**: Machine learning models for prediction and signal generation
+- **Real-time Analytics**: Live market analysis during trading hours with WebSocket integration
+- **Portfolio Optimization**: Advanced allocation algorithms beyond current sector-based approach
+- **DINO Test Material Analysis (D010)**: Complete the material analysis domain implementation
+- **Advanced Backtesting**: Enhanced strategy testing with vectorized computations
 
 ## AI Integration Status (2025-01-12)
 
