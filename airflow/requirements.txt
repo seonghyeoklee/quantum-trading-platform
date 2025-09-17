@@ -15,7 +15,7 @@ yfinance==0.1.87  # Python 3.8 compatible version
 
 # Technical analysis
 backtrader
-pandas-ta
+# pandas-ta  # Requires Python 3.12+ - disabled for Airflow Python 3.8
 
 # Analysis packages  
 scikit-learn

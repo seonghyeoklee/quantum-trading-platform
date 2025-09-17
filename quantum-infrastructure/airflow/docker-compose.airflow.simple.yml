@@ -31,6 +31,7 @@ x-airflow-common:
     - /Users/admin/study/quantum-trading-platform/airflow/config:/opt/airflow/config
     - /Users/admin/study/quantum-trading-platform/airflow/data:/opt/airflow/data
     - /Users/admin/study/quantum-trading-platform/quantum-adapter-kis/trading_strategy:/opt/airflow/quantum_analysis
+    - /Users/admin/study/quantum-trading-platform/airflow/kis_config:/opt/airflow/kis_config
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on: &airflow-common-depends-on
     postgres:

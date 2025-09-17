@@ -42,7 +42,7 @@ def check_token_status():
     """현재 토큰 상태 확인"""
     logging.info("🔍 KIS 토큰 상태 확인 시작")
     
-    config_root = "/Users/admin/KIS/config"
+    config_root = "/opt/airflow/kis_config"
     # 한국 시간대로 날짜 계산
     kst_now = datetime.now(pytz.timezone("Asia/Seoul"))
     today = kst_now.strftime('%Y%m%d')
@@ -62,7 +62,7 @@ def validate_token_renewal():
     """토큰 갱신 검증"""
     logging.info("🔍 토큰 갱신 검증 시작")
     
-    config_root = "/Users/admin/KIS/config"
+    config_root = "/opt/airflow/kis_config"
     # 한국 시간대로 날짜 계산
     kst_now = datetime.now(pytz.timezone("Asia/Seoul"))
     today = kst_now.strftime('%Y%m%d')
@@ -101,13 +101,18 @@ renew_token_task = BashOperator(
     bash_command="""
     echo "🔄 KIS 토큰 갱신 시작..."
     
-    # KIS 어댑터 디렉토리로 이동
-    cd /Users/admin/study/quantum-trading-platform/quantum-adapter-kis/examples_user
-    
+    # KIS 어댑터 디렉토리로 이동 (컨테이너 내부 경로)
+    cd /opt/airflow/quantum_analysis
+
     # Python으로 토큰 갱신 실행
     python3 -c "
 import sys
-sys.path.append('/Users/admin/study/quantum-trading-platform/quantum-adapter-kis/examples_user')
+import os
+sys.path.append('/opt/airflow/quantum_analysis')
+
+# 환경변수로 KIS config 경로 설정 (컨테이너 내부용)
+os.environ['KIS_CONFIG_ROOT'] = '/opt/airflow/kis_config'
+
 import kis_auth
 import logging
 

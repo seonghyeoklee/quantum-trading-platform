@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -34,6 +35,8 @@ interface BacktestingRequest {
   periods: number[];
   initial_cash: number;
   commission: number;
+  fast_period: number;
+  slow_period: number;
 }
 
 interface BacktestingResult {
@@ -45,6 +48,12 @@ interface BacktestingResult {
   final: number;
 }
 
+interface BacktestingLog {
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
 interface BacktestingStatus {
   task_id: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -52,6 +61,7 @@ interface BacktestingStatus {
   current_stock: string | null;
   message: string;
   results: BacktestingResult[] | null;
+  logs?: BacktestingLog[];
 }
 
 export default function BacktestingPage() {
@@ -60,10 +70,27 @@ export default function BacktestingPage() {
   const [commission, setCommission] = useState(0.00015);
   const [periods] = useState([1, 2, 3, 5, 7]);
   
+  // 로그 자동 스크롤을 위한 ref
+  const logEndRef = useRef<HTMLDivElement>(null);
+  
+  // 이동평균 기간 설정
+  const [fastPeriod, setFastPeriod] = useState(5);
+  const [slowPeriod, setSlowPeriod] = useState(20);
+  
+  // 유효성 검사
+  const isValidSettings = fastPeriod < slowPeriod;
+  
   const [isRunning, setIsRunning] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<BacktestingStatus | null>(null);
   const [results, setResults] = useState<BacktestingResult[] | null>(null);
+
+  // 로그 자동 스크롤
+  useEffect(() => {
+    if (status?.logs && status.logs.length > 0) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [status?.logs]);
 
   // 백테스팅 시작
   const startBacktesting = async () => {
@@ -75,7 +102,9 @@ export default function BacktestingPage() {
         symbols: selectedSymbols,
         periods,
         initial_cash: initialCash,
-        commission
+        commission,
+        fast_period: fastPeriod,
+        slow_period: slowPeriod
       };
 
       const response = await fetch('/api/kis/backtesting/start', {
@@ -234,6 +263,46 @@ export default function BacktestingPage() {
               </div>
             </div>
 
+            {/* 이동평균 기간 설정 */}
+            <div>
+              <Label className="text-sm font-medium mb-3 block">이동평균 기간 설정</Label>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="fast-period">단기 SMA</Label>
+                    <span className="text-sm text-muted-foreground">{fastPeriod}일</span>
+                  </div>
+                  <Slider
+                    id="fast-period"
+                    min={3}
+                    max={15}
+                    step={1}
+                    value={[fastPeriod]}
+                    onValueChange={(value) => setFastPeriod(value[0])}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="slow-period">장기 SMA</Label>
+                    <span className="text-sm text-muted-foreground">{slowPeriod}일</span>
+                  </div>
+                  <Slider
+                    id="slow-period"
+                    min={15}
+                    max={50}
+                    step={1}
+                    value={[slowPeriod]}
+                    onValueChange={(value) => setSlowPeriod(value[0])}
+                    className="w-full"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                  전략: SMA{fastPeriod} {'>'} SMA{slowPeriod} 골든크로스 감지
+                </div>
+              </div>
+            </div>
+
             {/* 확정 기간 정보 */}
             <div>
               <Label className="text-sm font-medium mb-2 block">확정 기간</Label>
@@ -246,10 +315,20 @@ export default function BacktestingPage() {
               </div>
             </div>
 
+            {/* 유효성 검사 메시지 */}
+            {!isValidSettings && (
+              <div className="flex items-center gap-2 p-3 border border-destructive/20 bg-destructive/10 rounded-md">
+                <AlertCircle className="w-4 h-4 text-destructive" />
+                <span className="text-sm text-destructive">
+                  단기 SMA 기간은 장기 SMA 기간보다 작아야 합니다
+                </span>
+              </div>
+            )}
+
             {/* 실행 버튼 */}
             <Button 
               onClick={startBacktesting} 
-              disabled={isRunning || selectedSymbols.length === 0}
+              disabled={isRunning || selectedSymbols.length === 0 || !isValidSettings}
               className="w-full"
             >
               {isRunning ? (
@@ -314,6 +393,31 @@ export default function BacktestingPage() {
                     {status.message}
                   </div>
                 </div>
+
+                {/* 실시간 로그 */}
+                {status.logs && status.logs.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="font-medium text-sm">실행 로그</div>
+                    <div className="bg-muted/50 rounded-md p-3 max-h-60 overflow-y-auto">
+                      <div className="space-y-1">
+                        {status.logs.map((log, index) => (
+                          <div key={index} className="text-xs font-mono">
+                            <span className="text-muted-foreground mr-2">{log.timestamp}</span>
+                            <span className={
+                              log.level === 'SUCCESS' ? 'text-green-600' :
+                              log.level === 'ERROR' ? 'text-red-600' :
+                              log.level === 'WARNING' ? 'text-orange-600' :
+                              'text-foreground'
+                            }>
+                              {log.message}
+                            </span>
+                          </div>
+                        ))}
+                        <div ref={logEndRef} />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-center text-muted-foreground py-8">

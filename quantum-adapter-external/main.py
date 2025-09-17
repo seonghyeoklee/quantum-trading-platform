@@ -54,11 +54,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - 모든 오리진 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://quantum-trading.com:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],  # 모든 도메인 허용
+    allow_credentials=False,  # credentials는 * origin과 함께 사용 불가
     allow_methods=["*"],
     allow_headers=["*"],
 )
