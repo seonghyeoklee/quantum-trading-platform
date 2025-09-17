@@ -1,0 +1,30 @@
+{
+  "account_number": "12345678",
+  "engine": {
+    "max_positions": 3,
+    "default_quantity": 1,
+    "min_confidence": 0.7,
+    "execution_delay": 0.5
+  },
+  "safety": {
+    "max_daily_trades": 10,
+    "max_position_value_usd": 1000,
+    "emergency_stop_loss": 0.1,
+    "trading_hours_only": false
+  },
+  "stocks": [
+    {
+      "symbol": "TSLA",
+      "name": "Tesla Inc.",
+      "strategy": "momentum",
+      "max_position_usd": 500,
+      "strategy_config": {
+        "rsi_oversold": 30,
+        "rsi_overbought": 70,
+        "volume_spike_threshold": 2.5,
+        "min_confidence": 0.7
+      }
+    }
+  ],
+  "update_interval": 3.0
+}
