@@ -32,16 +32,22 @@ from overseas_trading_system.core.realtime_websocket_provider import RealtimeWeb
 from overseas_trading_system.core.overseas_trading_engine import OverseasTradingEngine
 from overseas_trading_system.core.real_order_executor import RealOverseasOrderExecutor
 from overseas_trading_system.strategies.momentum_strategy import MomentumStrategy
+from overseas_trading_system.strategies.vwap_strategy import VWAPStrategy
 
 
-async def realtime_trading_log(symbols):
+async def realtime_trading_log(symbols, strategy_name='momentum'):
     """실시간 자동매매 로그 스트림"""
     symbol_display = ", ".join(symbols)
+    strategy_display = {
+        'momentum': '모멘텀 전략',
+        'vwap': 'VWAP 전략'
+    }.get(strategy_name, strategy_name)
+
     print(f'🚀 실시간 {symbol_display} 자동매매 로그 스트림')
     print('=' * 70)
     print('⚠️  실전투자 WebSocket 연결 + 실제 매매 기능')
     print(f'📊 {symbol_display} 실시간 가격 변동 및 자동매매 신호를 연속 출력')
-    print('💰 실제 주문 실행 포함 (모멘텀 전략)')
+    print(f'🎯 사용 전략: {strategy_display}')
     print('⏹️  Ctrl+C로 안전 종료')
     print('=' * 70)
     print()
@@ -75,14 +81,23 @@ async def realtime_trading_log(symbols):
     # 거래 엔진 설정
     trading_engine.set_order_executor(real_executor.execute_order)
 
-    # 각 종목에 대해 모멘텀 전략 추가
+    # 각 종목에 대해 전략 추가
     for symbol in symbols:
-        momentum_strategy = MomentumStrategy({
-            'rsi_oversold': 25,
-            'rsi_overbought': 75,
-            'min_confidence': 0.8
-        })
-        trading_engine.add_stock(symbol, momentum_strategy)
+        if strategy_name == 'vwap':
+            strategy = VWAPStrategy({
+                'std_multiplier': 2.0,
+                'volume_threshold': 1.5,
+                'min_confidence': 0.7,
+                'price_deviation_threshold': 0.5
+            })
+        else:  # 기본값: momentum
+            strategy = MomentumStrategy({
+                'rsi_oversold': 25,
+                'rsi_overbought': 75,
+                'min_confidence': 0.8
+            })
+
+        trading_engine.add_stock(symbol, strategy)
 
     # 실시간 데이터 카운터
     data_count = {symbol: 0 for symbol in symbols}
@@ -93,16 +108,45 @@ async def realtime_trading_log(symbols):
 
     # 로그 디렉토리 설정
     log_dir = "logs/trading/signals"
+    csv_log_dir = "logs/trading/data"
     os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(csv_log_dir, exist_ok=True)
 
     # 매매 신호 로그 파일 생성
     symbols_str = "_".join(symbols)
-    log_filename = os.path.join(log_dir, f"{symbols_str}_signals_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_filename = os.path.join(log_dir, f"{symbols_str}_{strategy_name}_signals_{timestamp}.log")
+    csv_filename = os.path.join(csv_log_dir, f"{symbols_str}_{strategy_name}_data_{timestamp}.csv")
+
+    # 로그 레벨 설정
+    LOG_LEVEL = {
+        'DATA': True,      # 모든 가격 데이터
+        'SIGNAL': True,    # 매매 신호
+        'ORDER': True,     # 주문 실행
+        'ANALYSIS': True,  # 전략 분석
+        'STATS': True      # 통계 정보
+    }
 
     def write_trading_log(message):
         """매매 신호를 파일에 기록"""
         with open(log_filename, 'a', encoding='utf-8') as f:
             f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+
+    def write_csv_log(data_dict):
+        """CSV 형식으로 데이터 기록"""
+        import csv
+        file_exists = os.path.exists(csv_filename)
+
+        with open(csv_filename, 'a', newline='', encoding='utf-8') as f:
+            fieldnames = ['timestamp', 'symbol', 'price', 'volume', 'change_percent',
+                         'rsi', 'bb_position', 'momentum', 'session', 'signal_type',
+                         'confidence', 'reason']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writerow(data_dict)
 
     # 로그 파일 시작 메시지
     write_trading_log(f"{symbol_display} 실시간 자동매매 로그 시작")
@@ -217,6 +261,54 @@ async def realtime_trading_log(symbols):
                   f"{price_change}"
                   f"{Colors.MAGENTA}{strategy_info}{Colors.END}")
 
+            # 모든 데이터를 로그 파일에 기록 (분석용)
+            if LOG_LEVEL['DATA']:
+                # 전략 분석 데이터 추출
+                strategy = trading_engine.strategies.get(symbol)
+                rsi_val = 0
+                bb_pos = "MID"
+                momentum_val = "NEUTRAL"
+
+                if strategy and hasattr(strategy, 'get_current_analysis'):
+                    analysis = strategy.get_current_analysis()
+                    if analysis:
+                        rsi_val = analysis.get('rsi', 0)
+                        bb_pos = analysis.get('bb_position', 'MID')
+                        momentum_val = analysis.get('momentum', 'NEUTRAL')
+
+                # CSV 로그 기록
+                csv_data = {
+                    'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'symbol': symbol,
+                    'price': market_data.current_price,
+                    'volume': market_data.volume,
+                    'change_percent': market_data.change_percent,
+                    'rsi': rsi_val,
+                    'bb_position': bb_pos,
+                    'momentum': momentum_val,
+                    'session': getattr(market_data, 'trading_session', 'UNKNOWN'),
+                    'signal_type': '',
+                    'confidence': 0,
+                    'reason': ''
+                }
+                write_csv_log(csv_data)
+
+                # 전략별 추가 정보
+                strategy_info_text = f"RSI:{rsi_val:.1f}|BB:{bb_pos}|Momentum:{momentum_val}"
+
+                # VWAP 전략인 경우 VWAP 정보 추가
+                if strategy_name == 'vwap' and hasattr(strategy, 'get_current_analysis'):
+                    vwap_analysis = strategy.get_current_analysis()
+                    if vwap_analysis and vwap_analysis.get('vwap', 0) > 0:
+                        vwap_val = vwap_analysis.get('vwap', 0)
+                        upper_band = vwap_analysis.get('upper_band', 0)
+                        lower_band = vwap_analysis.get('lower_band', 0)
+                        position = vwap_analysis.get('position', 'UNKNOWN')
+                        strategy_info_text = f"VWAP:{vwap_val:.2f}|Upper:{upper_band:.2f}|Lower:{lower_band:.2f}|Pos:{position}"
+
+                # 텍스트 로그 기록
+                write_trading_log(f"DATA|{symbol}|{time_str}|{market_data.current_price:.2f}|{market_data.volume}|{market_data.change_percent:+.2f}%|{strategy_info_text}")
+
             # 자동매매 신호 처리
             try:
                 signal = await trading_engine.update_market_data(symbol, market_data)
@@ -237,8 +329,41 @@ async def realtime_trading_log(symbols):
                           f"{Colors.CYAN}신뢰도 {signal.confidence:.2f}{Colors.END} - {signal.reason}")
 
                     # 로그 파일에 기록
-                    write_trading_log(f"💡 {symbol} 신호 #{signal_count[symbol]}: {signal_text} 신뢰도 {signal.confidence:.2f} - {signal.reason}")
-                    write_trading_log(f"   가격: ${market_data.current_price:.2f} | 변동률: {market_data.change_percent:+.2f}%")
+                    if LOG_LEVEL['SIGNAL']:
+                        write_trading_log(f"SIGNAL|{symbol}|{signal_text}|{signal.confidence:.2f}|{signal.reason}")
+                        write_trading_log(f"   가격: ${market_data.current_price:.2f} | 변동률: {market_data.change_percent:+.2f}%")
+
+                    # CSV에 신호 정보 기록
+                    if LOG_LEVEL['SIGNAL']:
+                        # 전략 분석 데이터 추출
+                        strategy = trading_engine.strategies.get(symbol)
+                        rsi_val = 0
+                        bb_pos = "MID"
+                        momentum_val = "NEUTRAL"
+
+                        if strategy and hasattr(strategy, 'get_current_analysis'):
+                            analysis = strategy.get_current_analysis()
+                            if analysis:
+                                rsi_val = analysis.get('rsi', 0)
+                                bb_pos = analysis.get('bb_position', 'MID')
+                                momentum_val = analysis.get('momentum', 'NEUTRAL')
+
+                        # 신호 CSV 데이터
+                        signal_csv_data = {
+                            'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'symbol': symbol,
+                            'price': market_data.current_price,
+                            'volume': market_data.volume,
+                            'change_percent': market_data.change_percent,
+                            'rsi': rsi_val,
+                            'bb_position': bb_pos,
+                            'momentum': momentum_val,
+                            'session': getattr(market_data, 'trading_session', 'UNKNOWN'),
+                            'signal_type': signal_text,
+                            'confidence': signal.confidence,
+                            'reason': signal.reason
+                        }
+                        write_csv_log(signal_csv_data)
 
                     # 높은 신뢰도 신호는 실제 주문 실행
                     if signal.confidence >= 0.8:
@@ -246,7 +371,8 @@ async def realtime_trading_log(symbols):
                         print(f"    {Colors.BOLD}{signal_color}⚡ [{time_str}] {symbol} 실제 주문 #{order_count[symbol]}:{Colors.END} {signal_type} 1주 실행 중...")
 
                         # 주문 실행 로그 파일에 기록
-                        write_trading_log(f"⚡ {symbol} 실제 주문 #{order_count[symbol]}: {signal_text} 1주 실행 시도")
+                        if LOG_LEVEL['ORDER']:
+                            write_trading_log(f"ORDER|{symbol}|{signal_text}|1|{market_data.current_price:.2f}|{signal.confidence:.2f}|SIMULATION")
 
                         # 실제 주문 결과는 별도 로그로 출력됨
 
@@ -337,6 +463,7 @@ async def realtime_trading_log(symbols):
         write_trading_log("자동매매 시스템 종료")
 
         print(f"📁 로그 파일 저장됨: {log_filename}")
+        print(f"📊 CSV 데이터 파일: {csv_filename}")
         print("👋 자동매매 시스템 종료")
 
 
@@ -348,11 +475,18 @@ def main():
         default='TSLA',
         help='모니터링할 종목 (기본값: TSLA, 여러 종목은 콤마로 구분: TSLA,AAPL,NVDA)'
     )
+    parser.add_argument(
+        '--strategy',
+        choices=['momentum', 'vwap'],
+        default='momentum',
+        help='거래 전략 선택 (기본값: momentum)'
+    )
 
     args = parser.parse_args()
 
     # 종목 리스트 파싱
     symbols = [symbol.strip().upper() for symbol in args.symbol.split(',')]
+    strategy_name = args.strategy
 
     # 로깅 설정 (매매 관련 로그는 INFO로)
     logging.basicConfig(
@@ -361,7 +495,7 @@ def main():
     )
 
     # 실시간 거래 로그 실행
-    asyncio.run(realtime_trading_log(symbols))
+    asyncio.run(realtime_trading_log(symbols, strategy_name))
 
 
 if __name__ == "__main__":
