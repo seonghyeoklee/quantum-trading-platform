@@ -84,6 +84,31 @@
 | ELW | ELW 시세 API | `elw` |
 | ETF/ETN | ETF, ETN 시세 API | `etfetn` |
 
+## 🎯 고급 트레이딩 전략
+
+### VWAP (Volume Weighted Average Price) 전략
+
+**기관 투자자들이 사용하는 벤치마크 전략**으로, 거래량을 가중치로 한 평균 가격을 기준으로 매매 신호를 생성합니다.
+
+#### 핵심 특징
+- **Intraday VWAP 계산**: 매일 9:30 AM EST에 자동 리셋
+- **표준편차 밴드**: Upper/Lower Band를 활용한 과매수/과매도 구간 판단
+- **7단계 종합 분석**: 밴드 터치, 회귀 경향, 거래량, RSI 등 종합 평가
+- **급락 방어 시스템**: 5분간 -2% 급락 시 자동 방어 모드 발동
+
+#### 실행 방법
+```bash
+# TSLA VWAP 전략 실행
+uv run python realtime_trading_log.py --symbol TSLA --strategy vwap
+
+# 사용자 지정 설정으로 실행
+uv run python realtime_trading_log.py --symbol AAPL --strategy vwap --config custom_vwap.yaml
+```
+
+#### 문서
+- 📖 **사용자 가이드**: [`overseas_trading_system/strategies/VWAP_Strategy_Guide.md`](overseas_trading_system/strategies/VWAP_Strategy_Guide.md)
+- 🔧 **기술 문서**: [`docs/strategies/vwap_technical_doc.md`](docs/strategies/vwap_technical_doc.md)
+
 ### 2.3. 주요 파일 설명
 
 ### `examples_llm/` - llm용 기능 단위 샘플 코드
