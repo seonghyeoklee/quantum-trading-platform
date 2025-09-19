@@ -237,7 +237,10 @@ class VWAPStrategy(BaseOverseasStrategy):
         if session_weight < 1.0:
             reasons.append(f"세션 가중치 ({session_weight:.1f}x)")
 
-        # 7. 최종 신호 결정
+        # 7. 급락 방어 리스크 필터 적용
+        buy_score, sell_score, reasons = self._apply_risk_filter(buy_score, sell_score, reasons, market_data)
+
+        # 8. 최종 신호 결정
         if buy_score > sell_score and buy_score > 0.5:
             confidence = min(buy_score, 1.0)
             return SignalType.BUY, confidence, " | ".join(reasons)
@@ -281,6 +284,11 @@ class VWAPStrategy(BaseOverseasStrategy):
             volume_multiplier = 1.0
 
         final_quantity = int(base_quantity * confidence_multiplier * volatility_multiplier * volume_multiplier)
+
+        # 리스크 기반 포지션 크기 조절
+        risk_score = self._calculate_risk_score(market_data)
+        final_quantity = self._adjust_position_size_for_risk(final_quantity, risk_score)
+
         return max(1, final_quantity)
 
     def get_current_analysis(self) -> Dict[str, Any]:
@@ -337,3 +345,197 @@ class VWAPStrategy(BaseOverseasStrategy):
         super().reset()
         self._reset_vwap()
         self.session_start_time = None
+
+    # =================== 급락 방어 로직 ===================
+
+    def _detect_crash_momentum(self) -> tuple[bool, float]:
+        """급락 모멘텀 감지
+
+        Returns:
+            tuple[bool, float]: (is_crashing, momentum_percent)
+        """
+        if len(self.price_history) < 10:
+            return False, 0.0
+
+        current_price = self.price_history[-1]
+
+        # 5분간 가격 변화 (약 5개 데이터 포인트 = 5분)
+        price_5min_ago = self.price_history[-5] if len(self.price_history) >= 5 else current_price
+        momentum_5min = (current_price - price_5min_ago) / price_5min_ago if price_5min_ago > 0 else 0
+
+        # 10분간 가격 변화 (약 10개 데이터 포인트 = 10분)
+        price_10min_ago = self.price_history[-10] if len(self.price_history) >= 10 else current_price
+        momentum_10min = (current_price - price_10min_ago) / price_10min_ago if price_10min_ago > 0 else 0
+
+        # 급락 기준: 5분간 -2% 또는 10분간 -3%
+        is_crashing = momentum_5min < -0.02 or momentum_10min < -0.03
+
+        # 더 심각한 모멘텀 반환
+        worst_momentum = min(momentum_5min, momentum_10min)
+
+        return is_crashing, worst_momentum
+
+    def _count_consecutive_drops(self) -> int:
+        """연속 하락 봉 개수 계산
+
+        Returns:
+            int: 연속 하락 개수 (최대 10개까지)
+        """
+        if len(self.price_history) < 2:
+            return 0
+
+        consecutive_drops = 0
+        for i in range(1, min(11, len(self.price_history))):
+            current_idx = len(self.price_history) - i
+            prev_idx = current_idx - 1
+
+            if prev_idx < 0:
+                break
+
+            # 현재 가격이 이전 가격보다 낮으면 하락
+            if self.price_history[current_idx] < self.price_history[prev_idx]:
+                consecutive_drops += 1
+            else:
+                break
+
+        return consecutive_drops
+
+    def _calculate_risk_score(self, market_data: OverseasMarketData) -> int:
+        """종합 리스크 점수 계산 (0-100)
+
+        Args:
+            market_data: 현재 시장 데이터
+
+        Returns:
+            int: 리스크 점수 (0=안전, 100=극위험)
+        """
+        risk_score = 0
+
+        # 1. 급락 모멘텀 (30점)
+        is_crashing, momentum = self._detect_crash_momentum()
+        if is_crashing:
+            if momentum < -0.05:  # -5% 이상 급락
+                risk_score += 30
+            elif momentum < -0.03:  # -3% 이상 급락
+                risk_score += 25
+            else:  # -2% 이상 급락
+                risk_score += 20
+        elif momentum < -0.01:  # -1% 하락
+            risk_score += 10
+
+        # 2. 연속 하락 카운터 (20점)
+        consecutive_drops = self._count_consecutive_drops()
+        if consecutive_drops >= 5:
+            risk_score += 20
+        elif consecutive_drops >= 3:
+            risk_score += 15
+        elif consecutive_drops >= 2:
+            risk_score += 10
+        elif consecutive_drops >= 1:
+            risk_score += 5
+
+        # 3. RSI 극단값 (15점)
+        rsi = self.calculate_rsi()
+        if rsi < 15:  # 극단적 과매도
+            risk_score += 5  # 역설적으로 낮은 리스크 (반등 가능성)
+        elif rsi < 25:
+            risk_score += 8
+        elif rsi > 85:  # 극단적 과매수
+            risk_score += 15
+        elif rsi > 75:
+            risk_score += 10
+
+        # 4. 거래량 이상 스파이크 (15점)
+        avg_volume = self.get_average_volume()
+        if avg_volume > 0:
+            volume_ratio = market_data.volume / avg_volume
+            if volume_ratio > 5:  # 5배 이상 거래량 급증
+                risk_score += 15
+            elif volume_ratio > 3:  # 3배 이상 거래량 급증
+                risk_score += 10
+            elif volume_ratio > 2:  # 2배 이상 거래량 급증
+                risk_score += 5
+
+        # 5. 변동성 (20점)
+        volatility = self.get_volatility()
+        if volatility > 0 and market_data.current_price > 0:
+            volatility_percent = volatility / market_data.current_price
+            if volatility_percent > 0.04:  # 4% 이상 변동성
+                risk_score += 20
+            elif volatility_percent > 0.03:  # 3% 이상 변동성
+                risk_score += 15
+            elif volatility_percent > 0.02:  # 2% 이상 변동성
+                risk_score += 10
+            elif volatility_percent > 0.015:  # 1.5% 이상 변동성
+                risk_score += 5
+
+        return min(risk_score, 100)
+
+    def _apply_risk_filter(self, buy_score: float, sell_score: float, reasons: list, market_data: OverseasMarketData) -> tuple[float, float, list]:
+        """리스크 필터 적용
+
+        Args:
+            buy_score: 원래 매수 점수
+            sell_score: 원래 매도 점수
+            reasons: 신호 이유 리스트
+            market_data: 현재 시장 데이터
+
+        Returns:
+            tuple[float, float, list]: (조정된 매수 점수, 조정된 매도 점수, 업데이트된 이유)
+        """
+        # 리스크 체크
+        risk_score = self._calculate_risk_score(market_data)
+        is_crashing, momentum = self._detect_crash_momentum()
+        consecutive_drops = self._count_consecutive_drops()
+
+        # 급락 모멘텀 체크 (최우선)
+        if is_crashing:
+            reasons.append(f"🚨 급락 감지 ({momentum*100:.1f}%)")
+            buy_score *= 0.1  # 매수 신호 90% 약화
+
+        # 연속 하락 체크
+        if consecutive_drops >= 3:
+            reasons.append(f"⚠️ 연속 {consecutive_drops}회 하락")
+            buy_score *= 0.5  # 매수 신호 50% 약화
+
+        # 종합 리스크 점수 적용
+        if risk_score > 70:
+            reasons.append(f"🚨 극고위험 (리스크: {risk_score})")
+            buy_score *= 0.1  # 매수 신호 90% 약화
+        elif risk_score > 50:
+            reasons.append(f"⚠️ 고위험 (리스크: {risk_score})")
+            buy_score *= 0.3  # 매수 신호 70% 약화
+        elif risk_score > 30:
+            reasons.append(f"⚠️ 주의 (리스크: {risk_score})")
+            buy_score *= 0.7  # 매수 신호 30% 약화
+        elif risk_score > 15:
+            reasons.append(f"ℹ️ 경미한 리스크 ({risk_score})")
+            buy_score *= 0.9  # 매수 신호 10% 약화
+
+        return buy_score, sell_score, reasons
+
+    def _adjust_position_size_for_risk(self, quantity: int, risk_score: int) -> int:
+        """리스크에 따른 포지션 크기 조절
+
+        Args:
+            quantity: 원래 포지션 크기
+            risk_score: 리스크 점수 (0-100)
+
+        Returns:
+            int: 조정된 포지션 크기
+        """
+        if risk_score > 70:
+            # 극고위험: 포지션 90% 축소
+            return max(1, quantity // 10)
+        elif risk_score > 50:
+            # 고위험: 포지션 70% 축소
+            return max(1, quantity // 3)
+        elif risk_score > 30:
+            # 주의: 포지션 50% 축소
+            return max(1, quantity // 2)
+        elif risk_score > 15:
+            # 경미한 리스크: 포지션 20% 축소
+            return max(1, int(quantity * 0.8))
+        else:
+            # 정상: 포지션 유지
+            return quantity

@@ -140,7 +140,8 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
         with open(csv_filename, 'a', newline='', encoding='utf-8') as f:
             fieldnames = ['timestamp', 'symbol', 'price', 'volume', 'change_percent',
                          'rsi', 'bb_position', 'momentum', 'session', 'signal_type',
-                         'confidence', 'reason']
+                         'confidence', 'reason', 'risk_score', 'is_crashing',
+                         'momentum_5min', 'consecutive_drops', 'volatility_percent']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
 
             if not file_exists:
@@ -276,6 +277,27 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                         bb_pos = analysis.get('bb_position', 'MID')
                         momentum_val = analysis.get('momentum', 'NEUTRAL')
 
+                # 리스크 지표 수집 (VWAP 전략인 경우)
+                risk_score = 0
+                is_crashing = False
+                momentum_5min = 0.0
+                consecutive_drops = 0
+                volatility_percent = 0.0
+
+                if strategy_name == 'vwap' and strategy and hasattr(strategy, '_calculate_risk_score'):
+                    try:
+                        risk_score = strategy._calculate_risk_score(market_data)
+                        is_crashing, momentum_5min = strategy._detect_crash_momentum()
+                        consecutive_drops = strategy._count_consecutive_drops()
+
+                        # 변동성 계산
+                        volatility = strategy.get_volatility()
+                        if volatility > 0 and market_data.current_price > 0:
+                            volatility_percent = (volatility / market_data.current_price) * 100
+                    except Exception as e:
+                        # 리스크 지표 계산 실패 시 기본값 유지
+                        print(f"리스크 지표 계산 오류: {e}")
+
                 # CSV 로그 기록
                 csv_data = {
                     'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -289,7 +311,12 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                     'session': getattr(market_data, 'trading_session', 'UNKNOWN'),
                     'signal_type': '',
                     'confidence': 0,
-                    'reason': ''
+                    'reason': '',
+                    'risk_score': risk_score,
+                    'is_crashing': is_crashing,
+                    'momentum_5min': round(momentum_5min * 100, 2),  # 퍼센트로 변환
+                    'consecutive_drops': consecutive_drops,
+                    'volatility_percent': round(volatility_percent, 2)
                 }
                 write_csv_log(csv_data)
 
@@ -348,6 +375,27 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                                 bb_pos = analysis.get('bb_position', 'MID')
                                 momentum_val = analysis.get('momentum', 'NEUTRAL')
 
+                        # 리스크 지표 수집 (VWAP 전략인 경우)
+                        signal_risk_score = 0
+                        signal_is_crashing = False
+                        signal_momentum_5min = 0.0
+                        signal_consecutive_drops = 0
+                        signal_volatility_percent = 0.0
+
+                        if strategy_name == 'vwap' and strategy and hasattr(strategy, '_calculate_risk_score'):
+                            try:
+                                signal_risk_score = strategy._calculate_risk_score(market_data)
+                                signal_is_crashing, signal_momentum_5min = strategy._detect_crash_momentum()
+                                signal_consecutive_drops = strategy._count_consecutive_drops()
+
+                                # 변동성 계산
+                                volatility = strategy.get_volatility()
+                                if volatility > 0 and market_data.current_price > 0:
+                                    signal_volatility_percent = (volatility / market_data.current_price) * 100
+                            except Exception as e:
+                                # 리스크 지표 계산 실패 시 기본값 유지
+                                print(f"신호 리스크 지표 계산 오류: {e}")
+
                         # 신호 CSV 데이터
                         signal_csv_data = {
                             'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -361,7 +409,12 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                             'session': getattr(market_data, 'trading_session', 'UNKNOWN'),
                             'signal_type': signal_text,
                             'confidence': signal.confidence,
-                            'reason': signal.reason
+                            'reason': signal.reason,
+                            'risk_score': signal_risk_score,
+                            'is_crashing': signal_is_crashing,
+                            'momentum_5min': round(signal_momentum_5min * 100, 2),  # 퍼센트로 변환
+                            'consecutive_drops': signal_consecutive_drops,
+                            'volatility_percent': round(signal_volatility_percent, 2)
                         }
                         write_csv_log(signal_csv_data)
 
