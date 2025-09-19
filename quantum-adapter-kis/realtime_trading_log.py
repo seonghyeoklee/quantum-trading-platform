@@ -85,16 +85,52 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
     for symbol in symbols:
         if strategy_name == 'vwap':
             strategy = VWAPStrategy({
+                # VWAP 전략 고유 설정
                 'std_multiplier': 2.0,
                 'volume_threshold': 1.5,
                 'min_confidence': 0.7,
-                'price_deviation_threshold': 0.5
+                'price_deviation_threshold': 0.5,
+
+                # 급락 방어 설정 (BaseOverseasStrategy 공통)
+                'enable_crash_protection': True,
+                'crash_5min_threshold': -0.02,      # 5분간 -2% 급락 기준
+                'crash_10min_threshold': -0.03,     # 10분간 -3% 급락 기준
+                'risk_threshold_critical': 70,      # 극고위험 기준
+                'risk_threshold_high': 50,          # 고위험 기준
+                'risk_threshold_medium': 30,        # 주의 기준
+                'risk_threshold_low': 15,           # 경미한 리스크 기준
+                'crash_signal_reduction': 0.1,      # 급락 시 신호 90% 약화
+                'consecutive_signal_reduction': 0.5, # 연속 하락 시 신호 50% 약화
+                'consecutive_drops_threshold': 3,    # 연속 하락 임계값
+                'position_reduction_critical': 0.1, # 극고위험 시 포지션 90% 축소
+                'position_reduction_high': 0.33,    # 고위험 시 포지션 67% 축소
+                'position_reduction_medium': 0.5,   # 주의 시 포지션 50% 축소
+                'position_reduction_low': 0.8,      # 경미한 리스크 시 포지션 20% 축소
+                'volatility_threshold': 0.02        # 변동성 기준 2%
             })
         else:  # 기본값: momentum
             strategy = MomentumStrategy({
+                # Momentum 전략 고유 설정
                 'rsi_oversold': 25,
                 'rsi_overbought': 75,
-                'min_confidence': 0.8
+                'min_confidence': 0.8,
+
+                # 급락 방어 설정 (BaseOverseasStrategy 공통)
+                'enable_crash_protection': True,
+                'crash_5min_threshold': -0.025,     # 모멘텀 전략은 조금 더 보수적 (-2.5%)
+                'crash_10min_threshold': -0.035,    # 10분간 -3.5% 급락 기준
+                'risk_threshold_critical': 75,      # 모멘텀 전략은 더 높은 임계값 (75)
+                'risk_threshold_high': 55,          # 고위험 기준 (55)
+                'risk_threshold_medium': 35,        # 주의 기준 (35)
+                'risk_threshold_low': 20,           # 경미한 리스크 기준 (20)
+                'crash_signal_reduction': 0.05,     # 급락 시 신호 95% 약화 (더 강한 차단)
+                'consecutive_signal_reduction': 0.3, # 연속 하락 시 신호 70% 약화
+                'consecutive_drops_threshold': 2,    # 연속 하락 임계값 (더 민감하게)
+                'position_reduction_critical': 0.05, # 극고위험 시 포지션 95% 축소
+                'position_reduction_high': 0.25,    # 고위험 시 포지션 75% 축소
+                'position_reduction_medium': 0.4,   # 주의 시 포지션 60% 축소
+                'position_reduction_low': 0.7,      # 경미한 리스크 시 포지션 30% 축소
+                'volatility_threshold': 0.025       # 모멘텀 전략은 변동성에 더 민감 (2.5%)
             })
 
         trading_engine.add_stock(symbol, strategy)
@@ -277,26 +313,29 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                         bb_pos = analysis.get('bb_position', 'MID')
                         momentum_val = analysis.get('momentum', 'NEUTRAL')
 
-                # 리스크 지표 수집 (VWAP 전략인 경우)
-                risk_score = 0
-                is_crashing = False
-                momentum_5min = 0.0
-                consecutive_drops = 0
-                volatility_percent = 0.0
-
-                if strategy_name == 'vwap' and strategy and hasattr(strategy, '_calculate_risk_score'):
+                # 리스크 지표 수집 (모든 전략 공통 - BaseOverseasStrategy)
+                risk_analysis = {}
+                if strategy and hasattr(strategy, 'get_risk_analysis'):
                     try:
-                        risk_score = strategy._calculate_risk_score(market_data)
-                        is_crashing, momentum_5min = strategy._detect_crash_momentum()
-                        consecutive_drops = strategy._count_consecutive_drops()
-
-                        # 변동성 계산
-                        volatility = strategy.get_volatility()
-                        if volatility > 0 and market_data.current_price > 0:
-                            volatility_percent = (volatility / market_data.current_price) * 100
+                        risk_analysis = strategy.get_risk_analysis(market_data)
                     except Exception as e:
-                        # 리스크 지표 계산 실패 시 기본값 유지
+                        # 리스크 지표 계산 실패 시 기본값 사용
                         print(f"리스크 지표 계산 오류: {e}")
+                        risk_analysis = {
+                            'risk_protection_enabled': False,
+                            'risk_score': 0,
+                            'is_crashing': False,
+                            'momentum_5min': 0.0,
+                            'consecutive_drops': 0,
+                            'volatility_percent': 0.0
+                        }
+
+                # 리스크 지표 추출
+                risk_score = risk_analysis.get('risk_score', 0)
+                is_crashing = risk_analysis.get('is_crashing', False)
+                momentum_5min = risk_analysis.get('momentum_5min', 0.0)
+                consecutive_drops = risk_analysis.get('consecutive_drops', 0)
+                volatility_percent = risk_analysis.get('volatility_percent', 0.0)
 
                 # CSV 로그 기록
                 csv_data = {
@@ -375,26 +414,29 @@ async def realtime_trading_log(symbols, strategy_name='momentum'):
                                 bb_pos = analysis.get('bb_position', 'MID')
                                 momentum_val = analysis.get('momentum', 'NEUTRAL')
 
-                        # 리스크 지표 수집 (VWAP 전략인 경우)
-                        signal_risk_score = 0
-                        signal_is_crashing = False
-                        signal_momentum_5min = 0.0
-                        signal_consecutive_drops = 0
-                        signal_volatility_percent = 0.0
-
-                        if strategy_name == 'vwap' and strategy and hasattr(strategy, '_calculate_risk_score'):
+                        # 리스크 지표 수집 (모든 전략 공통 - BaseOverseasStrategy)
+                        signal_risk_analysis = {}
+                        if strategy and hasattr(strategy, 'get_risk_analysis'):
                             try:
-                                signal_risk_score = strategy._calculate_risk_score(market_data)
-                                signal_is_crashing, signal_momentum_5min = strategy._detect_crash_momentum()
-                                signal_consecutive_drops = strategy._count_consecutive_drops()
-
-                                # 변동성 계산
-                                volatility = strategy.get_volatility()
-                                if volatility > 0 and market_data.current_price > 0:
-                                    signal_volatility_percent = (volatility / market_data.current_price) * 100
+                                signal_risk_analysis = strategy.get_risk_analysis(market_data)
                             except Exception as e:
-                                # 리스크 지표 계산 실패 시 기본값 유지
+                                # 리스크 지표 계산 실패 시 기본값 사용
                                 print(f"신호 리스크 지표 계산 오류: {e}")
+                                signal_risk_analysis = {
+                                    'risk_protection_enabled': False,
+                                    'risk_score': 0,
+                                    'is_crashing': False,
+                                    'momentum_5min': 0.0,
+                                    'consecutive_drops': 0,
+                                    'volatility_percent': 0.0
+                                }
+
+                        # 신호 리스크 지표 추출
+                        signal_risk_score = signal_risk_analysis.get('risk_score', 0)
+                        signal_is_crashing = signal_risk_analysis.get('is_crashing', False)
+                        signal_momentum_5min = signal_risk_analysis.get('momentum_5min', 0.0)
+                        signal_consecutive_drops = signal_risk_analysis.get('consecutive_drops', 0)
+                        signal_volatility_percent = signal_risk_analysis.get('volatility_percent', 0.0)
 
                         # 신호 CSV 데이터
                         signal_csv_data = {

@@ -84,6 +84,10 @@ class MomentumStrategy(BaseOverseasStrategy):
         # 포지션 크기 계산
         quantity = self._calculate_position_size(confidence, volatility, volume_ratio)
 
+        # 리스크 기반 포지션 크기 조절 (BaseOverseasStrategy 공통 방어 로직)
+        risk_score = self._calculate_risk_score(market_data)
+        quantity = self._adjust_position_size_for_risk(quantity, risk_score)
+
         return self.create_signal(
             market_data=market_data,
             signal_type=signal_type,
@@ -184,7 +188,10 @@ class MomentumStrategy(BaseOverseasStrategy):
         buy_score *= session_weight
         sell_score *= session_weight
 
-        # 8. 최종 신호 결정
+        # 8. 급락 방어 리스크 필터 적용 (BaseOverseasStrategy 공통 방어 로직)
+        buy_score, sell_score, reasons = self._apply_risk_filter(buy_score, sell_score, reasons, market_data)
+
+        # 9. 최종 신호 결정
         if buy_score > sell_score and buy_score > 0.4:
             confidence = min(buy_score, 1.0)
             return SignalType.BUY, confidence, " | ".join(reasons)
