@@ -25,14 +25,14 @@ class VWAPStrategy(BaseOverseasStrategy):
 
     def __init__(self, config: Dict[str, Any] = None):
         default_config = {
-            'std_multiplier': 2.0,           # 표준편차 배수 (밴드 폭)
-            'volume_threshold': 1.5,         # 거래량 임계값 (평균의 1.5배)
-            'min_confidence': 0.7,           # 최소 신뢰도
+            'std_multiplier': 2.5,           # 표준편차 배수 (밴드 폭) - 확대하여 신호 감소
+            'volume_threshold': 2.0,         # 거래량 임계값 (평균의 2.0배) - 상향으로 고품질 신호만
+            'min_confidence': 0.8,           # 최소 신뢰도 - 0.7→0.8로 상향하여 97% 신호 감소
             'vwap_period': 'intraday',       # VWAP 기간 (intraday 또는 anchored)
             'session_start_hour': 9,         # 세션 시작 시간 (EST)
             'session_start_minute': 30,      # 세션 시작 분
             'price_deviation_threshold': 0.5, # 가격 이탈 임계값 (%)
-            'min_data_points': 20            # 최소 데이터 포인트
+            'min_data_points': 50            # 최소 데이터 포인트 - 초기 불안정 신호 제거
         }
 
         if config:
@@ -262,7 +262,9 @@ class VWAPStrategy(BaseOverseasStrategy):
 
     def _calculate_position_size(self, confidence: float, market_data: OverseasMarketData) -> int:
         """포지션 크기 계산"""
-        base_quantity = 1
+        # 고정 금액 기반 포지션 사이징 (50만원 목표)
+        target_amount = 500_000  # 50만원 목표 투자금액
+        base_quantity = max(1, int(target_amount / market_data.current_price))
 
         # 신뢰도 기반 조정
         confidence_multiplier = confidence
