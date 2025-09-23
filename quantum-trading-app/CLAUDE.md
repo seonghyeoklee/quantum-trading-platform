@@ -4,26 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Quantum Trading App** is a Spring Boot 3.5.6 application built with Java 25, designed as a web-based admin interface for automated stock trading using Korea Investment & Securities (KIS) Open API. The application uses Thymeleaf for server-side rendering with a Material UI-inspired design system.
+**Quantum Trading App** is a Spring Boot 3.5.6 application built with Java 25, designed as a web-based admin interface for automated stock trading using Korea Investment & Securities (KIS) Open API. The application features a sophisticated DINO (15-point stock evaluation system) and uses Thymeleaf for server-side rendering with a modern Material UI design system.
 
 ## Technology Stack
 
 - **Backend**: Spring Boot 3.5.6 + Java 25
 - **Frontend**: Thymeleaf templates + Bootstrap 5.3 + Material UI design principles
-- **Database**: H2 (in-memory for development)
+- **Database**: PostgreSQL (primary) + H2 (testing)
 - **Build Tool**: Gradle with Kotlin DSL
+- **Infrastructure**: Docker Compose for PostgreSQL
 - **Static Resources**: CSS with Material Design patterns, vanilla JavaScript
 
 ## Development Commands
 
-### Building and Running
-
+### Database Setup (Required First)
 ```bash
-# 🚀 Quick Start (테스트 모드 - API 키 불필요)
-./gradlew bootRun --args='--spring.profiles.active=test'
+# Start PostgreSQL with Docker Compose
+docker-compose up -d
 
-# 🔑 실제 KIS API 사용 (로컬 개발)
-./gradlew bootRun --args='--spring.profiles.active=local'
+# Verify PostgreSQL is running
+docker logs quantum-postgres
+
+# Check database tables (after first run)
+docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"
+
+# Connect to database for manual queries
+docker exec quantum-postgres psql -U quantum -d quantum_trading
+```
+
+### Building and Running
+```bash
+# 🚀 Standard run (with PostgreSQL and real KIS API)
+./gradlew bootRun
 
 # 📦 Build the application
 ./gradlew build
@@ -33,29 +45,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # 🧹 Clean build
 ./gradlew clean build
+
+# 🔧 Stop PostgreSQL when done
+docker-compose down
 ```
 
-### KIS API 설정 (필수)
-
-실제 KIS API를 사용하려면 다음 중 하나의 방법으로 시크릿을 설정하세요:
-
-**방법 1: 환경변수 파일 (.env)**
+### Troubleshooting Java 25 Build Issues
 ```bash
-# .env 파일이 이미 실제 키로 설정되어 있음
-./gradlew bootRun
+# If build fails with "IllegalArgumentException: 25", retry:
+./gradlew clean
+./gradlew bootRun  # Usually succeeds on 2nd-3rd attempt
 ```
 
-**방법 2: Spring Profile 사용**
-```bash
-# application-local.yml이 실제 키로 설정되어 있음
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
-
-**방법 3: 테스트 모드 (API 키 없이 DINO 테스트만)**
-```bash
-./gradlew bootRun --args='--spring.profiles.active=test'
-# http://localhost:8080/dino 접속하여 삼성전자(005930) 테스트
-```
+### Secret Management
+The application uses `application-secrets.yml` for KIS API credentials:
+- **Location**: `src/main/resources/application-secrets.yml`
+- **Status**: File exists and is git-ignored for security
+- **Contents**: Real KIS API keys, account numbers, HTS ID
+- **Import**: Automatically loaded via `spring.config.import` in application.yml
 
 ### Java 25 Compatibility Note
 
@@ -66,61 +73,94 @@ This project specifically requires Java 25. There are known compatibility issues
 ### Package Structure
 
 - **`com.quantum`**: Root package containing the main application class
-- **`com.quantum.controller`**: Web controllers (Dashboard, KIS Token endpoints)
-- **`com.quantum.kis`**: KIS API integration module
+- **`com.quantum.controller`**: Web controllers (Dashboard)
+- **`com.quantum.kis`**: KIS API integration module (Domain-Driven Design)
   - **`config`**: Configuration classes for KIS API credentials and settings
-  - **`service`**: Business logic for KIS API operations (token management)
+  - **`service`**: Business logic for KIS API operations (token management, persistence)
   - **`dto`**: Data Transfer Objects for API requests/responses
-  - **`domain`**: Core domain objects (KisEnvironment, TokenType enums)
+  - **`domain`**: Core domain objects and value objects (KisEnvironment, TokenType, Token, KisToken)
+  - **`infrastructure`**: JPA entities and repository implementations
+  - **`scheduler`**: Automated token refresh and cleanup
   - **`exception`**: Custom exceptions for KIS API errors
+- **`com.quantum.dino`**: DINO stock evaluation system
+  - **`controller`**: Web controller for DINO analysis interface
+  - **`service`**: Finance analysis business logic (translates Python algorithms to Java)
+  - **`dto`**: Result DTOs for analysis output
+  - **`domain`**: JPA entities for storing analysis results
 
-### Key Components
+### Key Architectural Patterns
 
-#### KIS API Integration
-The application integrates with Korea Investment & Securities Open API through a modular design:
+#### Domain-Driven Design (KIS Module)
+The KIS token management follows DDD principles:
+- **`KisToken`** (Aggregate Root): Manages token lifecycle and business rules
+- **`Token`** (Value Object): Immutable token data with expiration logic
+- **`KisTokenId`** (Value Object): Composite identifier (environment + token type)
+- **`KisTokenRepository`** (Repository Interface): Domain persistence abstraction
+- **`KisTokenPersistenceService`**: Coordinates between domain and infrastructure
 
-- **`KisConfigProperties`**: Configuration binding from `application.yml` with validation
-- **`KisTokenService`**: Generic token issuance service supporting access tokens and WebSocket keys
-- **`TokenType` enum**: Type-safe token operations with different endpoints and request types
-- **`KisEnvironment` enum**: Environment management (PROD/VPS) with different base URLs
+#### Token Management Strategy
+- **Automatic Reuse**: Tokens are cached in PostgreSQL and reused until expiration
+- **Proactive Renewal**: Tokens renewed 1 hour before expiration to prevent failures
+- **Scheduled Maintenance**: Daily refresh (9 AM KST) and cleanup cycles
+- **Environment Isolation**: Separate tokens for PROD/VPS environments
 
-#### Web Layer
-- **`DashboardController`**: Main controller handling dashboard and navigation routes
-- **`KisTokenController`**: REST endpoints for KIS token operations
-- **Thymeleaf Templates**: Fragment-based layout system with `layout.html` as master template
+#### DINO Analysis System
+15-point stock evaluation system with 5 finance metrics:
+- **Finance Analyzer**: Revenue growth, operating profit, margins, debt ratios
+- **Scoring Algorithm**: `MAX(0, MIN(5, 2 + individual_scores))` (Python → Java translation)
+- **Daily Analysis**: One analysis per stock per day with result caching
+- **Sample Data**: Samsung Electronics (005930) included for testing
 
-#### Frontend Architecture
-- **Material UI Design System**: Clean, professional interface using CSS Custom Properties
-- **Theme Support**: Light/dark mode toggle with localStorage persistence
-- **Responsive Design**: Mobile-first approach with Bootstrap grid system
-- **Component Structure**: Card-based dashboard layout with stat cards, charts, and tables
+### Database Schema
+
+#### KIS Tokens Table
+```sql
+kis_tokens (
+    environment VARCHAR(10),    -- PROD/VPS
+    token_type VARCHAR(20),     -- ACCESS_TOKEN/WEBSOCKET_KEY
+    token_value TEXT,
+    expires_at TIMESTAMP,
+    status VARCHAR(10),         -- ACTIVE/EXPIRED/INVALID
+    PRIMARY KEY (environment, token_type)
+)
+```
+
+#### DINO Results Table
+```sql
+dino_finance_results (
+    id BIGSERIAL PRIMARY KEY,
+    stock_code VARCHAR(10),
+    analysis_date DATE,
+    revenue_growth_score INTEGER,  -- ±1 points
+    operating_profit_score INTEGER, -- ±2 points
+    operating_margin_score INTEGER, -- +1 point
+    retention_rate_score INTEGER,   -- ±1 point
+    debt_ratio_score INTEGER,       -- ±1 point
+    total_score INTEGER,            -- 0-5 final score
+    UNIQUE(stock_code, analysis_date)
+)
+```
 
 ## Configuration
 
-### Application Configuration (`application.yml`)
-
+### Database Configuration
+PostgreSQL is the primary database with automatic schema updates:
 ```yaml
 spring:
-  application:
-    name: quantum-trading-app
-
-kis:
-  api:
-    my-app: ${KIS_MY_APP:your-prod-app-key}
-    my-sec: ${KIS_MY_SEC:your-prod-secret-key}
-    paper-app: ${KIS_PAPER_APP:your-vps-app-key}
-    paper-sec: ${KIS_PAPER_SEC:your-vps-secret-key}
-    my-agent: ${KIS_USER_AGENT:QuantumTradingApp/1.0}
+  datasource:
+    url: jdbc:postgresql://localhost:5432/quantum_trading
+    username: quantum
+    password: quantum123
+  jpa:
+    hibernate:
+      ddl-auto: update  # Auto-creates/updates schema
 ```
 
-### Environment Variables for KIS API
-
-Set these environment variables for KIS API integration:
-- `KIS_MY_APP`: Production app key
-- `KIS_MY_SEC`: Production secret key
-- `KIS_PAPER_APP`: VPS/Paper trading app key
-- `KIS_PAPER_SEC`: VPS/Paper trading secret key
-- `KIS_USER_AGENT`: Custom user agent string
+### Secret Management
+Sensitive KIS API credentials are stored in `application-secrets.yml` (git-ignored):
+- Production and VPS API keys
+- Account numbers and HTS ID
+- Automatically imported by Spring Boot
 
 ## Design System
 
@@ -132,60 +172,61 @@ Set these environment variables for KIS API integration:
   - `.sidebar`: Fixed navigation with Material design principles
   - `.main-content`: Responsive content area with proper spacing
 
-### Color Palette
-- **Primary**: `#1976d2` (Material Blue)
-- **Success**: `#388e3c` (Material Green)
-- **Warning**: `#f57c00` (Material Orange)
-- **Error**: `#d32f2f` (Material Red)
-- **Info**: `#0288d1` (Material Light Blue)
+### Modern Color Palette
+- **Primary**: `#6366f1` (Indigo - Trust & Professionalism)
+- **Success**: `#10b981` (Emerald - Profit/Success)
+- **Warning**: `#f59e0b` (Amber - Caution)
+- **Error**: `#ef4444` (Red - Loss/Risk)
+- **Info**: `#0ea5e9` (Sky Blue - Information)
+- **Background**: `#f1f5f9` (Slate 100)
+- **Cards**: Gradient effects with hover animations
 
-## API Endpoints
+## Key Endpoints
 
-### Web Routes
-- `GET /`: Dashboard page
-- `GET /stocks`: Stock management page (placeholder)
-- `GET /news`: News monitoring page (placeholder)
-- `GET /backtest`: Backtesting page (placeholder)
-- `GET /orders`: Order management page (placeholder)
-- `GET /system`: System status page (placeholder)
-- `GET /logs`: Log viewer page (placeholder)
-- `GET /settings`: Settings page (placeholder)
+### Main Application Routes
+- `GET /`: Dashboard with system overview
+- `GET /dino`: DINO stock analysis interface (primary feature)
+- `GET /api/kis/tokens/status`: KIS token management status
 
-### KIS API Routes
-- `POST /api/kis/token/{env}`: Get access token for specified environment
-- `POST /api/kis/websocket-key/{env}`: Get WebSocket key for specified environment
+### DINO Analysis
+- **URL**: `http://localhost:8080/dino`
+- **Function**: Displays finance analysis for Samsung Electronics (005930)
+- **Features**: 5-metric scoring system, Material UI interface, real KIS API data
+- **Expected**: Real-time calculation of revenue growth, operating profit, margins, retention rate, debt ratio
 
 ## Development Guidelines
 
-### KIS API Integration
-- All KIS API calls go through `KisTokenService` with proper error handling
-- Use `KisEnvironment` enum for environment management (PROD/VPS)
-- Token requests are type-safe through `TokenType` enum
-- Debug logging includes curl commands for API troubleshooting
+### KIS Token Management
+- **Use `KisTokenManager`** for token access (not `KisTokenService` directly)
+- Tokens are automatically cached and reused from PostgreSQL
+- No manual token refresh needed - handled by scheduling and business logic
+- Token persistence ensures continuity across application restarts
 
-### Frontend Development
-- Follow Material UI design principles for new components
-- Use CSS Custom Properties for theming
-- Maintain responsive design patterns
-- Keep JavaScript minimal and vanilla (no frameworks)
+### DINO System Development
+- Finance analysis follows exact Python algorithm translation
+- Scoring: `MAX(0, MIN(5, 2 + sum_of_individual_scores))`
+- One analysis per stock per day with database caching
+- All business logic in service layer, controllers handle web concerns only
 
-### Error Handling
-- KIS API errors are wrapped in `KisApiException`
-- Configuration validation happens at startup through `KisConfigProperties`
-- All controllers use proper error responses and logging
+### Database Operations
+- JPA entities use `ddl-auto: update` for automatic schema evolution
+- Domain objects (KisToken, Token) separate from JPA entities
+- Repository pattern with domain abstractions
+- PostgreSQL provides persistence; H2 for testing
 
-## Testing
+## Critical Notes
 
-### Running Tests
-```bash
-# Run all tests
-./gradlew test
+### Java 25 Build Issues
+Gradle may fail with `IllegalArgumentException: 25` - this is a known compatibility issue. Simply retry the build command as it typically succeeds on subsequent attempts.
 
-# Run specific test class
-./gradlew test --tests "KisTokenServiceTest"
+### Token Optimization
+The system automatically minimizes KIS API calls through intelligent caching and proactive token renewal. Tokens persist in PostgreSQL and are reused until 1 hour before expiration.
 
-# Run tests with debug output
-./gradlew test --debug
-```
+## Quick Start Checklist
 
-The project uses JUnit 5 for testing with Spring Boot test support.
+1. **Prerequisites**: Java 25, Docker Desktop running
+2. **Database**: `docker-compose up -d` (starts PostgreSQL)
+3. **Secrets**: Verify `application-secrets.yml` exists in resources
+4. **Build**: `./gradlew bootRun` (retry if Java 25 error occurs)
+5. **Access**: Navigate to `http://localhost:8080/dino` for DINO analysis
+6. **Verify**: Check database tables with `docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"`

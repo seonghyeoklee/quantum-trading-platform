@@ -6,28 +6,30 @@ spring:
   config:
     import: "classpath:application-secrets.yml"
 
-  # H2 Database 설정
+  # PostgreSQL Database 설정
   datasource:
-    url: jdbc:h2:mem:quantum_trading;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: jdbc:postgresql://localhost:5432/quantum_trading
+    driver-class-name: org.postgresql.Driver
+    username: quantum
+    password: quantum123
 
   # JPA 설정
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 개발용 (운영에서는 validate 사용)
+      ddl-auto: update  # update 모드로 스키마 자동 생성/수정
     show-sql: true
     format-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          lob:
+            non_contextual_creation: true
 
-  # H2 Console 설정 (개발용)
+  # H2 Console 설정 (개발용 - 비활성화)
   h2:
     console:
-      enabled: true
-      path: /h2-console
+      enabled: false
 
 # KIS API 설정 (시크릿 정보는 application-secrets.yml에서 로드)
 
