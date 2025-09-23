@@ -99,6 +99,72 @@ def read_token():
         return None
 
 
+def get_access_token(environment="prod"):
+    """
+    환경에 따른 KIS API 접근 토큰 반환
+
+    Args:
+        environment (str): "prod" (실전투자) 또는 "vps" (모의투자)
+
+    Returns:
+        str: 유효한 접근 토큰 또는 None
+    """
+    try:
+        # 기존 토큰 확인
+        existing_token = read_token()
+        if existing_token:
+            return existing_token
+
+        # 토큰이 없거나 만료된 경우 새로 발급
+        if environment == "prod":
+            url = "https://openapi.koreainvestment.com:9443"
+            app_key = _cfg.get("my_app")
+            app_secret = _cfg.get("my_sec")
+        else:  # vps
+            url = "https://openapivts.koreainvestment.com:29443"
+            app_key = _cfg.get("paper_app")
+            app_secret = _cfg.get("paper_sec")
+
+        if not app_key or not app_secret:
+            print(f"❌ {environment} 환경의 API 키가 설정되지 않았습니다.")
+            return None
+
+        # 토큰 발급 요청
+        token_url = f"{url}/oauth2/tokenP"
+        headers = {
+            "Content-Type": "application/json"
+        }
+        data = {
+            "grant_type": "client_credentials",
+            "appkey": app_key,
+            "appsecret": app_secret
+        }
+
+        response = requests.post(token_url, headers=headers, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            access_token = result.get("access_token")
+            token_expired = result.get("access_token_token_expired")
+
+            if access_token and token_expired:
+                # 토큰 저장
+                save_token(access_token, token_expired)
+                print(f"✅ {environment} 환경 토큰 발급 성공")
+                return access_token
+            else:
+                print(f"❌ 토큰 발급 응답에 문제가 있습니다: {result}")
+                return None
+        else:
+            print(f"❌ 토큰 발급 실패: HTTP {response.status_code}")
+            print(f"응답: {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"❌ 토큰 발급 중 오류 발생: {e}")
+        return None
+
+
 # 토큰 유효시간 체크해서 만료된 토큰이면 재발급처리
 def _getBaseHeader():
     if _autoReAuth:

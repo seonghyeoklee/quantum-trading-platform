@@ -122,8 +122,27 @@ class TradingSignal:
 
     # 추가 정보
     target_quantity: int = 1       # 목표 수량
+    target_price: Optional[float] = None   # 목표 주문 가격 (None이면 price 사용)
     stop_loss: Optional[float] = None      # 손절가
     take_profit: Optional[float] = None    # 익절가
+
+    @property
+    def effective_price(self) -> float:
+        """실제 주문에 사용될 가격 (target_price가 있으면 사용, 없으면 price 사용)"""
+        return self.target_price if self.target_price is not None else self.price
+
+    @property
+    def estimated_amount(self) -> float:
+        """예상 주문 금액"""
+        return self.effective_price * self.target_quantity
+
+    def set_target_price(self, price: float):
+        """목표 가격 설정"""
+        self.target_price = price
+
+    def set_market_price(self):
+        """시장가 주문으로 설정 (target_price를 None으로)"""
+        self.target_price = None
 
 
 # 기본 시장 설정

@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # examples_llm 경로 추가
-sys.path.extend(['examples_llm', '.', 'examples_user', 'trading_strategy'])
+sys.path.extend(['examples_llm', '.', 'examples_user', 'trading_strategy', 'dino_backtest_system'])
 import kis_auth as ka
 
 # DB 토큰 관리자 import (PostgreSQL 직접 연결)
@@ -2660,6 +2660,20 @@ async def delete_backtesting_task(task_id: str):
     except Exception as e:
         logger.error(f"백테스팅 작업 삭제 오류: {e}")
         raise HTTPException(status_code=500, detail=f"작업 삭제 중 오류가 발생했습니다: {str(e)}")
+
+# ================================================================================================
+# DINO 백테스팅 시스템 엔드포인트 추가
+# ================================================================================================
+
+# DINO 백테스팅 API 라우터 추가
+try:
+    from dino_backtest_system.api.backtest_endpoints import router as backtest_router
+    app.include_router(backtest_router)
+    logger.info("✅ DINO 백테스팅 시스템 엔드포인트 추가 완료")
+except ImportError as e:
+    logger.warning(f"⚠️ DINO 백테스팅 시스템 import 실패: {e}")
+except Exception as e:
+    logger.error(f"❌ DINO 백테스팅 시스템 초기화 실패: {e}")
 
 if __name__ == "__main__":
     uvicorn.run(
