@@ -35,3 +35,36 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### 🔒 시크릿 파일 (절대 커밋하지 마세요!) ###
+# 환경변수 파일
+.env
+.env.local
+.env.production
+
+# 로컬 설정 파일
+application-local.yml
+application-dev.yml
+application-secrets.yml
+src/main/resources/application-local.yml
+src/main/resources/application-dev.yml
+src/main/resources/application-secrets.yml
+
+# KIS API 설정 파일
+kis_devlp.yaml
+kis_devlp.yml
+src/main/resources/kis_devlp.yaml
+src/main/resources/kis_devlp.yml
+
+# 개인정보가 포함된 설정 파일들
+**/secrets/
+**/config/secrets/
+**/private/
+**/*.secret
+**/*.private
+
+### 임시 파일 ###
+*.tmp
+*.temp
+*.log
+logs/

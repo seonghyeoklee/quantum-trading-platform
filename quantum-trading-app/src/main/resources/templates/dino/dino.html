@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="layout :: layout(~{::head/title}, ~{::main}, ${pageTitle})">
+<head>
+    <title>DINO 테스트</title>
+</head>
+<body>
+    <main>
+        <div class="container-fluid">
+            <!-- Page Header -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h2 mb-1">
+                                <i class="bi bi-graph-up-arrow text-primary me-2"></i>
+                                DINO 테스트
+                            </h1>
+                            <p class="text-muted mb-0">종목의 재무 건전성을 15점 만점으로 분석합니다</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="/dino/history" class="btn btn-outline-secondary">
+                                <i class="bi bi-clock-history me-1"></i>
+                                분석 히스토리
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert Messages -->
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-2"></i>
+                <span th:text="${successMessage}">성공 메시지</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <span th:text="${errorMessage}">오류 메시지</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Analysis Form -->
+            <div class="row mb-4">
+                <div class="col-12 col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-search me-2"></i>
+                                종목 분석
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/dino/analyze}" method="post">
+                                <div class="mb-3">
+                                    <label for="stockCode" class="form-label">종목코드</label>
+                                    <div class="input-group">
+                                        <input type="text"
+                                               class="form-control"
+                                               id="stockCode"
+                                               name="stockCode"
+                                               placeholder="예: 005930 (삼성전자)"
+                                               maxlength="6"
+                                               pattern="[0-9]{6}"
+                                               required>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-play-fill me-1"></i>
+                                            분석 시작
+                                        </button>
+                                    </div>
+                                    <div class="form-text">6자리 종목코드를 입력해주세요 (예: 005930)</div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                DINO 테스트란?
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">종목의 재무 건전성을 객관적으로 평가하는 시스템입니다.</p>
+                            <ul class="list-unstyled mb-0">
+                                <li><i class="bi bi-check text-success me-2"></i><strong>매출 증감:</strong> 전년 대비 매출 성장률</li>
+                                <li><i class="bi bi-check text-success me-2"></i><strong>영업이익:</strong> 영업이익 흑자/적자 상태</li>
+                                <li><i class="bi bi-check text-success me-2"></i><strong>영업이익률:</strong> 수익성 지표</li>
+                                <li><i class="bi bi-check text-success me-2"></i><strong>유보율:</strong> 내부유보 비율</li>
+                                <li><i class="bi bi-check text-success me-2"></i><strong>부채비율:</strong> 재무안정성 지표</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Results -->
+            <div th:if="${result != null}" class="row">
+                <div class="col-12">
+                    <!-- Overall Score Card -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-trophy me-2"></i>
+                                분석 결과
+                            </h5>
+                            <span class="badge fs-6 px-3 py-2"
+                                  th:class="${result.totalScore >= 4} ? 'bg-success' : (${result.totalScore >= 2} ? 'bg-warning text-dark' : 'bg-danger')"
+                                  th:text="'등급: ' + ${result.grade}">등급: A+</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h2 class="display-4 mb-0" th:text="${result.companyName}">회사명</h2>
+                                    <p class="text-muted mb-0" th:text="'종목코드: ' + ${result.stockCode}">종목코드</p>
+                                </div>
+                                <div class="col-md-6 text-md-end">
+                                    <div class="d-flex align-items-center justify-content-md-end">
+                                        <div class="score-circle me-3"
+                                             th:class="${result.totalScore >= 4} ? 'score-excellent' : (${result.totalScore >= 2} ? 'score-good' : 'score-poor')">
+                                            <span class="score-number" th:text="${result.totalScore}">5</span>
+                                            <span class="score-max">/5</span>
+                                        </div>
+                                        <div>
+                                            <div class="fs-5 fw-bold">총점</div>
+                                            <small class="text-muted" th:text="'분석일: ' + ${#temporals.format(result.analyzedAt, 'MM-dd HH:mm')}">분석일</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Scores -->
+                    <div class="row g-3 mb-4">
+                        <!-- Revenue Growth -->
+                        <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-graph-up display-6 mb-2"
+                                       th:class="${result.revenueGrowthScore > 0} ? 'text-success' : (${result.revenueGrowthScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                    <h5 class="card-title">매출 증감</h5>
+                                    <div class="score-badge"
+                                         th:class="${result.revenueGrowthScore > 0} ? 'badge bg-success' : (${result.revenueGrowthScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                         th:text="${result.revenueGrowthScore} + '점'">+1점</div>
+                                    <p class="small text-muted mt-2" th:if="${result.revenueGrowthRate != null}">
+                                        증가율: <span th:text="${#numbers.formatDecimal(result.revenueGrowthRate, 1, 2)}">10.5</span>%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Operating Profit -->
+                        <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-currency-dollar display-6 mb-2"
+                                       th:class="${result.operatingProfitScore > 0} ? 'text-success' : (${result.operatingProfitScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                    <h5 class="card-title">영업이익</h5>
+                                    <div class="score-badge"
+                                         th:class="${result.operatingProfitScore > 0} ? 'badge bg-success' : (${result.operatingProfitScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                         th:text="${result.operatingProfitScore} + '점'">0점</div>
+                                    <p class="small text-muted mt-2" th:text="${result.operatingProfitTransition ?: '상태 정보 없음'}">흑자 지속</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Operating Margin -->
+                        <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-percent display-6 mb-2"
+                                       th:class="${result.operatingMarginScore > 0} ? 'text-success' : 'text-secondary'"></i>
+                                    <h5 class="card-title">영업이익률</h5>
+                                    <div class="score-badge"
+                                         th:class="${result.operatingMarginScore > 0} ? 'badge bg-success' : 'badge bg-secondary'"
+                                         th:text="${result.operatingMarginScore} + '점'">+1점</div>
+                                    <p class="small text-muted mt-2" th:if="${result.operatingMarginRate != null}">
+                                        이익률: <span th:text="${#numbers.formatDecimal(result.operatingMarginRate, 1, 2)}">15.2</span>%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Retention Rate -->
+                        <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-piggy-bank display-6 mb-2"
+                                       th:class="${result.retentionRateScore > 0} ? 'text-success' : (${result.retentionRateScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                    <h5 class="card-title">유보율</h5>
+                                    <div class="score-badge"
+                                         th:class="${result.retentionRateScore > 0} ? 'badge bg-success' : (${result.retentionRateScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                         th:text="${result.retentionRateScore} + '점'">+1점</div>
+                                    <p class="small text-muted mt-2" th:if="${result.retentionRate != null}">
+                                        유보율: <span th:text="${#numbers.formatDecimal(result.retentionRate, 1, 0)}">2,309</span>%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Debt Ratio -->
+                        <div class="col-12 col-sm-6 col-lg-4 col-xl">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-shield-check display-6 mb-2"
+                                       th:class="${result.debtRatioScore > 0} ? 'text-success' : (${result.debtRatioScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                    <h5 class="card-title">부채비율</h5>
+                                    <div class="score-badge"
+                                         th:class="${result.debtRatioScore > 0} ? 'badge bg-success' : (${result.debtRatioScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                         th:text="${result.debtRatioScore} + '점'">+1점</div>
+                                    <p class="small text-muted mt-2" th:if="${result.debtRatio != null}">
+                                        부채비율: <span th:text="${#numbers.formatDecimal(result.debtRatio, 1, 1)}">24.7</span>%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Financial Data Details -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-table me-2"></i>
+                                상세 재무 데이터
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th colspan="3">손익계산서 데이터</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:if="${result.currentRevenue != null}">
+                                                <td>당년 매출액</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.currentRevenue, 0, 'COMMA')}">302,231,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.previousRevenue != null}">
+                                                <td>전년 매출액</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.previousRevenue, 0, 'COMMA')}">279,621,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.currentOperatingProfit != null}">
+                                                <td>당년 영업이익</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.currentOperatingProfit, 0, 'COMMA')}">54,336,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.previousOperatingProfit != null}">
+                                                <td>전년 영업이익</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.previousOperatingProfit, 0, 'COMMA')}">42,186,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th colspan="3">대차대조표 데이터</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:if="${result.totalDebt != null}">
+                                                <td>총부채</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.totalDebt, 0, 'COMMA')}">90,896,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.totalEquity != null}">
+                                                <td>자기자본</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.totalEquity, 0, 'COMMA')}">368,014,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.retainedEarnings != null}">
+                                                <td>이익잉여금</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.retainedEarnings, 0, 'COMMA')}">272,101,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                            <tr th:if="${result.capitalStock != null}">
+                                                <td>자본금</td>
+                                                <td class="text-end" th:text="${#numbers.formatInteger(result.capitalStock, 0, 'COMMA')}">11,775,000,000,000</td>
+                                                <td>원</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="text-muted small mt-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                기준연월: 당년 <span th:text="${result.currentPeriod}">202312</span>,
+                                전년 <span th:text="${result.previousPeriod}">202212</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            .score-circle {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            }
+            .score-circle.score-excellent {
+                background: linear-gradient(135deg, #28a745, #20c997);
+                color: white;
+            }
+            .score-circle.score-good {
+                background: linear-gradient(135deg, #ffc107, #fd7e14);
+                color: #212529;
+            }
+            .score-circle.score-poor {
+                background: linear-gradient(135deg, #dc3545, #e83e8c);
+                color: white;
+            }
+            .score-number {
+                font-size: 1.8rem;
+                font-weight: bold;
+                line-height: 1;
+            }
+            .score-max {
+                font-size: 0.9rem;
+                opacity: 0.8;
+            }
+            .score-badge {
+                font-size: 0.9rem;
+                padding: 0.4rem 0.8rem;
+            }
+        </style>
+    </main>
+</body>
+</html>

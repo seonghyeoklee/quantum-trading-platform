@@ -1,0 +1,580 @@
+/* Quantum Trading - AdminLTE v3 Style */
+
+/* ===== AdminLTE v3 Color Variables ===== */
+:root {
+  /* AdminLTE v3 Core Colors */
+  --bs-primary: #007bff;
+  --bs-secondary: #6c757d;
+  --bs-success: #28a745;
+  --bs-info: #17a2b8;
+  --bs-warning: #ffc107;
+  --bs-danger: #dc3545;
+  --bs-light: #f8f9fa;
+  --bs-dark: #343a40;
+
+  /* AdminLTE Background Colors */
+  --bs-body-bg: #f4f6f9;
+  --bs-body-color: #495057;
+  --bs-card-bg: #ffffff;
+  --bs-border-color: #dee2e6;
+  --bs-light-border: rgba(0,0,0,.125);
+
+  /* AdminLTE Sidebar Colors */
+  --sidebar-dark-bg: #343a40;
+  --sidebar-dark-color: rgba(255,255,255,.8);
+  --sidebar-dark-hover: rgba(255,255,255,.1);
+  --sidebar-dark-active: #007bff;
+
+  /* AdminLTE Header Colors */
+  --navbar-bg: #ffffff;
+  --navbar-color: #495057;
+  --navbar-border: #dee2e6;
+
+  /* AdminLTE Shadows */
+  --box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+  --box-shadow-sm: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+  --box-shadow-lg: 0 0 3px rgba(0,0,0,.125), 0 2px 6px rgba(0,0,0,.2);
+
+  /* AdminLTE Typography */
+  --font-family-sans-serif: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-size-base: 0.875rem; /* 14px */
+  --font-size-sm: 0.75rem;    /* 12px */
+  --font-size-lg: 1rem;       /* 16px */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-bold: 600;
+
+  /* AdminLTE Spacing */
+  --spacer: 1rem;
+}
+
+/* ===== Base Styles ===== */
+body {
+  font-family: var(--font-family-sans-serif);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.6;
+  color: var(--bs-body-color);
+  background-color: var(--bs-body-bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: 70px; /* Header height */
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-normal);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1.125rem; }
+h6 { font-size: 1rem; }
+
+/* ===== AdminLTE Layout ===== */
+
+/* Main Header */
+.navbar {
+  background-color: var(--navbar-bg) !important;
+  border-bottom: 1px solid var(--navbar-border);
+  height: 70px;
+  box-shadow: var(--box-shadow-sm);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1040;
+  padding: 0.75rem 1rem;
+}
+
+.navbar-brand {
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--navbar-color) !important;
+  padding: 0.8125rem 1rem;
+  line-height: 1.5;
+}
+
+.navbar-brand:hover {
+  color: var(--bs-primary) !important;
+}
+
+.navbar .badge {
+  font-size: 0.6875rem;
+  padding: 0.25em 0.5em;
+  border-radius: 0.25rem;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 70px;
+  left: 0;
+  width: 250px;
+  height: calc(100vh - 70px);
+  background-color: var(--sidebar-dark-bg);
+  overflow-y: auto;
+  z-index: 1020;
+  box-shadow: var(--box-shadow);
+  transition: margin-left 0.3s ease-in-out;
+}
+
+.sidebar-content {
+  padding: 10px 0 0 0;
+}
+
+.sidebar .nav {
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: var(--sidebar-dark-color);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease-in-out;
+}
+
+.sidebar .nav-link:hover {
+  background-color: var(--sidebar-dark-hover);
+  color: #ffffff;
+}
+
+.sidebar .nav-link.active {
+  background-color: var(--sidebar-dark-hover);
+  border-left-color: var(--sidebar-dark-active);
+  color: #ffffff;
+}
+
+.sidebar .nav-link i {
+  width: 20px;
+  text-align: center;
+  margin-right: 0.5rem;
+  font-size: 1rem;
+}
+
+.sidebar-heading {
+  padding: 1rem 1rem 0.5rem;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+}
+
+/* Main Content */
+.main-content {
+  margin-left: 250px;
+  margin-top: 0;
+  padding: 20px;
+  min-height: calc(100vh - 70px);
+}
+
+@media (max-width: 991.98px) {
+  .main-content {
+    margin-left: 0;
+    margin-top: 0;
+  }
+}
+
+/* ===== AdminLTE Cards ===== */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  word-wrap: break-word;
+  background-color: var(--bs-card-bg);
+  background-clip: border-box;
+  border: 0;
+  border-radius: 0.25rem;
+  box-shadow: var(--box-shadow);
+  margin-bottom: 20px;
+}
+
+.card-body {
+  flex: 1 1 auto;
+  padding: 1.25rem;
+}
+
+.card-header {
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 0;
+  background-color: transparent;
+  border-bottom: 1px solid var(--bs-border-color);
+  font-weight: var(--font-weight-bold);
+}
+
+.card-title {
+  margin-bottom: 0;
+  font-size: 1.125rem;
+  font-weight: var(--font-weight-normal);
+}
+
+/* ===== AdminLTE Small Box (Info Box) ===== */
+.small-box {
+  border-radius: 0.25rem;
+  box-shadow: var(--box-shadow);
+  display: block;
+  margin-bottom: 20px;
+  position: relative;
+  color: #ffffff !important;
+}
+
+.small-box > .inner {
+  padding: 15px;
+}
+
+.small-box .icon {
+  color: rgba(0, 0, 0, 0.15);
+  z-index: 0;
+}
+
+.small-box .icon > i {
+  font-size: 70px;
+  position: absolute;
+  right: 15px;
+  top: 15px;
+  transition: transform 0.3s linear;
+}
+
+.small-box:hover .icon > i {
+  transform: scale(1.1);
+}
+
+.small-box h3 {
+  font-size: 2.2rem;
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 10px 0;
+  white-space: nowrap;
+  padding: 0;
+  line-height: 1;
+}
+
+.small-box p {
+  font-size: var(--font-size-base);
+  margin: 0;
+  font-weight: var(--font-weight-normal);
+}
+
+.small-box .small-box-footer {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  display: block;
+  padding: 3px 0;
+  text-align: center;
+  text-decoration: none;
+  z-index: 10;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.small-box .small-box-footer:hover {
+  background-color: rgba(0, 0, 0, 0.15);
+  color: #ffffff;
+}
+
+/* Small Box Colors */
+.small-box.bg-primary { background-color: var(--bs-primary) !important; }
+.small-box.bg-success { background-color: var(--bs-success) !important; }
+.small-box.bg-info { background-color: var(--bs-info) !important; }
+.small-box.bg-warning { background-color: var(--bs-warning) !important; }
+.small-box.bg-danger { background-color: var(--bs-danger) !important; }
+
+/* ===== Tables ===== */
+.table {
+  --bs-table-bg: var(--bs-card-bg);
+  margin-bottom: 0;
+  font-size: var(--font-size-base);
+}
+
+.table > :not(caption) > * > * {
+  padding: 0.75rem;
+  background-color: var(--bs-table-bg);
+  border-bottom-width: 1px;
+  box-shadow: inset 0 0 0 9999px var(--bs-table-accent-bg);
+}
+
+.table > thead > tr > th {
+  background-color: var(--bs-light);
+  font-weight: var(--font-weight-bold);
+  border-bottom: 2px solid var(--bs-border-color);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  color: var(--bs-body-color);
+}
+
+.table-hover > tbody > tr:hover > * {
+  --bs-table-accent-bg: rgba(0, 0, 0, 0.025);
+}
+
+/* ===== Buttons ===== */
+.btn {
+  font-weight: var(--font-weight-normal);
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  border-width: 1px;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-sm);
+  border-radius: 0.2rem;
+}
+
+/* Button Colors */
+.btn-primary {
+  color: #fff;
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+/* ===== Utilities ===== */
+.text-primary { color: var(--bs-primary) !important; }
+.text-secondary { color: var(--bs-secondary) !important; }
+.text-success { color: var(--bs-success) !important; }
+.text-info { color: var(--bs-info) !important; }
+.text-warning { color: var(--bs-warning) !important; }
+.text-danger { color: var(--bs-danger) !important; }
+.text-light { color: var(--bs-light) !important; }
+.text-dark { color: var(--bs-dark) !important; }
+
+.bg-primary { background-color: var(--bs-primary) !important; }
+.bg-secondary { background-color: var(--bs-secondary) !important; }
+.bg-success { background-color: var(--bs-success) !important; }
+.bg-info { background-color: var(--bs-info) !important; }
+.bg-warning { background-color: var(--bs-warning) !important; }
+.bg-danger { background-color: var(--bs-danger) !important; }
+.bg-light { background-color: var(--bs-light) !important; }
+.bg-dark { background-color: var(--bs-dark) !important; }
+
+/* ===== Badges ===== */
+.badge {
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-bold);
+  border-radius: 0.25rem;
+  padding: 0.25em 0.5em;
+}
+
+/* ===== Breadcrumb ===== */
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  margin-bottom: 1rem;
+  list-style: none;
+  background-color: transparent;
+  border-radius: 0;
+  font-size: var(--font-size-sm);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  color: var(--bs-secondary);
+  content: ">";
+  padding: 0 0.5rem;
+}
+
+.breadcrumb-item.active {
+  color: var(--bs-secondary);
+}
+
+/* ===== Responsive Design ===== */
+@media (max-width: 991.98px) {
+  .sidebar {
+    margin-left: -250px;
+    z-index: 1050;
+  }
+
+  .sidebar.show {
+    margin-left: 0;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .main-content {
+    padding: 10px;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* ===== Trading Specific ===== */
+.positive { color: var(--bs-success) !important; }
+.negative { color: var(--bs-danger) !important; }
+
+/* Market Ticker */
+.market-ticker {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0;
+}
+
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-right: 1px solid var(--bs-border-color);
+  padding-right: 1rem;
+}
+
+.ticker-item:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* News Ticker */
+.news-ticker {
+  display: flex;
+  align-items: center;
+  max-width: 250px;
+  overflow: hidden;
+}
+
+.news-ticker span {
+  white-space: nowrap;
+  animation: scroll-left 20s linear infinite;
+}
+
+@keyframes scroll-left {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* Navbar Badge */
+.navbar-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  font-size: 0.5rem;
+  padding: 0.2em 0.4em;
+}
+
+.market-status {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.market-item {
+  margin-right: 1rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Real-time indicator */
+.real-time-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bs-success);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* Stock table styling */
+.stock-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+}
+
+.stock-name {
+  font-weight: var(--font-weight-bold);
+  margin-bottom: 2px;
+}
+
+.stock-symbol {
+  font-size: var(--font-size-sm);
+  color: var(--bs-secondary);
+}
+
+.stock-price {
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-sans-serif);
+}
+
+.stock-change {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.stock-change.positive {
+  background-color: rgba(40, 167, 69, 0.1);
+  color: var(--bs-success);
+  border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.stock-change.negative {
+  background-color: rgba(220, 53, 69, 0.1);
+  color: var(--bs-danger);
+  border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+/* Footer */
+.footer {
+  margin-left: 250px;
+  margin-top: 2rem;
+  padding: 1rem;
+  border-top: 1px solid var(--bs-border-color);
+  background-color: var(--bs-card-bg);
+  font-size: var(--font-size-sm);
+  color: var(--bs-secondary);
+}
+
+@media (max-width: 991.98px) {
+  .footer {
+    margin-left: 0;
+  }
+}

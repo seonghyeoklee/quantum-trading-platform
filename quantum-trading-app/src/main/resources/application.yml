@@ -1,1 +1,55 @@
-spring.application.name=quantum-trading-app
+spring:
+  application:
+    name: quantum-trading-app
+
+  # 시크릿 파일 로드
+  config:
+    import: "classpath:application-secrets.yml"
+
+  # H2 Database 설정
+  datasource:
+    url: jdbc:h2:mem:quantum_trading;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA 설정
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # 개발용 (운영에서는 validate 사용)
+    show-sql: true
+    format-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  # H2 Console 설정 (개발용)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# KIS API 설정 (시크릿 정보는 application-secrets.yml에서 로드)
+
+kis:
+  # 도메인 정보만 여기에 (공개 정보)
+
+  # 도메인 정보 (공개 정보)
+  prod: https://openapi.koreainvestment.com:9443
+  ops: ws://ops.koreainvestment.com:21000
+  vps: https://openapivts.koreainvestment.com:29443
+  vops: ws://ops.koreainvestment.com:31000
+
+  # User-Agent (공개 정보)
+  my-agent: QuantumTradingApp/1.0
+
+  # 스케줄러 설정
+  scheduler:
+    enabled: true  # 스케줄러 활성화 여부
+
+# 로깅 설정
+logging:
+  level:
+    com.quantum.kis: DEBUG
+    org.springframework.scheduling: INFO
+    root: INFO
