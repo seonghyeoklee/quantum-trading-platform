@@ -5,6 +5,7 @@
   </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="FrameworkDetectionExcludesConfiguration">
+    <file type="web" url="file://$PROJECT_DIR$/quantum-trading-app" />
     <file type="web" url="file://$PROJECT_DIR$/quantum-web-api" />
   </component>
   <component name="ProjectRootManager">
