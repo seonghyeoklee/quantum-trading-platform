@@ -1,9 +1,10 @@
-package com.quantum.kis.controller;
+package com.quantum.kis.infrastructure.adapter.in.web;
 
+import com.quantum.kis.application.port.in.RefreshTokenUseCase;
 import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.WebSocketKeyResponse;
-import com.quantum.kis.service.KisTokenService;
+import com.quantum.kis.infrastructure.adapter.in.web.dto.TokenIssueResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * KIS 토큰 발급 REST API
+ * Infrastructure Layer의 Inbound Adapter
  */
 @RestController
 @RequestMapping("/api/kis/token")
@@ -18,27 +20,33 @@ public class KisTokenController {
 
     private static final Logger log = LoggerFactory.getLogger(KisTokenController.class);
 
-    private final KisTokenService tokenService;
+    private final RefreshTokenUseCase refreshTokenUseCase;
 
-    public KisTokenController(KisTokenService tokenService) {
-        this.tokenService = tokenService;
+    public KisTokenController(RefreshTokenUseCase refreshTokenUseCase) {
+        this.refreshTokenUseCase = refreshTokenUseCase;
     }
 
     /**
      * 액세스 토큰 발급
      * @param environment KIS 환경 (PROD/VPS)
-     * @return 액세스 토큰 응답
+     * @return 토큰 발급 응답
      */
     @PostMapping("/access")
-    public ResponseEntity<AccessTokenResponse> issueAccessToken(
+    public ResponseEntity<TokenIssueResponse> issueAccessToken(
             @RequestParam KisEnvironment environment) {
 
         log.info("액세스 토큰 발급 요청 - 환경: {}", environment);
 
         try {
-            AccessTokenResponse response = tokenService.getAccessToken(environment);
-            log.info("액세스 토큰 발급 완료 - 환경: {}, 토큰 타입: {}",
-                    environment, response.tokenType());
+            String token = refreshTokenUseCase.refreshAccessToken(environment);
+            TokenIssueResponse response = new TokenIssueResponse(
+                    token,
+                    "ACCESS_TOKEN",
+                    environment.name(),
+                    "토큰 발급 성공"
+            );
+
+            log.info("액세스 토큰 발급 완료 - 환경: {}", environment);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
@@ -50,16 +58,23 @@ public class KisTokenController {
     /**
      * 웹소켓 키 발급
      * @param environment KIS 환경 (PROD/VPS)
-     * @return 웹소켓 키 응답
+     * @return 토큰 발급 응답
      */
     @PostMapping("/websocket")
-    public ResponseEntity<WebSocketKeyResponse> issueWebSocketKey(
+    public ResponseEntity<TokenIssueResponse> issueWebSocketKey(
             @RequestParam KisEnvironment environment) {
 
         log.info("웹소켓 키 발급 요청 - 환경: {}", environment);
 
         try {
-            WebSocketKeyResponse response = tokenService.getWebSocketKey(environment);
+            String key = refreshTokenUseCase.refreshWebSocketKey(environment);
+            TokenIssueResponse response = new TokenIssueResponse(
+                    key,
+                    "WEBSOCKET_KEY",
+                    environment.name(),
+                    "웹소켓 키 발급 성공"
+            );
+
             log.info("웹소켓 키 발급 완료 - 환경: {}", environment);
             return ResponseEntity.ok(response);
 

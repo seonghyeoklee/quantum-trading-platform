@@ -1,6 +1,6 @@
 package com.quantum.kis.dto;
 
-import com.quantum.kis.config.KisConfig;
+import com.quantum.kis.infrastructure.config.KisConfig;
 import com.quantum.kis.domain.KisEnvironment;
 
 /**

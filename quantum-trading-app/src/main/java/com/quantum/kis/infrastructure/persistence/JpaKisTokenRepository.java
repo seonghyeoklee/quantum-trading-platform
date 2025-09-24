@@ -8,12 +8,23 @@ import com.quantum.kis.domain.token.TokenStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * KisTokenEntity용 Spring Data JPA 리포지토리
  */
 @Repository
 public interface JpaKisTokenRepository extends JpaRepository<KisTokenEntity, String> {
+
+    /**
+     * 환경과 토큰 타입으로 토큰 조회 (KisTokenRepositoryAdapter용)
+     */
+    Optional<KisTokenEntity> findByEnvironmentAndTokenType(String environment, String tokenType);
+
+    /**
+     * 특정 환경의 모든 토큰 조회 (KisTokenRepositoryAdapter용)
+     */
+    List<KisTokenEntity> findByEnvironment(String environment);
 
     /**
      * 활성 상태의 토큰들 조회
@@ -58,4 +69,28 @@ public interface JpaKisTokenRepository extends JpaRepository<KisTokenEntity, Str
      * 마지막 업데이트 시간 기준으로 토큰 조회 (최신순)
      */
     List<KisTokenEntity> findAllByOrderByLastUpdatedAtDesc();
+
+    // ============= KisTokenRepositoryAdapter용 간소화 메서드들 =============
+
+    /**
+     * 갱신이 필요한 토큰들 조회 (간소화 버전)
+     * 1시간 내 만료 예정이거나 무효/만료 상태인 토큰
+     */
+    @Query("SELECT t FROM KisTokenEntity t WHERE " +
+           "t.expiresAt < DATEADD(HOUR, 1, CURRENT_TIMESTAMP) OR " +
+           "t.status IN ('EXPIRED', 'INVALID')")
+    List<KisTokenEntity> findTokensNeedingRenewal();
+
+    /**
+     * 만료된 토큰들 조회 (간소화 버전)
+     */
+    @Query("SELECT t FROM KisTokenEntity t WHERE t.expiresAt < CURRENT_TIMESTAMP OR t.status = 'EXPIRED'")
+    List<KisTokenEntity> findAllExpired();
+
+    /**
+     * 만료된 토큰들 일괄 삭제 (간소화 버전)
+     */
+    @Modifying
+    @Query("DELETE FROM KisTokenEntity t WHERE t.expiresAt < CURRENT_TIMESTAMP OR t.status = 'EXPIRED'")
+    int deleteExpiredTokens();
 }

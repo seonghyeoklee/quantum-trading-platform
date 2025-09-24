@@ -1,4 +1,4 @@
-package com.quantum.kis.config;
+package com.quantum.kis.infrastructure.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -9,13 +9,13 @@ import org.springframework.web.client.RestClient;
  * KIS API 설정 클래스
  */
 @Configuration
-@EnableConfigurationProperties(KisConfigProperties.class)
+@EnableConfigurationProperties(KisConfig.class)
 public class KisApiConfig {
 
-    private final KisConfigProperties properties;
+    private final KisConfig config;
 
-    public KisApiConfig(KisConfigProperties properties) {
-        this.properties = properties;
+    public KisApiConfig(KisConfig config) {
+        this.config = config;
     }
 
     /**
@@ -25,16 +25,7 @@ public class KisApiConfig {
     @Bean
     public RestClient restClient() {
         return RestClient.builder()
-                .defaultHeader("User-Agent", properties.myAgent())
+                .defaultHeader("User-Agent", config.getMyAgent())
                 .build();
-    }
-
-    /**
-     * KisConfig 빈 설정
-     * @return KisConfig 인스턴스
-     */
-    @Bean
-    public KisConfig kisConfig() {
-        return properties.toKisConfig();
     }
 }

@@ -1,7 +1,8 @@
-package com.quantum.kis.service;
+package com.quantum.kis.infrastructure.adapter.out.kis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quantum.kis.config.KisConfig;
+import com.quantum.kis.application.port.out.KisApiPort;
+import com.quantum.kis.infrastructure.config.KisConfig;
 import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.domain.TokenType;
 import com.quantum.kis.dto.AccessTokenResponse;
@@ -9,25 +10,38 @@ import com.quantum.kis.dto.WebSocketKeyResponse;
 import com.quantum.kis.exception.KisApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * KIS 토큰 발급 서비스
+ * KIS API 어댑터
+ * 외부 KIS API와의 통신을 담당하는 Infrastructure 어댑터
  */
-@Service
-public class KisTokenService {
+@Component
+public class KisApiAdapter implements KisApiPort {
 
-    private static final Logger log = LoggerFactory.getLogger(KisTokenService.class);
+    private static final Logger log = LoggerFactory.getLogger(KisApiAdapter.class);
 
     private final RestClient restClient;
     private final KisConfig config;
     private final ObjectMapper objectMapper;
 
-    public KisTokenService(RestClient restClient, KisConfig config, ObjectMapper objectMapper) {
+    public KisApiAdapter(RestClient restClient, KisConfig config, ObjectMapper objectMapper) {
         this.restClient = restClient;
         this.config = config;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public AccessTokenResponse issueAccessToken(KisEnvironment environment) {
+        log.info("액세스 토큰 발급 시작 - 환경: {}", environment);
+        return issueToken(environment, TokenType.ACCESS_TOKEN);
+    }
+
+    @Override
+    public WebSocketKeyResponse issueWebSocketKey(KisEnvironment environment) {
+        log.info("웹소켓 키 발급 시작 - 환경: {}", environment);
+        return issueToken(environment, TokenType.WEBSOCKET_KEY);
     }
 
     /**
@@ -38,7 +52,7 @@ public class KisTokenService {
      * @return 토큰 응답
      */
     @SuppressWarnings("unchecked")
-    public <T> T issueToken(KisEnvironment environment, TokenType tokenType) {
+    private <T> T issueToken(KisEnvironment environment, TokenType tokenType) {
         String url = config.getRestApiUrl(environment) + tokenType.getEndpoint();
         Object request = tokenType.createRequest(environment, config);
 
@@ -48,7 +62,7 @@ public class KisTokenService {
                     .header("Content-Type", "application/json")
                     .header("Accept", "text/plain")
                     .header("charset", "UTF-8")
-                    .header("User-Agent", config.myAgent())
+                    .header("User-Agent", config.getMyAgent())
                     .body(request)
                     .retrieve()
                     .body(tokenType.getResponseType());
@@ -67,26 +81,6 @@ public class KisTokenService {
     }
 
     /**
-     * 액세스 토큰 발급
-     * @param env KIS 환경
-     * @return 액세스 토큰 응답
-     */
-    public AccessTokenResponse getAccessToken(KisEnvironment env) {
-        log.info("액세스 토큰 발급 시작 - 환경: {}", env);
-        return issueToken(env, TokenType.ACCESS_TOKEN);
-    }
-
-    /**
-     * 웹소켓 키 발급
-     * @param env KIS 환경
-     * @return 웹소켓 키 응답
-     */
-    public WebSocketKeyResponse getWebSocketKey(KisEnvironment env) {
-        log.info("웹소켓 키 발급 시작 - 환경: {}", env);
-        return issueToken(env, TokenType.WEBSOCKET_KEY);
-    }
-
-    /**
      * curl 명령어를 로깅한다.
      * @param url 요청 URL
      * @param body 요청 바디
@@ -102,7 +96,7 @@ public class KisTokenService {
                         "-H 'User-Agent: %s' " +
                         "-d '%s'";
 
-                String formattedCurl = String.format(curl, url, config.myAgent(), jsonBody);
+                String formattedCurl = String.format(curl, url, config.getMyAgent(), jsonBody);
                 log.debug("KIS API Curl: {}", formattedCurl);
             } catch (Exception e) {
                 log.debug("Curl 로깅 실패: {}", e.getMessage());

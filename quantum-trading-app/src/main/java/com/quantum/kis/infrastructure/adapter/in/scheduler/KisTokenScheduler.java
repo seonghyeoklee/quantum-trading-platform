@@ -1,6 +1,8 @@
-package com.quantum.kis.scheduler;
+package com.quantum.kis.infrastructure.adapter.in.scheduler;
 
-import com.quantum.kis.service.KisTokenManager;
+import com.quantum.kis.application.port.in.CleanupExpiredTokensUseCase;
+import com.quantum.kis.application.port.in.GetTokenStatusUseCase;
+import com.quantum.kis.application.port.in.RefreshTokenUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * KIS 토큰 자동 재발급 스케줄러
+ * Infrastructure Layer의 Inbound Adapter
  */
 @Component
 @ConditionalOnProperty(name = "kis.scheduler.enabled", havingValue = "true", matchIfMissing = true)
@@ -16,10 +19,16 @@ public class KisTokenScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(KisTokenScheduler.class);
 
-    private final KisTokenManager tokenManager;
+    private final RefreshTokenUseCase refreshTokenUseCase;
+    private final CleanupExpiredTokensUseCase cleanupUseCase;
+    private final GetTokenStatusUseCase getTokenStatusUseCase;
 
-    public KisTokenScheduler(KisTokenManager tokenManager) {
-        this.tokenManager = tokenManager;
+    public KisTokenScheduler(RefreshTokenUseCase refreshTokenUseCase,
+                           CleanupExpiredTokensUseCase cleanupUseCase,
+                           GetTokenStatusUseCase getTokenStatusUseCase) {
+        this.refreshTokenUseCase = refreshTokenUseCase;
+        this.cleanupUseCase = cleanupUseCase;
+        this.getTokenStatusUseCase = getTokenStatusUseCase;
     }
 
     /**
@@ -32,7 +41,7 @@ public class KisTokenScheduler {
         log.info("=== 일일 토큰 재발급 스케줄 시작 ===");
 
         try {
-            tokenManager.refreshAllTokens();
+            refreshTokenUseCase.refreshAllTokens();
             log.info("=== 일일 토큰 재발급 스케줄 완료 ===");
         } catch (Exception e) {
             log.error("=== 일일 토큰 재발급 스케줄 실패 ===", e);
@@ -48,8 +57,8 @@ public class KisTokenScheduler {
         log.debug("만료된 토큰 정리 스케줄 시작");
 
         try {
-            tokenManager.cleanupExpiredTokens();
-            log.debug("만료된 토큰 정리 스케줄 완료");
+            int cleanedCount = cleanupUseCase.cleanupExpiredTokens();
+            log.debug("만료된 토큰 정리 스케줄 완료 - {}개 정리", cleanedCount);
         } catch (Exception e) {
             log.error("만료된 토큰 정리 스케줄 실패", e);
         }
@@ -64,7 +73,7 @@ public class KisTokenScheduler {
         log.debug("토큰 상태 점검 스케줄 시작");
 
         try {
-            var tokenStatus = tokenManager.getTokenCacheStatus();
+            var tokenStatus = getTokenStatusUseCase.getAllTokenStatus();
 
             if (tokenStatus.isEmpty()) {
                 log.info("캐시된 토큰이 없습니다. 필요시 자동으로 발급됩니다.");

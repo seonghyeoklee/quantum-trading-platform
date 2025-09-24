@@ -3,8 +3,7 @@ package com.quantum.dino.service;
 import com.quantum.dino.dto.DinoFinanceResult;
 import com.quantum.dino.domain.DinoFinanceResultEntity;
 import com.quantum.dino.repository.DinoFinanceResultRepository;
-import com.quantum.kis.service.KisTokenService;
-import com.quantum.kis.domain.KisEnvironment;
+import com.quantum.kis.application.port.in.GetTokenUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,14 +28,14 @@ public class DinoFinanceService {
 
     private static final Logger log = LoggerFactory.getLogger(DinoFinanceService.class);
 
-    private final KisTokenService kisTokenService;
+    private final GetTokenUseCase getTokenUseCase;
     private final RestClient restClient;
     private final DinoFinanceResultRepository repository;
 
-    public DinoFinanceService(KisTokenService kisTokenService,
+    public DinoFinanceService(GetTokenUseCase getTokenUseCase,
                              RestClient.Builder restClientBuilder,
                              DinoFinanceResultRepository repository) {
-        this.kisTokenService = kisTokenService;
+        this.getTokenUseCase = getTokenUseCase;
         this.restClient = restClientBuilder.build();
         this.repository = repository;
     }
