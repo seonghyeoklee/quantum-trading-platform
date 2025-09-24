@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/quantum-adapter-kis/quantum-adapter-kis.iml" filepath="$PROJECT_DIR$/quantum-adapter-kis/quantum-adapter-kis.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/quantum-trading-app.main.iml" filepath="$PROJECT_DIR$/.idea/modules/quantum-trading-app.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/quantum-trading-platform.iml" filepath="$PROJECT_DIR$/quantum-trading-platform.iml" />
     </modules>
   </component>

@@ -4,170 +4,295 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Quantum Trading Platform** is a simplified stock trading system focused on Korea Investment & Securities (KIS) Open API integration. The project has been completely reset to a minimal architecture for single-developer productivity.
+**Quantum Trading Platform** is a comprehensive stock trading system integrating two complementary components:
+1. **quantum-trading-app**: Spring Boot web application with DINO analysis system
+2. **quantum-adapter-kis**: Python FastAPI microservice for KIS Open API integration
 
-### Current Status (2025-01-23)
+## Technology Stack & Architecture
 
-**🔄 PROJECT RESET**: The platform has been completely refactored from a complex microservices architecture to a minimal, single-developer-friendly structure.
+### quantum-trading-app (Primary Application)
+- **Backend**: Spring Boot 3.5.6 + Java 25
+- **Frontend**: Thymeleaf templates + Bootstrap 5.3 + Material UI design
+- **Database**: PostgreSQL (primary) + H2 (testing)
+- **Build Tool**: Gradle with Kotlin DSL
+- **Features**: DINO stock analysis system, KIS token management, web interface
 
-**Architecture Change**:
-- **BEFORE**: Complex microservices (Next.js + Spring Boot + FastAPI + Docker + Airflow + PostgreSQL)
-- **AFTER**: Minimal structure with KIS API reference code only
+### quantum-adapter-kis (KIS API Service)
+- **Framework**: Python FastAPI
+- **Purpose**: KIS API integration, trading strategies, real-time data
+- **Features**: Comprehensive trading analysis, VWAP strategies, sector trading
 
-## Current Project Structure
+### Infrastructure
+- **PostgreSQL**: Shared database for both services
+- **Docker Compose**: Database orchestration
+- **Airflow**: Data pipeline orchestration (legacy/reference)
 
-```
-quantum-trading-platform/
-├── .claude/                    # Claude Code configuration
-├── .git/                       # Git version control
-├── .idea/                      # IntelliJ IDEA settings
-├── .gitignore                  # Git ignore rules
-├── CLAUDE.md                   # This documentation file
-└── quantum-adapter-kis/        # KIS API reference code (Python FastAPI)
-```
+## Development Commands
 
-## Removed Components
+### quantum-trading-app (Main Application)
 
-The following components were removed in the project reset:
-
-### ❌ Removed Modules
-- **quantum-web-client/**: Next.js 15 + React 19 frontend (152 files removed)
-- **quantum-web-api/**: Spring Boot 3.3.4 + Kotlin backend (100+ files removed)
-- **quantum-adapter-external/**: External APIs adapter (FastAPI + Naver/DART)
-- **quantum-infrastructure/**: Docker + Airflow + monitoring infrastructure
-- **database/**: PostgreSQL schemas and ETL scripts
-- **airflow/**: Analysis pipeline DAGs
-- **docs/**: Project documentation
-
-### 📊 Reset Statistics
-- **335 files deleted** (67,899 lines of code removed)
-- **Complexity reduced by 90%+**
-- **From microservices to minimal structure**
-
-## Remaining Reference Code
-
-### quantum-adapter-kis/ (Reference Only)
-
-The KIS adapter contains valuable reference implementations:
-
+#### Database Setup (Required First)
 ```bash
-# Check what's available
-cd quantum-adapter-kis/
-ls -la
+cd quantum-trading-app/
 
-# Key reference components:
-# - KIS API integration patterns
-# - Authentication handling
-# - Real-time data WebSocket
-# - Trading strategy examples
-# - DINO analysis system
-# - Sector trading system
+# Start PostgreSQL
+docker-compose up -d
+
+# Verify database
+docker logs quantum-postgres
+docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"
 ```
 
-## Development Approach
+#### Building and Running
+```bash
+# Build and run (standard workflow)
+./gradlew bootRun
 
-### 🎯 New Philosophy
-- **Simplicity First**: Start minimal, add only what's needed
-- **Single Developer**: Optimize for 1-person development team
-- **Incremental Growth**: Add features one at a time
-- **Java-Focused**: Prefer Java/Spring ecosystem for main development
+# Build only
+./gradlew build
 
-### 🚀 Next Steps (To Be Defined)
+# Run tests
+./gradlew test
 
-The platform is now ready for incremental feature development:
+# Run specific test
+./gradlew test --tests "DinoFinanceServiceTest"
 
-1. **New Technology Stack** (TBD):
-   - Spring Boot (Java 25 preferred)
-   - Thymeleaf + Bootstrap (instead of React)
-   - H2 Database (instead of PostgreSQL)
-   - Single JAR deployment (no Docker)
+# Clean build
+./gradlew clean build
 
-2. **Core Features** (TBD):
-   - Basic stock price lookup
-   - Simple portfolio tracking
-   - Essential KIS API integration
+# Stop database
+docker-compose down
+```
 
-3. **Development Workflow**:
-   - Start with minimal viable features
-   - Reference quantum-adapter-kis/ for KIS API patterns
-   - Add complexity only when absolutely necessary
+#### Java 25 Compatibility Note
+May encounter `IllegalArgumentException: 25` build errors. Simply retry:
+```bash
+./gradlew clean
+./gradlew bootRun  # Usually succeeds on retry
+```
 
-## KIS API Reference
+### quantum-adapter-kis (KIS API Service)
 
-### Configuration Requirements
+#### Environment Setup
+```bash
+cd quantum-adapter-kis/
 
-For KIS API integration, create `kis_devlp.yaml` in quantum-adapter-kis/:
+# Install dependencies (Python 3.13+ required)
+uv sync
 
+# Alternative with pip
+pip install -r requirements.txt
+```
+
+#### Running Services
+```bash
+# Start FastAPI server
+uv run python main.py
+
+# Development with auto-reload
+uvicorn main:app --reload --port 8000
+```
+
+#### Trading Systems Testing
+```bash
+# DINO analysis system
+uv run python test_dino_finance.py
+uv run python test_dino_technical.py 005930
+
+# Sector trading system
+cd sector_trading_test
+uv run python manual_trader.py
+
+# VWAP strategy
+uv run python test_vwap_backtest.py
+```
+
+## Architecture Patterns
+
+### Domain-Driven Design (KIS Module)
+**quantum-trading-app** implements DDD patterns:
+
+- **KisToken** (Aggregate Root): Token lifecycle management
+- **Token** (Value Object): Immutable token data with expiration logic
+- **KisTokenId** (Value Object): Composite identifier (environment + type)
+- **KisTokenRepository**: Domain persistence abstraction
+- **KisTokenPersistenceService**: Domain-infrastructure coordination
+
+### Database Schema
+
+#### KIS Tokens (Shared)
+```sql
+kis_tokens (
+    environment VARCHAR(10),    -- PROD/VPS
+    token_type VARCHAR(20),     -- ACCESS_TOKEN/WEBSOCKET_KEY
+    token_value TEXT,
+    expires_at TIMESTAMP,
+    status VARCHAR(10),         -- ACTIVE/EXPIRED/INVALID
+    PRIMARY KEY (environment, token_type)
+)
+```
+
+#### DINO Analysis Results
+```sql
+dino_finance_results (
+    id BIGSERIAL PRIMARY KEY,
+    stock_code VARCHAR(10),
+    analysis_date DATE,
+    revenue_growth_score INTEGER,
+    operating_profit_score INTEGER,
+    operating_margin_score INTEGER,
+    retention_rate_score INTEGER,
+    debt_ratio_score INTEGER,
+    total_score INTEGER,         -- 0-5 final score
+    UNIQUE(stock_code, analysis_date)
+)
+```
+
+### DINO Analysis System (15-Point Stock Evaluation)
+
+**Implementation**: quantum-trading-app/src/main/java/com/quantum/dino/
+**Algorithm**: `MAX(0, MIN(5, 2 + individual_scores))` (Python → Java translation)
+
+**5 Finance Metrics**:
+- Revenue growth analysis
+- Operating profit evaluation
+- Operating margin assessment
+- Retained earnings analysis
+- Debt ratio evaluation
+
+### Token Management Strategy
+- **Automatic Reuse**: PostgreSQL caching until expiration
+- **Proactive Renewal**: 1 hour before expiration
+- **Scheduled Maintenance**: Daily refresh (9 AM KST)
+- **Environment Isolation**: Separate PROD/VPS tokens
+- **Cross-Service**: Shared by both applications
+
+## Configuration
+
+### Application Configuration
+**quantum-trading-app**: `src/main/resources/application.yml`
 ```yaml
-# Example kis_devlp.yaml structure
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/quantum_trading
+    username: quantum
+    password: quantum123
+  jpa:
+    hibernate:
+      ddl-auto: update  # Auto-schema updates
+```
+
+### Secret Management
+**Both applications**: `application-secrets.yml` (git-ignored)
+- KIS API credentials (prod/vps keys)
+- Account numbers and HTS ID
+- Auto-imported by Spring Boot
+
+### KIS API Configuration
+**quantum-adapter-kis**: `kis_devlp.yaml` at project root
+```yaml
 my_app: "실전투자_앱키"
 my_sec: "실전투자_앱시크릿"
 paper_app: "모의투자_앱키"
 paper_sec: "모의투자_앱시크릿"
 my_htsid: "사용자_HTS_ID"
 my_acct_stock: "증권계좌_8자리"
-my_prod: "01"  # 종합계좌
+my_prod: "01"
 ```
 
-### Reference Commands
+## Key Endpoints & Services
 
-```bash
-# Run reference KIS adapter (for API testing)
-cd quantum-adapter-kis/
-uv sync                    # Install dependencies
-uv run python main.py      # Start FastAPI server on port 8000
+### quantum-trading-app (Web Interface)
+- `GET /`: Dashboard overview
+- `GET /dino`: DINO stock analysis interface
+- `GET /api/kis/tokens/status`: Token management status
 
-# Test KIS API endpoints
-curl "http://localhost:8000/health"                      # Health check
-curl "http://localhost:8000/domestic/price/005930"       # Samsung stock price
-```
+### quantum-adapter-kis (API Service)
+- `GET /domestic/price/{symbol}`: Current stock price
+- `GET /domestic/chart/{symbol}`: Chart data
+- `GET /dino-test/finance/{stock_code}`: Financial analysis
+- `WebSocket /ws/realtime`: Real-time data streaming
 
-## Branch Structure
+## Development Guidelines
 
-- **main**: Stable release branch
-- **feature/project-refactoring**: Current refactoring branch (active)
+### KIS Token Management
+- Use `KisTokenManager` for token access (not `KisTokenService` directly)
+- Tokens automatically cached and reused from PostgreSQL
+- No manual refresh needed - handled by scheduling
+- Persistence ensures continuity across restarts
 
-## Critical Development Rules
+### DINO System Development
+- Finance analysis follows exact Python algorithm translation
+- Scoring: `MAX(0, MIN(5, 2 + sum_of_individual_scores))`
+- One analysis per stock per day with database caching
+- Business logic in service layer, controllers handle web concerns
 
-### 🚨 Data Integrity Rule
-**NEVER generate mock/dummy/fake data when APIs fail or return errors.**
+### Data Integrity Rules
+**CRITICAL**: Never generate mock/dummy/fake data when APIs fail
 
-When KIS API calls fail or data is unavailable:
-- ✅ **CORRECT**: Return appropriate HTTP error codes (404, 503, etc.)
+When KIS API calls fail or data unavailable:
+- ✅ **CORRECT**: Return HTTP error codes (404, 503, etc.)
 - ❌ **FORBIDDEN**: Generate placeholder or dummy data
 
-### 🛡️ Security Guidelines
-- **API Keys**: Never commit credentials to git
-- **KIS Tokens**: Store securely, implement proper refresh logic
-- **Environment Variables**: Use for sensitive configuration
+## Quick Start Checklist
 
-## Development Status
+1. **Prerequisites**: Java 25, Python 3.13+, Docker Desktop
+2. **Database**: `cd quantum-trading-app && docker-compose up -d`
+3. **Secrets**: Verify `application-secrets.yml` exists in resources
+4. **Main App**: `./gradlew bootRun` (retry if Java 25 error)
+5. **KIS Service**: `cd quantum-adapter-kis && uv sync && uv run python main.py`
+6. **Verify**: Visit `http://localhost:8080/dino` for DINO analysis
+7. **API Test**: `curl http://localhost:8000/health` for KIS service
 
-### ✅ Completed
-- Project architecture reset and simplification
-- Complex microservices removed
-- KIS API reference code preserved
-- Git history maintained in feature branch
+## Common Development Tasks
 
-### 🔄 In Progress
-- Defining new minimal architecture
-- Planning incremental feature development
+### Database Operations
+```bash
+# Check PostgreSQL status
+docker ps --filter "name=quantum-postgres"
 
-### 📋 Planned
-- New Spring Boot application structure
-- Basic KIS API integration
-- Simple web interface
-- Essential trading features
+# View logs
+docker logs quantum-postgres --tail 50
 
-## Notes for Future Development
+# Reset database (removes all data)
+cd quantum-trading-app
+docker-compose down -v && docker-compose up -d
 
-1. **Start Simple**: Begin with a single Spring Boot application
-2. **Reference First**: Use quantum-adapter-kis/ for KIS API patterns
-3. **Incremental Addition**: Add features only when needed
-4. **Java Ecosystem**: Prefer Java tools and libraries for consistency
-5. **Single Developer**: Optimize all decisions for solo development efficiency
+# Connect to database
+docker exec quantum-postgres psql -U quantum -d quantum_trading
+```
+
+### Service Monitoring
+```bash
+# Spring Boot application logs
+cd quantum-trading-app
+./gradlew bootRun | grep -E "(ERROR|WARN|DINO|KIS)"
+
+# FastAPI service logs
+cd quantum-adapter-kis
+uv run python main.py
+
+# Check token status
+curl -s http://localhost:8080/api/kis/tokens/status | jq .
+curl -s http://localhost:8000/auth/refresh-token?environment=prod
+```
+
+### Testing Individual Components
+```bash
+# Test DINO analysis
+cd quantum-trading-app
+./gradlew test --tests "*Dino*"
+
+# Test KIS integration patterns
+cd quantum-adapter-kis/examples_llm/domestic_stock/inquire_price
+python chk_inquire_price.py
+
+# Test sector trading
+cd quantum-adapter-kis/sector_trading_test
+uv run python test_system.py
+```
 
 ---
 
-*Last Updated: 2025-01-23*
-*Status: Project Reset Complete - Ready for New Development*
+*Last Updated: 2025-09-24*
+*Status: Dual Architecture - Spring Boot App + FastAPI Service*

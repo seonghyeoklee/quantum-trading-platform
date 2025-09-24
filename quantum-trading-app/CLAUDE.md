@@ -43,6 +43,9 @@ docker exec quantum-postgres psql -U quantum -d quantum_trading
 # 🧪 Run tests
 ./gradlew test
 
+# 🔍 Run specific test class
+./gradlew test --tests "DinoFinanceServiceTest"
+
 # 🧹 Clean build
 ./gradlew clean build
 
@@ -230,3 +233,26 @@ The system automatically minimizes KIS API calls through intelligent caching and
 4. **Build**: `./gradlew bootRun` (retry if Java 25 error occurs)
 5. **Access**: Navigate to `http://localhost:8080/dino` for DINO analysis
 6. **Verify**: Check database tables with `docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"`
+
+## Common Development Tasks
+
+### Database Management
+```bash
+# Check PostgreSQL container status
+docker ps --filter "name=quantum-postgres"
+
+# View recent PostgreSQL logs
+docker logs quantum-postgres --tail 50
+
+# Reset database (removes all data)
+docker-compose down -v && docker-compose up -d
+```
+
+### Application Monitoring
+```bash
+# View application logs (if running)
+./gradlew bootRun | grep -E "(ERROR|WARN|INFO.*DINO|INFO.*KIS)"
+
+# Check KIS token status via API
+curl -s http://localhost:8080/api/kis/tokens/status | jq .
+```

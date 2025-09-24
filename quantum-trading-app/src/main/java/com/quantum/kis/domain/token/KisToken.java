@@ -1,13 +1,16 @@
 package com.quantum.kis.domain.token;
 
 import java.time.LocalDateTime;
+import lombok.Getter;
 
 /**
  * KIS 토큰 도메인 엔티티 (Aggregate Root)
  * 토큰의 생명주기와 비즈니스 로직을 관리
  */
+@Getter
 public class KisToken {
 
+    // Getters
     private final KisTokenId id;
     private Token token;
     private LocalDateTime issuedAt;
@@ -136,27 +139,6 @@ public class KisToken {
         if (now.isAfter(expiry)) return 0;
 
         return java.time.Duration.between(now, expiry).toMinutes();
-    }
-
-    // Getters
-    public KisTokenId getId() {
-        return id;
-    }
-
-    public Token getToken() {
-        return token;
-    }
-
-    public LocalDateTime getIssuedAt() {
-        return issuedAt;
-    }
-
-    public TokenStatus getStatus() {
-        return status;
-    }
-
-    public LocalDateTime getLastUpdatedAt() {
-        return lastUpdatedAt;
     }
 
     @Override

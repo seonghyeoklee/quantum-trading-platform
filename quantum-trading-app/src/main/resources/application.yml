@@ -22,6 +22,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+        format_sql: false
         jdbc:
           lob:
             non_contextual_creation: true
@@ -49,9 +51,13 @@ kis:
   scheduler:
     enabled: true  # 스케줄러 활성화 여부
 
-# 로깅 설정
+# 로깅 설정 (상세 설정은 logback-spring.xml에서 관리)
 logging:
+  config: classpath:logback-spring.xml
+  pattern:
+    file: logs/
   level:
-    com.quantum.kis: DEBUG
-    org.springframework.scheduling: INFO
     root: INFO
+    org.hibernate.SQL: DEBUG                    # SQL 쿼리만 표시
+    org.hibernate.type.descriptor.sql: WARN     # 파라미터 바인딩 로그 숨김
+    org.hibernate.orm.jdbc.bind: WARN           # 파라미터 바인딩 로그 숨김 (Hibernate 6+)

@@ -9,11 +9,13 @@ import com.quantum.kis.domain.token.TokenStatus;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import lombok.Getter;
 
 /**
  * KIS 토큰 JPA 엔티티
  * 도메인 모델과 데이터베이스 테이블 간의 매핑
  */
+@Getter
 @Entity
 @Table(name = "kis_tokens", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"environment", "token_type"})
@@ -86,14 +88,4 @@ public class KisTokenEntity {
         this.lastUpdatedAt = domainToken.getLastUpdatedAt();
     }
 
-    // Getters
-    public String getTokenKey() { return tokenKey; }
-    public KisEnvironment getEnvironment() { return environment; }
-    public TokenType getTokenType() { return tokenType; }
-    public String getTokenValue() { return tokenValue; }
-    public LocalDateTime getExpiresAt() { return expiresAt; }
-    public LocalDateTime getIssuedAt() { return issuedAt; }
-    public TokenStatus getStatus() { return status; }
-    public LocalDateTime getLastUpdatedAt() { return lastUpdatedAt; }
-    public Long getVersion() { return version; }
 }

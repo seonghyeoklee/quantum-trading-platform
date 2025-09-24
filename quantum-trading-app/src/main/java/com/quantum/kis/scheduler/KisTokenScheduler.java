@@ -91,21 +91,4 @@ public class KisTokenScheduler {
             log.error("토큰 상태 점검 스케줄 실패", e);
         }
     }
-
-    /**
-     * 애플리케이션 시작 5분 후 초기 토큰을 발급한다.
-     * - initialDelay: 5분 (5 * 60 * 1000 = 300000ms)
-     * - fixedDelay: 실행되지 않음 (Long.MAX_VALUE)
-     */
-    @Scheduled(initialDelay = 300000, fixedDelay = Long.MAX_VALUE)
-    public void initializeTokensOnStartup() {
-        log.info("=== 애플리케이션 시작 시 토큰 초기화 시작 ===");
-
-        try {
-            tokenManager.refreshAllTokens();
-            log.info("=== 애플리케이션 시작 시 토큰 초기화 완료 ===");
-        } catch (Exception e) {
-            log.error("=== 애플리케이션 시작 시 토큰 초기화 실패 ===", e);
-        }
-    }
 }
