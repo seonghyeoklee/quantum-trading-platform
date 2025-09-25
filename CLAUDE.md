@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Technology Stack & Architecture
 
 ### quantum-trading-app (Primary Application)
-- **Backend**: Spring Boot 3.5.6 + Java 25
+- **Backend**: Spring Boot 3.5.6 + Java 21
 - **Frontend**: Thymeleaf templates + Bootstrap 5.3 + Material UI design
 - **Database**: PostgreSQL (primary) + H2 (testing)
 - **Build Tool**: Gradle with Kotlin DSL
@@ -23,9 +23,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Features**: Comprehensive trading analysis, VWAP strategies, sector trading
 
 ### Infrastructure
-- **PostgreSQL**: Shared database for both services
-- **Docker Compose**: Database orchestration
+- **PostgreSQL**: Shared database for both services (port 5432)
+- **Docker Compose**: Database orchestration (quantum-trading-app/docker-compose.yml)
 - **Airflow**: Data pipeline orchestration (legacy/reference)
+- **Web Client**: Next.js frontend (quantum-web-client - minimal structure)
 
 ## Development Commands
 
@@ -64,8 +65,8 @@ docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"
 docker-compose down
 ```
 
-#### Java 25 Compatibility Note
-May encounter `IllegalArgumentException: 25` build errors. Simply retry:
+#### Java 21 Compatibility Note
+May encounter compatibility issues between Gradle Kotlin DSL and Java 21. Simply retry:
 ```bash
 ./gradlew clean
 ./gradlew bootRun  # Usually succeeds on retry
@@ -120,7 +121,9 @@ uv run python test_vwap_backtest.py
 
 ### Database Schema
 
-#### KIS Tokens (Shared)
+PostgreSQL database `quantum_trading` is shared between both applications and contains the following key tables:
+
+#### KIS Tokens (Shared by both services)
 ```sql
 kis_tokens (
     environment VARCHAR(10),    -- PROD/VPS
@@ -148,6 +151,22 @@ dino_finance_results (
 )
 ```
 
+#### Daily Chart Data (Used by both services)
+```sql
+daily_chart_data (
+    id BIGSERIAL PRIMARY KEY,
+    stock_code VARCHAR(10),
+    stck_bsop_date DATE,        -- Business operation date
+    stck_clpr DECIMAL(10,2),    -- Closing price
+    stck_oprc DECIMAL(10,2),    -- Opening price
+    stck_hgpr DECIMAL(10,2),    -- High price
+    stck_lwpr DECIMAL(10,2),    -- Low price
+    acml_vol BIGINT,            -- Volume
+    acml_tr_pbmn DECIMAL(15,2), -- Trading value
+    UNIQUE(stock_code, stck_bsop_date)
+)
+```
+
 ### DINO Analysis System (15-Point Stock Evaluation)
 
 **Implementation**: quantum-trading-app/src/main/java/com/quantum/dino/
@@ -165,7 +184,8 @@ dino_finance_results (
 - **Proactive Renewal**: 1 hour before expiration
 - **Scheduled Maintenance**: Daily refresh (9 AM KST)
 - **Environment Isolation**: Separate PROD/VPS tokens
-- **Cross-Service**: Shared by both applications
+- **Cross-Service**: Shared by both applications via database
+- **Database-First**: quantum-adapter-kis has `db_token_manager.py` for direct PostgreSQL access
 
 ## Configuration
 
@@ -180,6 +200,18 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update  # Auto-schema updates
+```
+
+**quantum-adapter-kis**: Uses same database via `db_token_manager.py`
+```python
+# Database connection details
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "quantum_trading",
+    "user": "quantum",
+    "password": "quantum123"
+}
 ```
 
 ### Secret Management
@@ -236,10 +268,10 @@ When KIS API calls fail or data unavailable:
 
 ## Quick Start Checklist
 
-1. **Prerequisites**: Java 25, Python 3.13+, Docker Desktop
+1. **Prerequisites**: Java 21, Python 3.13+, Docker Desktop
 2. **Database**: `cd quantum-trading-app && docker-compose up -d`
 3. **Secrets**: Verify `application-secrets.yml` exists in resources
-4. **Main App**: `./gradlew bootRun` (retry if Java 25 error)
+4. **Main App**: `./gradlew bootRun` (retry if build error)
 5. **KIS Service**: `cd quantum-adapter-kis && uv sync && uv run python main.py`
 6. **Verify**: Visit `http://localhost:8080/dino` for DINO analysis
 7. **API Test**: `curl http://localhost:8000/health` for KIS service
@@ -290,6 +322,15 @@ python chk_inquire_price.py
 # Test sector trading
 cd quantum-adapter-kis/sector_trading_test
 uv run python test_system.py
+
+# Test database token management
+cd quantum-adapter-kis
+uv run python -c "from db_token_manager import is_db_available; print('DB Available:', is_db_available())"
+
+# Test DINO scoring system
+uv run python test_dino_finance.py 005930
+uv run python test_dino_technical.py 005930
+uv run python test_dino_price.py 005930
 ```
 
 ---

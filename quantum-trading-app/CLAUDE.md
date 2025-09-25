@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Quantum Trading App** is a Spring Boot 3.5.6 application built with Java 25, designed as a web-based admin interface for automated stock trading using Korea Investment & Securities (KIS) Open API. The application features a sophisticated DINO (15-point stock evaluation system) and uses Thymeleaf for server-side rendering with a modern Material UI design system.
+**Quantum Trading App** is a Spring Boot 3.5.6 application built with Java 21, designed as a web-based admin interface for automated stock trading using Korea Investment & Securities (KIS) Open API. The application features a sophisticated DINO (15-point stock evaluation system), backtesting functionality, and uses Thymeleaf for server-side rendering with a modern Material UI design system.
 
 ## Technology Stack
 
-- **Backend**: Spring Boot 3.5.6 + Java 25
+- **Backend**: Spring Boot 3.5.6 + Java 21
 - **Frontend**: Thymeleaf templates + Bootstrap 5.3 + Material UI design principles
 - **Database**: PostgreSQL (primary) + H2 (testing)
 - **Build Tool**: Gradle with Kotlin DSL
@@ -90,6 +90,15 @@ This project specifically requires Java 25. There are known compatibility issues
   - **`service`**: Finance analysis business logic (translates Python algorithms to Java)
   - **`dto`**: Result DTOs for analysis output
   - **`domain`**: JPA entities for storing analysis results
+- **`com.quantum.backtest`**: Backtesting system (Domain-Driven Design + Hexagonal Architecture)
+  - **`domain`**: Core domain objects (Backtest, Trade, BacktestConfig, BacktestResult, PriceData)
+  - **`application/port/in`**: Use case interfaces (RunBacktestUseCase, GetBacktestUseCase, CancelBacktestUseCase)
+  - **`application/port/out`**: Repository abstractions (BacktestRepositoryPort, MarketDataPort)
+  - **`application/service`**: Business logic implementation (BacktestApplicationService)
+  - **`infrastructure/adapter/in/web`**: Web controllers (BacktestController)
+  - **`infrastructure/adapter/out/persistence`**: JPA repository implementations
+  - **`infrastructure/adapter/out/market`**: Market data adapters (MockMarketDataAdapter)
+  - **`infrastructure/persistence`**: JPA entities (BacktestEntity, TradeEntity)
 
 ### Key Architectural Patterns
 
@@ -113,6 +122,15 @@ The KIS token management follows DDD principles:
 - **Scoring Algorithm**: `MAX(0, MIN(5, 2 + individual_scores))` (Python → Java translation)
 - **Daily Analysis**: One analysis per stock per day with result caching
 - **Sample Data**: Samsung Electronics (005930) included for testing
+
+#### Backtesting System (Hexagonal Architecture)
+Complete backtesting engine following DDD + Hexagonal Architecture principles:
+- **Core Domain**: Pure business logic (Backtest aggregate root, Trade value objects)
+- **Application Layer**: Use cases and service orchestration (BacktestApplicationService)
+- **Infrastructure Layer**: Adapters for web, persistence, and market data
+- **Synchronous Execution**: Simplified from async to avoid concurrency issues
+- **Strategy Support**: Currently implements Buy-and-Hold strategy
+- **Result Calculation**: Comprehensive metrics including returns, drawdown, trade statistics
 
 ### Database Schema
 
@@ -141,6 +159,47 @@ dino_finance_results (
     debt_ratio_score INTEGER,       -- ±1 point
     total_score INTEGER,            -- 0-5 final score
     UNIQUE(stock_code, analysis_date)
+)
+```
+
+#### Backtesting Tables
+```sql
+backtests (
+    id VARCHAR(36) PRIMARY KEY,
+    stock_code VARCHAR(10) NOT NULL,
+    stock_name VARCHAR(100),
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    initial_capital DECIMAL(15,2) NOT NULL,
+    strategy_type VARCHAR(255) NOT NULL,
+    status VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT,
+    progress_percentage INTEGER NOT NULL DEFAULT 0,
+    -- Result fields
+    total_return DECIMAL(8,4),
+    annualized_return DECIMAL(8,4),
+    max_drawdown DECIMAL(8,4),
+    total_trades INTEGER,
+    win_trades INTEGER,
+    loss_trades INTEGER,
+    win_rate DECIMAL(8,4),
+    sharpe_ratio DECIMAL(8,4),
+    final_capital DECIMAL(15,2),
+    total_fees DECIMAL(15,2)
+)
+
+trades (
+    id BIGSERIAL PRIMARY KEY,
+    backtest_id VARCHAR(36) NOT NULL REFERENCES backtests(id),
+    trade_timestamp TIMESTAMP NOT NULL,
+    trade_type VARCHAR(255) NOT NULL, -- BUY/SELL
+    price DECIMAL(10,2) NOT NULL,
+    quantity INTEGER NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    reason VARCHAR(500)
 )
 ```
 
@@ -191,11 +250,25 @@ Sensitive KIS API credentials are stored in `application-secrets.yml` (git-ignor
 - `GET /dino`: DINO stock analysis interface (primary feature)
 - `GET /api/kis/tokens/status`: KIS token management status
 
+### Backtesting Routes
+- `GET /backtest`: Backtesting list with pagination
+- `GET /backtest/create`: Backtesting creation form
+- `POST /backtest/create`: Execute new backtest with validation
+- `GET /backtest/{id}`: Backtest detail view with results
+- `POST /backtest/{id}/cancel`: Cancel running backtest
+- `GET /backtest/{id}/progress`: AJAX progress endpoint for real-time updates
+
 ### DINO Analysis
 - **URL**: `http://localhost:8080/dino`
 - **Function**: Displays finance analysis for Samsung Electronics (005930)
 - **Features**: 5-metric scoring system, Material UI interface, real KIS API data
 - **Expected**: Real-time calculation of revenue growth, operating profit, margins, retention rate, debt ratio
+
+### Backtesting System
+- **URL**: `http://localhost:8080/backtest`
+- **Function**: Complete backtesting engine with DDD + Hexagonal Architecture
+- **Features**: Buy-and-Hold strategy, real-time progress tracking, comprehensive results
+- **Expected**: Historical price data simulation, trade execution, performance metrics calculation
 
 ## Development Guidelines
 
@@ -213,25 +286,33 @@ Sensitive KIS API credentials are stored in `application-secrets.yml` (git-ignor
 
 ### Database Operations
 - JPA entities use `ddl-auto: update` for automatic schema evolution
-- Domain objects (KisToken, Token) separate from JPA entities
+- Domain objects (KisToken, Token, Backtest, Trade) separate from JPA entities
 - Repository pattern with domain abstractions
 - PostgreSQL provides persistence; H2 for testing
 
+### Backtesting System Development
+- Follows DDD + Hexagonal Architecture principles
+- Synchronous execution to avoid concurrency issues (simplified from async)
+- Domain layer: Pure business logic with aggregate roots and value objects
+- Application layer: Use cases and orchestration services
+- Infrastructure layer: Adapters for web, persistence, and market data
+- All backtests stored with complete audit trail and trade history
+
 ## Critical Notes
 
-### Java 25 Build Issues
-Gradle may fail with `IllegalArgumentException: 25` - this is a known compatibility issue. Simply retry the build command as it typically succeeds on subsequent attempts.
+### Java 21 Compatibility
+This project uses Java 21. The build system is configured for Java 21 compatibility with Spring Boot 3.5.6.
 
 ### Token Optimization
 The system automatically minimizes KIS API calls through intelligent caching and proactive token renewal. Tokens persist in PostgreSQL and are reused until 1 hour before expiration.
 
 ## Quick Start Checklist
 
-1. **Prerequisites**: Java 25, Docker Desktop running
+1. **Prerequisites**: Java 21, Docker Desktop running
 2. **Database**: `docker-compose up -d` (starts PostgreSQL)
 3. **Secrets**: Verify `application-secrets.yml` exists in resources
-4. **Build**: `./gradlew bootRun` (retry if Java 25 error occurs)
-5. **Access**: Navigate to `http://localhost:8080/dino` for DINO analysis
+4. **Build**: `./gradlew bootRun`
+5. **Access**: Navigate to `http://localhost:8080/dino` for DINO analysis or `http://localhost:8080/backtest` for backtesting
 6. **Verify**: Check database tables with `docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"`
 
 ## Common Development Tasks
@@ -255,4 +336,7 @@ docker-compose down -v && docker-compose up -d
 
 # Check KIS token status via API
 curl -s http://localhost:8080/api/kis/tokens/status | jq .
+
+# Test backtesting endpoints
+curl -s http://localhost:8080/backtest | grep -o 'class=".*"' | head -5
 ```

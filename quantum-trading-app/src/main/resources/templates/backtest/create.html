@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head}">
+    <title>백테스팅 생성</title>
+</head>
+<body data-theme="light">
+    <!-- Header -->
+    <nav th:replace="~{layout :: header}"></nav>
+
+    <!-- Sidebar -->
+    <nav th:replace="~{layout :: sidebar}"></nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Breadcrumb -->
+        <nav th:replace="~{layout :: breadcrumb}"></nav>
+
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">백테스팅 생성</h1>
+                <p class="text-muted mb-0">새로운 백테스팅을 설정하고 실행하세요</p>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="container-fluid">
+                <!-- Error Message -->
+                <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span th:text="${errorMessage}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <!-- Backtest Configuration Form -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="bi bi-gear me-2"></i>
+                                    백테스팅 설정
+                                </h3>
+                            </div>
+                            <form th:action="@{/backtest/create}" method="post" class="needs-validation" novalidate>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Stock Selection -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="stockCode" class="form-label">
+                                                    <i class="bi bi-building me-1"></i>
+                                                    종목코드 *
+                                                </label>
+                                                <input type="text"
+                                                       class="form-control"
+                                                       id="stockCode"
+                                                       name="stockCode"
+                                                       th:value="${stockCode}"
+                                                       placeholder="예: 005930"
+                                                       pattern="[0-9]{6}"
+                                                       required>
+                                                <div class="form-text">6자리 숫자로 입력하세요 (예: 삼성전자 005930)</div>
+                                                <div class="invalid-feedback">
+                                                    올바른 종목코드를 입력해주세요.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Strategy Selection -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="strategyType" class="form-label">
+                                                    <i class="bi bi-cpu me-1"></i>
+                                                    투자전략 *
+                                                </label>
+                                                <select class="form-select"
+                                                        id="strategyType"
+                                                        name="strategyType"
+                                                        required>
+                                                    <option th:each="strategy : ${strategyTypes}"
+                                                            th:value="${strategy}"
+                                                            th:text="${strategy.displayName}"
+                                                            th:selected="${strategy == strategyType}">
+                                                    </option>
+                                                </select>
+                                                <div class="invalid-feedback">
+                                                    투자전략을 선택해주세요.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <!-- Start Date -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="startDate" class="form-label">
+                                                    <i class="bi bi-calendar-event me-1"></i>
+                                                    시작일 *
+                                                </label>
+                                                <input type="date"
+                                                       class="form-control"
+                                                       id="startDate"
+                                                       name="startDate"
+                                                       th:value="${startDate}"
+                                                       required>
+                                                <div class="invalid-feedback">
+                                                    시작일을 선택해주세요.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- End Date -->
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="endDate" class="form-label">
+                                                    <i class="bi bi-calendar-check me-1"></i>
+                                                    종료일 *
+                                                </label>
+                                                <input type="date"
+                                                       class="form-control"
+                                                       id="endDate"
+                                                       name="endDate"
+                                                       th:value="${endDate}"
+                                                       required>
+                                                <div class="invalid-feedback">
+                                                    종료일을 선택해주세요.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Initial Capital -->
+                                    <div class="mb-3">
+                                        <label for="initialCapital" class="form-label">
+                                            <i class="bi bi-cash-coin me-1"></i>
+                                            초기 투자금액 *
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="number"
+                                                   class="form-control"
+                                                   id="initialCapital"
+                                                   name="initialCapital"
+                                                   th:value="${initialCapital}"
+                                                   min="1000000"
+                                                   step="1000000"
+                                                   placeholder="10000000"
+                                                   required>
+                                            <span class="input-group-text">원</span>
+                                        </div>
+                                        <div class="form-text">최소 100만원 이상 입력해주세요.</div>
+                                        <div class="invalid-feedback">
+                                            올바른 투자금액을 입력해주세요.
+                                        </div>
+                                    </div>
+
+                                    <!-- Quick Amount Buttons -->
+                                    <div class="mb-4">
+                                        <small class="text-muted">빠른 선택:</small>
+                                        <div class="btn-group ms-2" role="group">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAmount(1000000)">100만</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAmount(5000000)">500만</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAmount(10000000)">1,000만</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setAmount(50000000)">5,000만</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-footer">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <a href="/backtest" class="btn btn-secondary">
+                                                <i class="bi bi-arrow-left me-1"></i>
+                                                목록으로
+                                            </a>
+                                        </div>
+                                        <div class="col-md-6 text-end">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-play-circle me-1"></i>
+                                                백테스팅 시작
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <!-- Information Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    백테스팅 안내
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="fw-bold">현재 지원 전략</h6>
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success me-1"></i>
+                                        <strong>매수후보유</strong><br>
+                                        <small class="text-muted">시작일에 매수 → 종료일에 매도</small>
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="bi bi-clock text-warning me-1"></i>
+                                        <strong>기타 전략</strong><br>
+                                        <small class="text-muted">개발 예정</small>
+                                    </li>
+                                </ul>
+
+                                <hr>
+
+                                <h6 class="fw-bold">주요 종목코드</h6>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small>
+                                            삼성전자: <code>005930</code><br>
+                                            SK하이닉스: <code>000660</code><br>
+                                            NAVER: <code>035420</code><br>
+                                            LG화학: <code>051910</code>
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small>
+                                            삼성SDI: <code>006400</code><br>
+                                            카카오: <code>035720</code><br>
+                                            LG에너지: <code>373220</code><br>
+                                            삼성바이오: <code>207940</code>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <div class="alert alert-info">
+                                    <i class="bi bi-lightbulb me-1"></i>
+                                    <small>
+                                        <strong>팁:</strong> 백테스팅은 과거 데이터를 기반으로 한 모의 투자입니다.
+                                        실제 투자 결과와 다를 수 있습니다.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer th:replace="~{layout :: footer}"></footer>
+
+    <!-- Scripts -->
+    <div th:replace="~{layout :: scripts}"></div>
+
+    <!-- JavaScript -->
+    <script>
+        // Quick amount selection
+        function setAmount(amount) {
+            document.getElementById('initialCapital').value = amount;
+        }
+
+        // Form validation
+        (function() {
+            'use strict';
+            window.addEventListener('load', function() {
+                var forms = document.getElementsByClassName('needs-validation');
+                var validation = Array.prototype.filter.call(forms, function(form) {
+                    form.addEventListener('submit', function(event) {
+                        if (form.checkValidity() === false) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                        form.classList.add('was-validated');
+                    }, false);
+                });
+            }, false);
+        })();
+
+        // Date validation
+        document.getElementById('endDate').addEventListener('change', function() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = this.value;
+
+            if (startDate && endDate && new Date(startDate) >= new Date(endDate)) {
+                this.setCustomValidity('종료일은 시작일보다 늦어야 합니다.');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+
+        document.getElementById('startDate').addEventListener('change', function() {
+            const endDate = document.getElementById('endDate');
+            endDate.dispatchEvent(new Event('change'));
+        });
+    </script>
+</body>
+</html>

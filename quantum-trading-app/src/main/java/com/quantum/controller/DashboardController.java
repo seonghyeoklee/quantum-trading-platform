@@ -54,16 +54,6 @@ public class DashboardController {
         return "news";
     }
 
-    @GetMapping("/backtest")
-    public String backtest(Model model) {
-        log.info("Loading backtest page");
-
-        model.addAttribute("title", "백테스팅 - 퀀텀 트레이딩");
-        model.addAttribute("breadcrumb", "백테스팅");
-
-        // TODO: 백테스팅 페이지 구현
-        return "backtest";
-    }
 
     @GetMapping("/orders")
     public String orders(Model model) {
