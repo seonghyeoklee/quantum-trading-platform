@@ -53,9 +53,9 @@ docker exec quantum-postgres psql -U quantum -d quantum_trading
 docker-compose down
 ```
 
-### Troubleshooting Java 25 Build Issues
+### Troubleshooting Java 21 Build Issues
 ```bash
-# If build fails with "IllegalArgumentException: 25", retry:
+# If build fails with Gradle Kotlin DSL compatibility issues, retry:
 ./gradlew clean
 ./gradlew bootRun  # Usually succeeds on 2nd-3rd attempt
 ```
@@ -67,9 +67,9 @@ The application uses `application-secrets.yml` for KIS API credentials:
 - **Contents**: Real KIS API keys, account numbers, HTS ID
 - **Import**: Automatically loaded via `spring.config.import` in application.yml
 
-### Java 25 Compatibility Note
+### Java 21 Compatibility Note
 
-This project specifically requires Java 25. There are known compatibility issues with Gradle's Kotlin DSL and Java 25 that may cause build failures with error messages like `IllegalArgumentException: 25`. The project is configured to work with Java 25 despite these issues - persist with the build commands as they typically succeed on subsequent attempts.
+This project uses Java 21 with Spring Boot 3.5.6. There may occasionally be compatibility issues with Gradle's Kotlin DSL that cause build failures. The project is configured to work with Java 21 - persist with the build commands as they typically succeed on subsequent attempts.
 
 ## Architecture Overview
 
