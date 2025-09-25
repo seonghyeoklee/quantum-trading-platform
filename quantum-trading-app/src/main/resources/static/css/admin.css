@@ -274,7 +274,7 @@ h6 { font-size: 1rem; }
 }
 
 .small-box .icon > i {
-  font-size: 70px;
+  font-size: 48px;
   position: absolute;
   right: 15px;
   top: 15px;
@@ -321,16 +321,16 @@ h6 { font-size: 1rem; }
 .small-box.bg-primary {
   background: linear-gradient(135deg, var(--bs-primary) 0%, #4f46e5 100%) !important;
 }
-.small-box.bg-success {
+.small-box.bg-success, .small-box.bg-gradient-success {
   background: linear-gradient(135deg, var(--bs-success) 0%, #059669 100%) !important;
 }
-.small-box.bg-info {
+.small-box.bg-info, .small-box.bg-gradient-info {
   background: linear-gradient(135deg, var(--bs-info) 0%, #0284c7 100%) !important;
 }
-.small-box.bg-warning {
+.small-box.bg-warning, .small-box.bg-gradient-warning {
   background: linear-gradient(135deg, var(--bs-warning) 0%, #d97706 100%) !important;
 }
-.small-box.bg-danger {
+.small-box.bg-danger, .small-box.bg-gradient-danger {
   background: linear-gradient(135deg, var(--bs-danger) 0%, #dc2626 100%) !important;
 }
 

@@ -61,10 +61,10 @@
                                 </h3>
                                 <div class="card-tools">
                                     <span class="badge"
-                                          th:classappend="${backtest.status.name() == 'COMPLETED'} ? 'bg-success' :
-                                                         ${backtest.status.name() == 'RUNNING'} ? 'bg-primary' :
-                                                         ${backtest.status.name() == 'FAILED'} ? 'bg-danger' :
-                                                         ${backtest.status.name() == 'CANCELLED'} ? 'bg-secondary' : 'bg-warning'"
+                                          th:classappend="${backtest.status.name() == 'COMPLETED' ? 'bg-success' :
+                                                           backtest.status.name() == 'RUNNING' ? 'bg-primary' :
+                                                           backtest.status.name() == 'FAILED' ? 'bg-danger' :
+                                                           backtest.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-warning'}"
                                           th:text="${backtest.status.displayName}">
                                     </span>
                                 </div>
@@ -91,7 +91,7 @@
 
                                             <dt class="col-sm-4">기간:</dt>
                                             <dd class="col-sm-8">
-                                                <span th:text="${#temporals.format(backtest.config.startDate, 'yyyy-MM-dd')} + ' ~ ' + ${#temporals.format(backtest.config.endDate, 'yyyy-MM-dd')}"></span>
+                                                <span th:text="${#temporals.format(backtest.config.startDate, 'yyyy-MM-dd') + ' ~ ' + #temporals.format(backtest.config.endDate, 'yyyy-MM-dd')}"></span>
                                             </dd>
                                         </dl>
                                     </div>
@@ -109,8 +109,8 @@
 
                                             <dt class="col-sm-4">완료일:</dt>
                                             <dd class="col-sm-8">
-                                                <span th:if="${backtest.updatedAt != null}" th:text="${#temporals.format(backtest.updatedAt, 'yyyy-MM-dd HH:mm:ss')}"></span>
-                                                <span th:if="${backtest.updatedAt == null}" class="text-muted">-</span>
+                                                <span th:if="${backtest.completedAt != null}" th:text="${#temporals.format(backtest.completedAt, 'yyyy-MM-dd HH:mm:ss')}"></span>
+                                                <span th:if="${backtest.completedAt == null}" class="text-muted">-</span>
                                             </dd>
 
                                             <dt class="col-sm-4" th:if="${backtest.errorMessage != null}">오류:</dt>
@@ -178,37 +178,37 @@
 
                                 <div class="row">
                                     <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-success">
+                                        <div class="small-box bg-gradient-success text-white">
                                             <div class="inner">
-                                                <h3 th:text="${backtest.result.winTrades}"></h3>
-                                                <p>승리 거래</p>
+                                                <h3 class="text-white" th:text="${backtest.result.winTrades}"></h3>
+                                                <p class="text-white">승리 거래</p>
                                             </div>
                                             <div class="icon">
-                                                <i class="bi bi-check-circle"></i>
+                                                <i class="bi bi-check-circle text-white"></i>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-danger">
+                                        <div class="small-box bg-gradient-danger text-white">
                                             <div class="inner">
-                                                <h3 th:text="${backtest.result.lossTrades}"></h3>
-                                                <p>손실 거래</p>
+                                                <h3 class="text-white" th:text="${backtest.result.lossTrades}"></h3>
+                                                <p class="text-white">손실 거래</p>
                                             </div>
                                             <div class="icon">
-                                                <i class="bi bi-x-circle"></i>
+                                                <i class="bi bi-x-circle text-white"></i>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-info">
+                                        <div class="small-box bg-gradient-info text-white">
                                             <div class="inner">
-                                                <h3 th:text="${#numbers.formatDecimal(backtest.result.totalFees, 0, 'COMMA', 0, 'POINT')} + '원'"></h3>
-                                                <p>총 수수료</p>
+                                                <h3 class="text-white" th:text="${#numbers.formatDecimal(backtest.result.totalFees, 0, 'COMMA', 0, 'POINT')} + '원'"></h3>
+                                                <p class="text-white">총 수수료</p>
                                             </div>
                                             <div class="icon">
-                                                <i class="bi bi-receipt"></i>
+                                                <i class="bi bi-receipt text-white"></i>
                                             </div>
                                         </div>
                                     </div>
@@ -220,15 +220,15 @@
                                     <div class="row">
                                         <div class="col-md-6">
                                             <ul class="list-unstyled mb-0">
-                                                <li><strong>초기 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.initialCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
+                                                <li><strong>초기 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.config.initialCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
                                                 <li><strong>최종 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.finalCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
                                             </ul>
                                         </div>
                                         <div class="col-md-6">
                                             <ul class="list-unstyled mb-0">
                                                 <li><strong>순 손익:</strong>
-                                                    <span th:classappend="${profitLoss >= 0} ? 'text-success' : 'text-danger'"
-                                                          th:text="${#numbers.formatDecimal(profitLoss, 0, 'COMMA', 0, 'POINT')} + '원'"></span>
+                                                    <span th:classappend="${backtest.result.getProfitLoss(backtest.config.initialCapital) >= 0} ? 'text-success' : 'text-danger'"
+                                                          th:text="${#numbers.formatDecimal(backtest.result.getProfitLoss(backtest.config.initialCapital), 0, 'COMMA', 0, 'POINT')} + '원'"></span>
                                                 </li>
                                                 <li><strong>연율화 수익률:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.annualizedReturn, 1, 'COMMA', 2, 'POINT')} + '%'"></span></li>
                                             </ul>
@@ -289,12 +289,12 @@
                             </div>
                             <div class="card-body">
                                 <div class="d-grid gap-2">
-                                    <a th:href="@{/backtest/create(stockCode=${backtest.config.stockCode})}"
+                                    <a th:href="@{/backtest/new(stockCode=${backtest.config.stockCode})}"
                                        class="btn btn-outline-primary">
                                         <i class="bi bi-plus-circle me-1"></i>
                                         같은 종목으로 새 백테스팅
                                     </a>
-                                    <a th:href="@{/backtest/create(strategyType=${backtest.config.strategyType})}"
+                                    <a th:href="@{/backtest/new(strategyType=${backtest.config.strategyType})}"
                                        class="btn btn-outline-secondary">
                                         <i class="bi bi-cpu me-1"></i>
                                         같은 전략으로 새 백테스팅
