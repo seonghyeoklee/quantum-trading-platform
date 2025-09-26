@@ -9,8 +9,9 @@ import java.util.Objects;
  * 백테스팅 설정 Value Object
  */
 public record BacktestConfig(
-        String stockCode,               // 종목코드 (예: "005930")
-        String stockName,               // 종목명 (예: "삼성전자")
+        String stockCode,               // 종목코드 (예: "005930", "AAPL")
+        String stockName,               // 종목명 (예: "삼성전자", "Apple Inc.")
+        MarketType marketType,          // 시장 구분 (국내/해외)
         LocalDate startDate,            // 시작일
         LocalDate endDate,              // 종료일
         BigDecimal initialCapital,      // 초기자금
@@ -20,6 +21,7 @@ public record BacktestConfig(
 
     public BacktestConfig {
         Objects.requireNonNull(stockCode, "Stock code cannot be null");
+        Objects.requireNonNull(marketType, "Market type cannot be null");
         Objects.requireNonNull(startDate, "Start date cannot be null");
         Objects.requireNonNull(endDate, "End date cannot be null");
         Objects.requireNonNull(initialCapital, "Initial capital cannot be null");
@@ -57,5 +59,31 @@ public record BacktestConfig(
     @SuppressWarnings("unchecked")
     public <T> T getStrategyParam(String key, T defaultValue) {
         return (T) strategyParams.getOrDefault(key, defaultValue);
+    }
+
+    /**
+     * 종목코드를 보고 시장 구분을 자동 판별하여 BacktestConfig를 생성한다.
+     */
+    public static BacktestConfig createWithAutoDetection(
+            String stockCode, String stockName, LocalDate startDate, LocalDate endDate,
+            BigDecimal initialCapital, StrategyType strategyType, Map<String, Object> strategyParams) {
+
+        MarketType detectedMarketType = MarketType.detectMarketType(stockCode);
+        return new BacktestConfig(stockCode, stockName, detectedMarketType, startDate, endDate,
+                                initialCapital, strategyType, strategyParams);
+    }
+
+    /**
+     * 국내 시장인지 확인
+     */
+    public boolean isDomestic() {
+        return marketType.isDomestic();
+    }
+
+    /**
+     * 해외 시장인지 확인
+     */
+    public boolean isOverseas() {
+        return marketType.isOverseas();
     }
 }

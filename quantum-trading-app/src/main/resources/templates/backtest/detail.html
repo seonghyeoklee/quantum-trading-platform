@@ -52,7 +52,7 @@
 
                 <div class="row">
                     <!-- Basic Information -->
-                    <div class="col-lg-8">
+                    <div class="col-lg-9">
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">
@@ -73,24 +73,24 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <dl class="row">
-                                            <dt class="col-sm-4">ID:</dt>
-                                            <dd class="col-sm-8">
+                                            <dt class="col-sm-3">ID:</dt>
+                                            <dd class="col-sm-9">
                                                 <code th:text="${backtest.id.value}"></code>
                                             </dd>
 
-                                            <dt class="col-sm-4">종목:</dt>
-                                            <dd class="col-sm-8">
+                                            <dt class="col-sm-3">종목:</dt>
+                                            <dd class="col-sm-9">
                                                 <strong th:text="${backtest.config.stockName}"></strong>
                                                 <small class="text-muted" th:text="'(' + ${backtest.config.stockCode} + ')'"></small>
                                             </dd>
 
-                                            <dt class="col-sm-4">전략:</dt>
-                                            <dd class="col-sm-8">
+                                            <dt class="col-sm-3">전략:</dt>
+                                            <dd class="col-sm-9">
                                                 <span class="badge bg-info" th:text="${backtest.config.strategyType.displayName}"></span>
                                             </dd>
 
-                                            <dt class="col-sm-4">기간:</dt>
-                                            <dd class="col-sm-8">
+                                            <dt class="col-sm-3">기간:</dt>
+                                            <dd class="col-sm-9">
                                                 <span th:text="${#temporals.format(backtest.config.startDate, 'yyyy-MM-dd') + ' ~ ' + #temporals.format(backtest.config.endDate, 'yyyy-MM-dd')}"></span>
                                             </dd>
                                         </dl>
@@ -137,110 +137,10 @@
                             </div>
                         </div>
 
-                        <!-- Results -->
-                        <div th:if="${backtest.result != null}" class="card mt-3">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="bi bi-bar-chart me-2"></i>
-                                    백테스팅 결과
-                                </h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-lg-6">
-                                        <div class="info-box">
-                                            <span class="info-box-icon"
-                                                  th:classappend="${backtest.result.totalReturn >= 0} ? 'bg-success' : 'bg-danger'">
-                                                <i th:class="${backtest.result.totalReturn >= 0} ? 'bi bi-trending-up' : 'bi bi-trending-down'"></i>
-                                            </span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">총 수익률</span>
-                                                <span class="info-box-number"
-                                                      th:classappend="${backtest.result.totalReturn >= 0} ? 'text-success' : 'text-danger'"
-                                                      th:text="${#numbers.formatDecimal(backtest.result.totalReturn, 1, 'COMMA', 2, 'POINT')} + '%'">
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-6">
-                                        <div class="info-box">
-                                            <span class="info-box-icon bg-info">
-                                                <i class="bi bi-currency-exchange"></i>
-                                            </span>
-                                            <div class="info-box-content">
-                                                <span class="info-box-text">총 거래 횟수</span>
-                                                <span class="info-box-number" th:text="${backtest.result.totalTrades} + '회'"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-success text-white">
-                                            <div class="inner">
-                                                <h3 class="text-white" th:text="${backtest.result.winTrades}"></h3>
-                                                <p class="text-white">승리 거래</p>
-                                            </div>
-                                            <div class="icon">
-                                                <i class="bi bi-check-circle text-white"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-danger text-white">
-                                            <div class="inner">
-                                                <h3 class="text-white" th:text="${backtest.result.lossTrades}"></h3>
-                                                <p class="text-white">손실 거래</p>
-                                            </div>
-                                            <div class="icon">
-                                                <i class="bi bi-x-circle text-white"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-lg-4">
-                                        <div class="small-box bg-gradient-info text-white">
-                                            <div class="inner">
-                                                <h3 class="text-white" th:text="${#numbers.formatDecimal(backtest.result.totalFees, 0, 'COMMA', 0, 'POINT')} + '원'"></h3>
-                                                <p class="text-white">총 수수료</p>
-                                            </div>
-                                            <div class="icon">
-                                                <i class="bi bi-receipt text-white"></i>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Financial Summary -->
-                                <div class="alert alert-info">
-                                    <h6><i class="bi bi-calculator me-1"></i> 투자 수익 요약</h6>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <ul class="list-unstyled mb-0">
-                                                <li><strong>초기 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.config.initialCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
-                                                <li><strong>최종 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.finalCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
-                                            </ul>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <ul class="list-unstyled mb-0">
-                                                <li><strong>순 손익:</strong>
-                                                    <span th:classappend="${backtest.result.getProfitLoss(backtest.config.initialCapital) >= 0} ? 'text-success' : 'text-danger'"
-                                                          th:text="${#numbers.formatDecimal(backtest.result.getProfitLoss(backtest.config.initialCapital), 0, 'COMMA', 0, 'POINT')} + '원'"></span>
-                                                </li>
-                                                <li><strong>연율화 수익률:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.annualizedReturn, 1, 'COMMA', 2, 'POINT')} + '%'"></span></li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Trade History -->
-                    <div class="col-lg-4">
+                    <div class="col-lg-3">
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">
@@ -248,7 +148,7 @@
                                     거래 내역
                                 </h3>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
                                 <div th:if="${backtest.trades.empty}" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox display-4"></i>
                                     <p class="mt-2">거래 내역이 없습니다</p>
@@ -279,26 +179,244 @@
                             </div>
                         </div>
 
-                        <!-- Quick Actions -->
-                        <div class="card mt-3">
+                    </div>
+                </div>
+
+                <!-- Backtest Results Section (New Full-Width Row) -->
+                <div th:if="${backtest.result != null}" class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">
-                                    <i class="bi bi-lightning me-2"></i>
-                                    빠른 작업
+                                    <i class="bi bi-bar-chart me-2"></i>
+                                    백테스팅 결과
                                 </h3>
                             </div>
                             <div class="card-body">
-                                <div class="d-grid gap-2">
-                                    <a th:href="@{/backtest/new(stockCode=${backtest.config.stockCode})}"
-                                       class="btn btn-outline-primary">
-                                        <i class="bi bi-plus-circle me-1"></i>
-                                        같은 종목으로 새 백테스팅
-                                    </a>
-                                    <a th:href="@{/backtest/new(strategyType=${backtest.config.strategyType})}"
-                                       class="btn btn-outline-secondary">
-                                        <i class="bi bi-cpu me-1"></i>
-                                        같은 전략으로 새 백테스팅
-                                    </a>
+                                <div class="row">
+                                    <div class="col-lg-6">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-body text-center">
+                                                <i th:class="${backtest.result.totalReturn >= 0} ? 'bi bi-arrow-up-circle text-success' : 'bi bi-arrow-down-circle text-danger'" style="font-size: 2.0rem;"></i>
+                                                <h6 class="card-title mt-2">총 수익률</h6>
+                                                <h4 class="card-text fw-bold"
+                                                    th:classappend="${backtest.result.totalReturn >= 0} ? 'text-success' : 'text-danger'"
+                                                    th:text="${#numbers.formatDecimal(backtest.result.totalReturn, 1, 'COMMA', 2, 'POINT')} + '%'">
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-6">
+                                        <div class="card border-0 shadow-sm">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-arrow-repeat text-info" style="font-size: 2.0rem;"></i>
+                                                <h6 class="card-title mt-2">총 거래 횟수</h6>
+                                                <h4 class="card-text fw-bold" th:text="${backtest.result.totalTrades} + '회'"></h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mt-3">
+                                    <div class="col-lg-4">
+                                        <div class="card border-0 bg-success text-white">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-check-circle" style="font-size: 1.5rem;"></i>
+                                                <h5 class="card-title mt-2">승리 거래</h5>
+                                                <h3 class="card-text fw-bold" th:text="${backtest.result.winTrades}"></h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-4">
+                                        <div class="card border-0 bg-danger text-white">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-x-circle" style="font-size: 1.5rem;"></i>
+                                                <h5 class="card-title mt-2">손실 거래</h5>
+                                                <h3 class="card-text fw-bold" th:text="${backtest.result.lossTrades}"></h3>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-4">
+                                        <div class="card border-0 bg-info text-white">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-receipt" style="font-size: 1.5rem;"></i>
+                                                <h5 class="card-title mt-2">총 수수료</h5>
+                                                <h3 class="card-text fw-bold" th:text="${#numbers.formatDecimal(backtest.result.totalFees, 0, 'COMMA', 0, 'POINT')} + '원'"></h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Financial Summary -->
+                                <div class="alert alert-info mt-3">
+                                    <h6><i class="bi bi-calculator me-1"></i> 투자 수익 요약</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <ul class="list-unstyled mb-0">
+                                                <li><strong>초기 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.config.initialCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
+                                                <li><strong>최종 자본:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.finalCapital, 0, 'COMMA', 0, 'POINT')} + '원'"></span></li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <ul class="list-unstyled mb-0">
+                                                <li><strong>순 손익:</strong>
+                                                    <span th:classappend="${backtest.result.getProfitLoss(backtest.config.initialCapital) >= 0} ? 'text-success' : 'text-danger'"
+                                                          th:text="${#numbers.formatDecimal(backtest.result.getProfitLoss(backtest.config.initialCapital), 0, 'COMMA', 0, 'POINT')} + '원'"></span>
+                                                </li>
+                                                <li><strong>연율화 수익률:</strong> <span th:text="${#numbers.formatDecimal(backtest.result.annualizedReturn, 1, 'COMMA', 2, 'POINT')} + '%'"></span></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategy Calculation Logs Section (New Full-Width Row) -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="bi bi-calculator me-2"></i>
+                                    전략 계산 과정
+                                </h3>
+                            </div>
+                            <div class="card-body border-bottom py-3">
+                                <div class="d-flex justify-content-center">
+                                    <div class="btn-group" role="group" aria-label="로그 타입 필터">
+                                        <button type="button" class="btn btn-secondary filter-btn active" onclick="filterLogs('all')" id="filter-all">
+                                            전체
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info filter-btn" onclick="filterLogs('CALCULATION')" id="filter-calculation">
+                                            📊 계산
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning filter-btn" onclick="filterLogs('SIGNAL')" id="filter-signal">
+                                            🎯 신호
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary filter-btn" onclick="filterLogs('DECISION')" id="filter-decision">
+                                            💭 판단
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success filter-btn" onclick="filterLogs('TRADE_EXECUTION')" id="filter-execution">
+                                            💰 체결
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Debug Status Area -->
+                                <div class="text-center py-2">
+                                    <small class="text-muted" id="debug-status">필터 시스템 준비 중...</small>
+                                    <div class="mt-1">
+                                        <span class="badge bg-secondary me-1" id="status-dom">DOM</span>
+                                        <span class="badge bg-secondary me-1" id="status-clicks">클릭</span>
+                                        <span class="badge bg-secondary me-1" id="status-filters">필터</span>
+                                        <span class="badge bg-secondary" id="status-logs">로그</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                                    <div th:if="${strategyLogs == null or strategyLogs.empty}" class="text-center text-muted py-4">
+                                        <i class="bi bi-journal-x display-4"></i>
+                                        <p class="mt-2">계산 과정 로그가 없습니다</p>
+                                        <small class="text-muted">백테스팅 실행 시 계산 과정이 기록됩니다</small>
+                                        <!-- DEBUG INFO -->
+                                        <div style="border: 1px dashed red; padding: 10px; margin: 10px; background: #ffe6e6;">
+                                            <strong>DEBUG:</strong><br/>
+                                            strategyLogs is null: <span th:text="${strategyLogs == null}"></span><br/>
+                                            strategyLogs is empty: <span th:text="${strategyLogs != null ? strategyLogs.empty : 'N/A'}"></span><br/>
+                                            strategyLogs size: <span th:text="${strategyLogs != null ? strategyLogs.size() : 'null'}"></span><br/>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${strategyLogs != null and !strategyLogs.empty}">
+
+                                        <!-- Calculation logs timeline -->
+                                        <div class="timeline">
+                                            <div th:each="log : ${strategyLogs}" class="timeline-item" th:attr="data-log-type=${log.logType.name()}">
+                                                <div class="timeline-marker"
+                                                     th:class="${'timeline-marker ' + (log.logType.name() == 'CALCULATION' ? 'bg-info' :
+                                                                                       log.logType.name() == 'SIGNAL' ? 'bg-warning' :
+                                                                                       log.logType.name() == 'DECISION' ? 'bg-primary' :
+                                                                                       log.logType.name() == 'TRADE_EXECUTION' ? 'bg-success' : 'bg-secondary')}">
+                                                    <span th:text="${log.logType.name() == 'CALCULATION' ? '📊' :
+                                                                         log.logType.name() == 'SIGNAL' ? '🎯' :
+                                                                         log.logType.name() == 'DECISION' ? '💭' :
+                                                                         log.logType.name() == 'TRADE_EXECUTION' ? '💰' : '📝'}"></span>
+                                                </div>
+                                                <div class="timeline-content">
+                                                    <div class="card border-0 shadow-sm">
+                                                        <div class="card-header py-2"
+                                                             th:class="${log.logType.name() == 'CALCULATION' ? 'card-header py-2 bg-info bg-opacity-10' :
+                                                                                    log.logType.name() == 'SIGNAL' ? 'card-header py-2 bg-warning bg-opacity-10' :
+                                                                                    log.logType.name() == 'DECISION' ? 'card-header py-2 bg-primary bg-opacity-10' :
+                                                                                    log.logType.name() == 'TRADE_EXECUTION' ? 'card-header py-2 bg-success bg-opacity-10' : 'card-header py-2 bg-secondary bg-opacity-10'}">
+                                                            <div class="d-flex justify-content-between align-items-center">
+                                                                <small class="fw-bold text-muted">
+                                                                    <span th:text="${#temporals.format(log.tradeDay, 'yyyy-MM-dd')}"></span>
+                                                                    <span class="badge ms-1"
+                                                                          th:class="${log.logType.name() == 'CALCULATION' ? 'badge ms-1 bg-info' :
+                                                                                               log.logType.name() == 'SIGNAL' ? 'badge ms-1 bg-warning' :
+                                                                                               log.logType.name() == 'DECISION' ? 'badge ms-1 bg-primary' :
+                                                                                               log.logType.name() == 'TRADE_EXECUTION' ? 'badge ms-1 bg-success' : 'badge ms-1 bg-secondary'}"
+                                                                          th:text="${log.logType.name() == 'CALCULATION' ? '계산' :
+                                                                                     log.logType.name() == 'SIGNAL' ? '신호' :
+                                                                                     log.logType.name() == 'DECISION' ? '판단' :
+                                                                                     log.logType.name() == 'TRADE_EXECUTION' ? '체결' : '기타'}">
+                                                                    </span>
+                                                                </small>
+                                                                <small class="text-muted">
+                                                                    Step <span th:text="${log.stepSequence}"></span>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="card-body py-2">
+                                                            <div class="log-description mb-3">
+                                                                <div style="font-size: 1.1rem;" th:text="${log.description}"></div>
+                                                            </div>
+
+                                                            <!-- Input Data -->
+                                                            <div th:if="${log.inputDataMap != null and !log.inputDataMap.isEmpty()}" class="mb-3">
+                                                                <div class="text-muted fw-bold mb-1" style="font-size: 0.95rem;">📥 입력 데이터:</div>
+                                                                <div class="ms-3">
+                                                                    <div th:each="entry : ${log.inputDataMap}" style="font-size: 0.9rem; margin-bottom: 4px;">
+                                                                        <code th:text="${entry.key}"></code>:
+                                                                        <span th:text="${entry.value}"></span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Calculation Details -->
+                                                            <div th:if="${log.calculationDetailsMap != null and !log.calculationDetailsMap.isEmpty()}" class="mb-3">
+                                                                <div class="text-muted fw-bold mb-1" style="font-size: 0.95rem;">⚙️ 계산 상세:</div>
+                                                                <div class="ms-3">
+                                                                    <div th:each="entry : ${log.calculationDetailsMap}" style="font-size: 0.9rem; margin-bottom: 4px;">
+                                                                        <code th:text="${entry.key}"></code>:
+                                                                        <span th:text="${entry.value}"></span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Output Result -->
+                                                            <div th:if="${log.outputResultMap != null and !log.outputResultMap.isEmpty()}">
+                                                                <div class="text-muted fw-bold mb-1" style="font-size: 0.95rem;">📤 결과:</div>
+                                                                <div class="ms-3">
+                                                                    <div th:each="entry : ${log.outputResultMap}" style="font-size: 0.9rem; margin-bottom: 4px;">
+                                                                        <code th:text="${entry.key}"></code>:
+                                                                        <strong th:text="${entry.value}"></strong>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -318,6 +436,122 @@
     <form th:if="${backtest.canCancel()}" id="cancelForm" th:action="@{/backtest/{id}/cancel(id=${backtest.id.value})}" method="post" style="display: none;">
     </form>
 
+    <!-- Timeline and Filter Styles -->
+    <style>
+        .timeline {
+            position: relative;
+            padding-left: 3rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 1rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #e9ecef;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            left: -2.5rem;
+            top: 0.5rem;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: white;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .timeline-content {
+            margin-left: 1rem;
+        }
+
+        .timeline-item[data-log-type="CALCULATION"] {
+            border-left: 3px solid #0dcaf0;
+            padding-left: 0.5rem;
+        }
+
+        .timeline-item[data-log-type="SIGNAL"] {
+            border-left: 3px solid #ffc107;
+            padding-left: 0.5rem;
+        }
+
+        .timeline-item[data-log-type="DECISION"] {
+            border-left: 3px solid #0d6efd;
+            padding-left: 0.5rem;
+        }
+
+        .timeline-item[data-log-type="TRADE_EXECUTION"] {
+            border-left: 3px solid #198754;
+            padding-left: 0.5rem;
+        }
+
+        .timeline-item.hidden {
+            display: none;
+        }
+
+        /* Filter button styles - Enhanced with pointer-events */
+        .filter-btn {
+            min-width: 80px !important;
+            padding: 10px 18px !important;
+            margin: 0 2px !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            border-width: 2px !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            position: relative !important;
+            z-index: 1000 !important;
+            display: inline-block !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+            cursor: pointer !important;
+        }
+
+        .filter-btn:active {
+            transform: translateY(0) !important;
+            background-color: rgba(0,0,0,0.1) !important;
+        }
+
+        .filter-btn.active {
+            font-weight: 600 !important;
+            border-width: 2px !important;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2) !important;
+        }
+
+        /* Ensure button group container allows clicks */
+        .btn-group {
+            z-index: 999 !important;
+            position: relative !important;
+        }
+
+        .card-body.border-bottom {
+            position: relative !important;
+            z-index: 998 !important;
+            pointer-events: auto !important;
+        }
+    </style>
+
     <!-- JavaScript -->
     <script>
         function cancelBacktest() {
@@ -326,9 +560,186 @@
             }
         }
 
+        // Update visual status - ensure global scope
+        window.updateStatus = function(elementId, status, success = false) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.className = success ? 'badge bg-success me-1' : 'badge bg-danger me-1';
+                element.textContent = status;
+            }
+        }
+
+        // Strategy log filtering - direct onclick approach with debugging
+        // Ensure function is in global scope
+        window.filterLogs = function(filterType) {
+            console.log('🚀 filterLogs called with:', filterType);
+            updateStatus('debug-status', `필터링 중: ${filterType}`);
+            updateStatus('status-clicks', '클릭됨', true);
+
+            try {
+                // Reset all buttons first
+                console.log('🔄 Resetting all buttons...');
+                const allButtons = ['filter-all', 'filter-calculation', 'filter-signal', 'filter-decision', 'filter-execution'];
+
+                allButtons.forEach(buttonId => {
+                    const btn = document.getElementById(buttonId);
+                    if (btn) {
+                        console.log('✅ Found button:', buttonId);
+                        btn.classList.remove('btn-secondary', 'btn-info', 'btn-warning', 'btn-primary', 'btn-success', 'active');
+
+                        // Set base outline style
+                        if (buttonId === 'filter-all') {
+                            btn.classList.add('btn-outline-secondary');
+                        } else if (buttonId === 'filter-calculation') {
+                            btn.classList.add('btn-outline-info');
+                        } else if (buttonId === 'filter-signal') {
+                            btn.classList.add('btn-outline-warning');
+                        } else if (buttonId === 'filter-decision') {
+                            btn.classList.add('btn-outline-primary');
+                        } else if (buttonId === 'filter-execution') {
+                            btn.classList.add('btn-outline-success');
+                        }
+                    } else {
+                        console.warn('❌ Button not found:', buttonId);
+                    }
+                });
+
+                // Set active button
+                console.log('🎯 Setting active button for filter:', filterType);
+                let activeButtonId = '';
+                let activeClass = '';
+
+                switch(filterType) {
+                    case 'all':
+                        activeButtonId = 'filter-all';
+                        activeClass = 'btn-secondary';
+                        break;
+                    case 'CALCULATION':
+                        activeButtonId = 'filter-calculation';
+                        activeClass = 'btn-info';
+                        break;
+                    case 'SIGNAL':
+                        activeButtonId = 'filter-signal';
+                        activeClass = 'btn-warning';
+                        break;
+                    case 'DECISION':
+                        activeButtonId = 'filter-decision';
+                        activeClass = 'btn-primary';
+                        break;
+                    case 'TRADE_EXECUTION':
+                        activeButtonId = 'filter-execution';
+                        activeClass = 'btn-success';
+                        break;
+                }
+
+                const activeBtn = document.getElementById(activeButtonId);
+                if (activeBtn) {
+                    console.log('✅ Setting active:', activeButtonId, activeClass);
+                    activeBtn.classList.remove('btn-outline-secondary', 'btn-outline-info', 'btn-outline-warning', 'btn-outline-primary', 'btn-outline-success');
+                    activeBtn.classList.add(activeClass, 'active');
+                }
+
+                // Filter timeline items
+                console.log('🔍 Filtering timeline items...');
+                const timelineItems = document.querySelectorAll('.timeline-item');
+                console.log('📋 Found timeline items:', timelineItems.length);
+
+                let visibleCount = 0;
+                timelineItems.forEach((item, index) => {
+                    const itemLogType = item.getAttribute('data-log-type');
+                    console.log(`📄 Item ${index}: logType='${itemLogType}', filter='${filterType}'`);
+
+                    if (filterType === 'all' || itemLogType === filterType) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                        console.log(`✅ Showing item ${index}`);
+                    } else {
+                        item.style.display = 'none';
+                        console.log(`❌ Hiding item ${index}`);
+                    }
+                });
+
+                console.log(`🎉 Filtering complete! Visible: ${visibleCount}/${timelineItems.length}`);
+                updateStatus('status-filters', '완료', true);
+                updateStatus('status-logs', `${visibleCount}개`, true);
+                updateStatus('debug-status', `${filterType} 필터 적용 완료: ${visibleCount}개 표시`);
+
+            } catch (error) {
+                console.error('💥 Error in filterLogs:', error);
+                updateStatus('status-filters', '오류', false);
+                updateStatus('debug-status', '필터링 오류 발생');
+            }
+        }
+
+        // Test function to check if script is loaded
+        function testFilter() {
+            console.log('🧪 Test function called - script is loaded!');
+            filterLogs('all');
+        }
+
+        // Add DOM ready and button click debugging
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎬 DOM Content Loaded - Setting up filters...');
+            updateStatus('status-dom', '로드됨', true);
+            updateStatus('debug-status', 'DOM 로드 완료, 버튼 설정 중...');
+
+            // Find and test all filter buttons
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            console.log('🔍 Found filter buttons:', filterButtons.length);
+
+            if (filterButtons.length === 0) {
+                updateStatus('debug-status', '❌ 필터 버튼을 찾을 수 없음');
+                updateStatus('status-clicks', '없음', false);
+                return;
+            }
+
+            filterButtons.forEach((btn, index) => {
+                console.log(`📋 Button ${index}:`, {
+                    id: btn.id,
+                    className: btn.className,
+                    text: btn.textContent.trim(),
+                    hasOnclick: btn.hasAttribute('onclick'),
+                    onclickValue: btn.getAttribute('onclick')
+                });
+
+                // Add additional event listener for debugging
+                btn.addEventListener('click', function(event) {
+                    console.log('🎯 Direct click listener triggered on:', btn.id);
+                    updateStatus('status-clicks', '감지됨', true);
+                    console.log('🎯 Event details:', {
+                        target: event.target,
+                        currentTarget: event.currentTarget,
+                        type: event.type,
+                        bubbles: event.bubbles
+                    });
+                });
+
+                // Test visual feedback
+                btn.addEventListener('mousedown', function() {
+                    console.log('👇 Mouse down on:', btn.id);
+                    updateStatus('status-clicks', '누름', true);
+                });
+
+                btn.addEventListener('mouseup', function() {
+                    console.log('👆 Mouse up on:', btn.id);
+                });
+            });
+
+            updateStatus('debug-status', `${filterButtons.length}개 버튼 설정 완료`);
+
+            // Test initial state
+            console.log('🔄 Testing initial filter state...');
+            updateStatus('debug-status', '초기 필터 테스트 중...');
+            testFilter();
+        });
+
+        // Log when script loads
+        console.log('📜 Filter script loaded successfully!');
+
+
         // Auto-refresh for running backtests
-        if ([[${backtest.status.name() == 'RUNNING'}]]) {
-            const backtestId = [[${backtest.id.value}]];
+        if ([[ ${backtest.status.name() == 'RUNNING'} ]]) {
+            const backtestId = '[[ ${backtest.id.value} ]]';
 
             function updateProgress() {
                 fetch(`/backtest/${backtestId}/progress`)

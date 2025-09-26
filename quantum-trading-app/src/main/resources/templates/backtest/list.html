@@ -22,7 +22,7 @@
                 <p class="text-muted mb-0">백테스팅 결과를 조회하고 관리하세요</p>
             </div>
             <div>
-                <a th:href="@{/backtest/create}" class="btn btn-primary">
+                <a th:href="@{/backtest/new}" class="btn btn-primary">
                     <i class="bi bi-plus-circle me-1"></i>
                     새 백테스팅
                 </a>
@@ -53,22 +53,23 @@
                         </h3>
                     </div>
                     <div class="card-body">
-                        <div th:if="${backtests.empty}" class="text-center py-5">
+                        <div th:if="${backtests.isEmpty()}" class="text-center py-5">
                             <i class="bi bi-inbox display-1 text-muted"></i>
                             <h4 class="text-muted mt-3">백테스팅 결과가 없습니다</h4>
                             <p class="text-muted">새로운 백테스팅을 생성해보세요.</p>
-                            <a th:href="@{/backtest/create}" class="btn btn-primary">
+                            <a th:href="@{/backtest/new}" class="btn btn-primary">
                                 <i class="bi bi-plus-circle me-1"></i>
                                 첫 번째 백테스팅 시작
                             </a>
                         </div>
 
-                        <div th:if="${!backtests.empty}">
+                        <div th:if="${!backtests.isEmpty()}">
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
                                             <th>ID</th>
+                                            <th>시장</th>
                                             <th>종목</th>
                                             <th>전략</th>
                                             <th>기간</th>
@@ -83,6 +84,12 @@
                                         <tr th:each="backtest : ${backtests.content}">
                                             <td>
                                                 <code th:text="${#strings.substring(backtest.id.value, 0, 8)}"></code>
+                                            </td>
+                                            <td>
+                                                <span class="badge"
+                                                      th:classappend="${backtest.config.marketType.name() == 'DOMESTIC'} ? 'bg-primary' : 'bg-warning'"
+                                                      th:text="${backtest.config.marketType.displayName}">
+                                                </span>
                                             </td>
                                             <td>
                                                 <strong th:text="${backtest.config.stockName}"></strong>
@@ -101,10 +108,10 @@
                                             </td>
                                             <td>
                                                 <span class="badge"
-                                                      th:classappend="${backtest.status.name() == 'COMPLETED'} ? 'bg-success' :
-                                                                     ${backtest.status.name() == 'RUNNING'} ? 'bg-primary' :
-                                                                     ${backtest.status.name() == 'FAILED'} ? 'bg-danger' :
-                                                                     ${backtest.status.name() == 'CANCELLED'} ? 'bg-secondary' : 'bg-warning'"
+                                                      th:classappend="${backtest.status.name() == 'COMPLETED' ? 'bg-success' :
+                                                                       backtest.status.name() == 'RUNNING' ? 'bg-primary' :
+                                                                       backtest.status.name() == 'FAILED' ? 'bg-danger' :
+                                                                       backtest.status.name() == 'CANCELLED' ? 'bg-secondary' : 'bg-warning'}"
                                                       th:text="${backtest.status.displayName}">
                                                 </span>
                                                 <div th:if="${backtest.status.name() == 'RUNNING'}" class="progress mt-1" style="height: 3px;">

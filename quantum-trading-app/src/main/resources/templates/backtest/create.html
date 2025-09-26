@@ -42,7 +42,28 @@
                                     백테스팅 설정
                                 </h3>
                             </div>
-                            <form th:action="@{/backtest/create}" method="post" class="needs-validation" novalidate>
+
+                            <!-- Market Type Selection Tabs -->
+                            <div class="card-body pb-0">
+                                <ul class="nav nav-pills nav-fill mb-4" id="market-tabs">
+                                    <li class="nav-item">
+                                        <button type="button" class="nav-link active" data-market="DOMESTIC">
+                                            <i class="bi bi-flag-fill text-primary me-2"></i>
+                                            국내주식
+                                            <small class="d-block text-muted">삼성전자, LG전자 등</small>
+                                        </button>
+                                    </li>
+                                    <li class="nav-item">
+                                        <button type="button" class="nav-link" data-market="OVERSEAS">
+                                            <i class="bi bi-globe text-success me-2"></i>
+                                            해외주식
+                                            <small class="d-block text-muted">Apple, Tesla 등</small>
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <form th:action="@{/backtest}" method="post" class="needs-validation" novalidate>
                                 <div class="card-body">
                                     <div class="row">
                                         <!-- Stock Selection -->
@@ -60,9 +81,26 @@
                                                        placeholder="예: 005930"
                                                        pattern="[0-9]{6}"
                                                        required>
-                                                <div class="form-text">6자리 숫자로 입력하세요 (예: 삼성전자 005930)</div>
+                                                <div id="stockCodeHelp" class="form-text">6자리 숫자로 입력하세요 (예: 삼성전자 005930)</div>
                                                 <div class="invalid-feedback">
                                                     올바른 종목코드를 입력해주세요.
+                                                </div>
+
+                                                <!-- 인기 종목 바로가기 -->
+                                                <div class="popular-stocks mt-2">
+                                                    <small class="text-muted">인기 종목:</small>
+                                                    <!-- 국내용 -->
+                                                    <div id="domestic-stocks" class="mt-2">
+                                                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="setStock('005930', '삼성전자')">삼성전자</button>
+                                                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="setStock('000660', 'SK하이닉스')">SK하이닉스</button>
+                                                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="setStock('035420', 'NAVER')">NAVER</button>
+                                                    </div>
+                                                    <!-- 해외용 (숨김) -->
+                                                    <div id="overseas-stocks" class="mt-2" style="display:none">
+                                                        <button type="button" class="btn btn-outline-success btn-sm me-2" onclick="setStock('AAPL', 'Apple Inc.')">Apple</button>
+                                                        <button type="button" class="btn btn-outline-success btn-sm me-2" onclick="setStock('TSLA', 'Tesla')">Tesla</button>
+                                                        <button type="button" class="btn btn-outline-success btn-sm me-2" onclick="setStock('NVDA', 'NVIDIA')">NVIDIA</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -258,6 +296,92 @@
 
     <!-- JavaScript -->
     <script>
+        // 현재 선택된 시장 타입
+        let currentMarketType = 'DOMESTIC';
+
+        // 시장 선택 탭 기능
+        document.querySelectorAll('#market-tabs button').forEach(button => {
+            button.addEventListener('click', function() {
+                const marketType = this.dataset.market;
+                switchToMarket(marketType);
+            });
+        });
+
+        // 시장 타입 변경 함수
+        function switchToMarket(marketType) {
+            currentMarketType = marketType;
+
+            // 탭 활성화 상태 변경
+            document.querySelectorAll('#market-tabs button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`#market-tabs button[data-market="${marketType}"]`).classList.add('active');
+
+            // 인기 종목 표시/숨김
+            document.getElementById('domestic-stocks').style.display =
+                marketType === 'DOMESTIC' ? 'block' : 'none';
+            document.getElementById('overseas-stocks').style.display =
+                marketType === 'OVERSEAS' ? 'block' : 'none';
+
+            // 종목코드 입력란 placeholder와 도움말 변경
+            const stockCodeInput = document.getElementById('stockCode');
+            const helpText = document.getElementById('stockCodeHelp');
+
+            if (marketType === 'DOMESTIC') {
+                stockCodeInput.placeholder = '예: 005930';
+                stockCodeInput.pattern = '[0-9]{6}';
+                helpText.textContent = '6자리 숫자로 입력하세요 (예: 삼성전자 005930)';
+            } else {
+                stockCodeInput.placeholder = '예: AAPL';
+                stockCodeInput.pattern = '[A-Za-z]{1,5}';
+                helpText.textContent = '심볼 코드로 입력하세요 (예: Apple AAPL)';
+            }
+
+            // 입력된 종목코드가 있다면 검증
+            if (stockCodeInput.value) {
+                validateStockCode();
+            }
+        }
+
+        // 종목 설정 함수
+        function setStock(stockCode, stockName) {
+            document.getElementById('stockCode').value = stockCode;
+            validateStockCode();
+        }
+
+        // 종목코드 실시간 검증
+        document.getElementById('stockCode').addEventListener('input', validateStockCode);
+
+        function validateStockCode() {
+            const stockCode = document.getElementById('stockCode').value;
+            if (!stockCode) return;
+
+            const isDomestic = /^\d{6}$/.test(stockCode);
+            const isOverseas = /^[A-Za-z]{1,5}$/.test(stockCode);
+
+            if (isDomestic && currentMarketType !== 'DOMESTIC') {
+                switchToMarket('DOMESTIC');
+                showValidation('국내 종목코드로 자동 전환되었습니다', 'success');
+            } else if (isOverseas && currentMarketType !== 'OVERSEAS') {
+                switchToMarket('OVERSEAS');
+                showValidation('해외 종목코드로 자동 전환되었습니다', 'success');
+            }
+        }
+
+        // 검증 메시지 표시
+        function showValidation(message, type = 'info') {
+            const helpText = document.getElementById('stockCodeHelp');
+            const originalText = helpText.textContent;
+
+            helpText.textContent = message;
+            helpText.className = `form-text text-${type}`;
+
+            setTimeout(() => {
+                helpText.textContent = originalText;
+                helpText.className = 'form-text';
+            }, 3000);
+        }
+
         // Quick amount selection
         function setAmount(amount) {
             document.getElementById('initialCapital').value = amount;

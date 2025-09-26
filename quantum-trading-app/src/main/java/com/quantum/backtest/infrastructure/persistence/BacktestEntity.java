@@ -34,6 +34,11 @@ public class BacktestEntity {
     @Column(name = "stock_name", length = 100)
     private String stockName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "market_type", nullable = false)
+    @Builder.Default
+    private MarketType marketType = MarketType.DOMESTIC;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -110,6 +115,11 @@ public class BacktestEntity {
     @Builder.Default
     private List<TradeEntity> trades = new ArrayList<>();
 
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "backtest_id", referencedColumnName = "backtest_uuid")
+    @Builder.Default
+    private List<StrategyExecutionLogEntity> strategyLogs = new ArrayList<>();
+
     /**
      * 도메인 객체로부터 엔티티를 생성한다.
      */
@@ -120,6 +130,7 @@ public class BacktestEntity {
         entity.backtestUuid = backtest.getId().value();
         entity.stockCode = backtest.getConfig().stockCode();
         entity.stockName = backtest.getConfig().stockName();
+        entity.marketType = backtest.getConfig().marketType();
         entity.startDate = backtest.getConfig().startDate();
         entity.endDate = backtest.getConfig().endDate();
         entity.initialCapital = backtest.getConfig().initialCapital();
@@ -161,6 +172,7 @@ public class BacktestEntity {
         BacktestConfig config = new BacktestConfig(
                 stockCode,
                 stockName,
+                marketType,
                 startDate,
                 endDate,
                 initialCapital,

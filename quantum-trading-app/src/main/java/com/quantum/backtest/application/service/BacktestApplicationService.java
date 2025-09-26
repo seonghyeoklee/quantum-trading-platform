@@ -6,6 +6,12 @@ import com.quantum.backtest.application.port.in.RunBacktestUseCase;
 import com.quantum.backtest.application.port.out.BacktestRepositoryPort;
 import com.quantum.backtest.application.port.out.MarketDataPort;
 import com.quantum.backtest.domain.*;
+import com.quantum.backtest.domain.strategy.StrategyCalculationLog;
+import com.quantum.backtest.domain.strategy.StrategyContext;
+import com.quantum.backtest.domain.strategy.TradingStrategy;
+import com.quantum.backtest.infrastructure.adapter.out.strategy.StrategyFactory;
+import com.quantum.backtest.infrastructure.persistence.JpaStrategyExecutionLogRepository;
+import com.quantum.backtest.infrastructure.persistence.StrategyExecutionLogEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -13,10 +19,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,10 +35,17 @@ public class BacktestApplicationService implements
 
     private final BacktestRepositoryPort repositoryPort;
     private final MarketDataPort marketDataPort;
+    private final StrategyFactory strategyFactory;
+    private final JpaStrategyExecutionLogRepository strategyLogRepository;
+
     public BacktestApplicationService(BacktestRepositoryPort repositoryPort,
-                                    MarketDataPort marketDataPort) {
+                                    MarketDataPort marketDataPort,
+                                    StrategyFactory strategyFactory,
+                                    JpaStrategyExecutionLogRepository strategyLogRepository) {
         this.repositoryPort = repositoryPort;
         this.marketDataPort = marketDataPort;
+        this.strategyFactory = strategyFactory;
+        this.strategyLogRepository = strategyLogRepository;
     }
 
     @Override
@@ -96,123 +105,75 @@ public class BacktestApplicationService implements
             log.info("주가 데이터 조회 완료: {} 건", priceHistory.size());
 
             // 3. 전략에 따른 백테스팅 실행
-            BacktestResult result = runStrategy(config, priceHistory, backtest);
+            BacktestResult result = executeStrategy(config, priceHistory, backtest);
 
             // 4. 백테스팅 완료 처리
             backtest.complete(result);
 
-            log.info("백테스팅 실행 완료: {} - 총 수익률 {}%",
-                    backtestId, result.totalReturn());
+            // 5. 성공 시 즉시 저장
+            try {
+                repositoryPort.save(backtest);
+                log.info("백테스팅 실행 및 저장 완료: {} - 총 수익률 {}%",
+                        backtestId, result.totalReturn());
+            } catch (Exception saveException) {
+                log.error("백테스팅 완료 후 저장 실패: {} - 예외 타입: {}, 메시지: {}",
+                         backtestId, saveException.getClass().getSimpleName(),
+                         saveException.getMessage(), saveException);
+            }
 
         } catch (Exception e) {
             log.error("백테스팅 실행 중 오류 발생: {} - {}", backtestId, e.getMessage(), e);
 
-            // 예외 발생 시 실패 상태로 설정
+            // 예외 발생 시 실패 상태로 설정 및 저장
             if (backtest != null && backtest.isRunning()) {
                 backtest.fail(e.getMessage());
-            }
-        } finally {
-            // 성공/실패에 상관없이 최종 상태를 저장
-            if (backtest != null) {
                 try {
                     repositoryPort.save(backtest);
-                    log.debug("백테스팅 최종 상태 저장 완료: {} - {}", backtestId, backtest.getStatus());
+                    log.debug("백테스팅 실패 상태 저장 완료: {} - {}", backtestId, backtest.getStatus());
                 } catch (Exception saveException) {
-                    log.error("백테스팅 최종 상태 저장 실패: {} - {}", backtestId, saveException.getMessage());
+                    log.error("백테스팅 실패 상태 저장 실패: {} - 예외 타입: {}, 메시지: {}",
+                             backtestId, saveException.getClass().getSimpleName(),
+                             saveException.getMessage(), saveException);
                 }
             }
         }
     }
 
     /**
-     * 전략에 따른 백테스팅을 실행한다.
+     * Strategy Pattern을 사용한 전략 실행
      */
-    private BacktestResult runStrategy(BacktestConfig config, List<PriceData> priceHistory, Backtest backtest) {
+    private BacktestResult executeStrategy(BacktestConfig config, List<PriceData> priceHistory, Backtest backtest) {
         log.info("전략 실행 시작: {} - {}", config.strategyType(), config.stockCode());
 
-        // 현재는 매수후보유 전략만 구현
-        if (config.strategyType() == StrategyType.BUY_AND_HOLD) {
-            return runBuyAndHoldStrategy(config, priceHistory, backtest);
-        } else {
-            throw new UnsupportedOperationException("아직 지원하지 않는 전략입니다: " + config.strategyType());
-        }
-    }
+        // StrategyFactory에서 해당 전략 구현체를 가져와서 실행
+        TradingStrategy strategy = strategyFactory.getStrategy(config.strategyType());
+        StrategyContext context = StrategyContext.from(backtest);
 
-    /**
-     * 매수후보유 전략 실행
-     */
-    private BacktestResult runBuyAndHoldStrategy(BacktestConfig config, List<PriceData> priceHistory, Backtest backtest) {
-        BigDecimal currentCapital = config.initialCapital();
-        List<Trade> trades = new ArrayList<>();
-        int totalDays = priceHistory.size();
+        // 전략 실행
+        BacktestResult result = strategy.execute(context, priceHistory);
 
-        // 첫 거래일에 전량 매수
-        PriceData firstDay = priceHistory.get(0);
-        BigDecimal buyPrice = firstDay.close();
-        int quantity = currentCapital.divide(buyPrice, RoundingMode.DOWN).intValue();
-        BigDecimal buyAmount = buyPrice.multiply(BigDecimal.valueOf(quantity));
-
-        Trade buyTrade = Trade.create(
-                firstDay.date().atStartOfDay(),
-                TradeType.BUY,
-                buyPrice,
-                quantity,
-                "매수후보유 전략 - 초기 매수"
-        );
-        trades.add(buyTrade);
-        backtest.addTrade(buyTrade);
-
-        currentCapital = currentCapital.subtract(buyTrade.getActualAmount());
-
-        // 진행률 업데이트 (저장은 최소화)
-        for (int i = 0; i < totalDays; i++) {
-            int progress = (i + 1) * 100 / totalDays;
-            backtest.updateProgress(progress);
-
-            // Progress updates only stored in memory during execution
-            // Final progress will be saved at completion
-            log.debug("백테스팅 진행률: {}%", progress);
-        }
-
-        // 마지막 거래일에 전량 매도
-        PriceData lastDay = priceHistory.get(totalDays - 1);
-        BigDecimal sellPrice = lastDay.close();
-        BigDecimal sellAmount = sellPrice.multiply(BigDecimal.valueOf(quantity));
-
-        Trade sellTrade = Trade.create(
-                lastDay.date().atTime(15, 30), // 장 마감 시간
-                TradeType.SELL,
-                sellPrice,
-                quantity,
-                "매수후보유 전략 - 최종 매도"
-        );
-        trades.add(sellTrade);
-        backtest.addTrade(sellTrade);
-
-        currentCapital = currentCapital.add(sellTrade.getActualAmount());
-
-        // 결과 계산
-        BacktestResult.Builder resultBuilder = new BacktestResult.Builder()
-                .initialCapital(config.initialCapital())
-                .finalCapital(currentCapital)
-                .periodYears(config.getPeriodYears())
-                .totalTrades(2) // 매수 1회, 매도 1회
-                .totalFees(buyTrade.getActualAmount().subtract(buyTrade.amount())
-                        .add(sellTrade.amount().subtract(sellTrade.getActualAmount())));
-
-        // 수익성 판단
-        if (currentCapital.compareTo(config.initialCapital()) > 0) {
-            resultBuilder.winTrades(1).lossTrades(0);
-        } else {
-            resultBuilder.winTrades(0).lossTrades(1);
-        }
-
-        BacktestResult result = resultBuilder.build();
-        log.info("매수후보유 전략 완료 - 초기자금: {}, 최종자금: {}, 수익률: {}%",
-                config.initialCapital(), currentCapital, result.totalReturn());
+        // 전략 실행 로그 저장
+        saveStrategyExecutionLogs(backtest.getId(), context);
 
         return result;
     }
+
+    /**
+     * 전략 실행 로그 저장
+     */
+    private void saveStrategyExecutionLogs(BacktestId backtestId, StrategyContext context) {
+        try {
+            for (StrategyCalculationLog calculationLog : context.calculationLogs()) {
+                StrategyExecutionLogEntity logEntity = StrategyExecutionLogEntity.from(calculationLog, backtestId.value());
+                strategyLogRepository.save(logEntity);
+            }
+
+            log.info("전략 실행 로그 저장 완료: {} ({} 개)", backtestId, context.calculationLogs().size());
+        } catch (Exception e) {
+            log.error("전략 실행 로그 저장 실패: {} - {}", backtestId, e.getMessage(), e);
+        }
+    }
+
 
     @Override
     public Optional<Backtest> getBacktest(BacktestId id) {

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head}">
+    <title>토큰 관리</title>
+</head>
+<body data-theme="light">
+    <!-- Header -->
+    <nav th:replace="~{layout :: header}"></nav>
+
+    <!-- Sidebar -->
+    <nav th:replace="~{layout :: sidebar}"></nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Breadcrumb -->
+        <nav th:replace="~{layout :: breadcrumb}"></nav>
+
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">KIS 토큰 관리</h1>
+                <p class="text-muted mb-0">KIS API 토큰 상태를 확인하고 재발급할 수 있습니다</p>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="container-fluid">
+            <!-- Error/Success Messages -->
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <span th:text="${errorMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-2"></i>
+                <span th:text="${successMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div class="row">
+                <!-- 실전투자 (PROD) -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title d-flex align-items-center">
+                                <i class="bi bi-shield-check me-2 text-danger"></i>
+                                실전투자 환경
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${prodTokens.isEmpty()}" class="text-center py-3">
+                                <i class="bi bi-exclamation-circle display-4 text-muted"></i>
+                                <p class="text-muted mt-2">실전투자 토큰이 없습니다</p>
+                            </div>
+
+                            <div th:if="${!prodTokens.isEmpty()}">
+                                <div th:each="entry : ${prodTokens.entrySet()}" class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1" th:text="${entry.value.tokenType == T(com.quantum.kis.domain.TokenType).ACCESS_TOKEN ? '액세스 토큰' : '웹소켓 키'}">토큰 타입</h6>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge me-2"
+                                                      th:classappend="${entry.value.isValid} ? (${entry.value.isExpiringSoon()} ? 'bg-warning' : 'bg-success') : 'bg-danger'"
+                                                      th:text="${entry.value.isValid} ? (${entry.value.isExpiringSoon()} ? '곧 만료' : '정상') : '만료됨'">
+                                                </span>
+                                            </div>
+                                            <div th:if="${entry.value.isValid}" class="small text-muted">
+                                                <div><strong>발급시간:</strong> <span th:text="${#temporals.format(entry.value.issuedAt, 'yyyy-MM-dd HH:mm:ss')}"></span></div>
+                                                <div><strong>만료시간:</strong> <span th:text="${#temporals.format(entry.value.expiresAt, 'yyyy-MM-dd HH:mm:ss')}"></span></div>
+                                                <div><strong>토큰값:</strong> <code class="small" th:text="${#strings.substring(entry.value.token, 0, 20)} + '...'"></code></div>
+                                            </div>
+                                        </div>
+                                        <div class="ms-3">
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    onclick="refreshToken(this, 'PROD', 'access-token')"
+                                                    th:if="${entry.value.tokenType.name() == 'ACCESS_TOKEN'}">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                                재발급
+                                            </button>
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    onclick="refreshToken(this, 'PROD', 'websocket-key')"
+                                                    th:if="${entry.value.tokenType.name() == 'WEBSOCKET_KEY'}">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                                재발급
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 모의투자 (VPS) -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title d-flex align-items-center">
+                                <i class="bi bi-shield me-2 text-primary"></i>
+                                모의투자 환경
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${vpsTokens.isEmpty()}" class="text-center py-3">
+                                <i class="bi bi-exclamation-circle display-4 text-muted"></i>
+                                <p class="text-muted mt-2">모의투자 토큰이 없습니다</p>
+                            </div>
+
+                            <div th:if="${!vpsTokens.isEmpty()}">
+                                <div th:each="entry : ${vpsTokens.entrySet()}" class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1" th:text="${entry.value.tokenType == T(com.quantum.kis.domain.TokenType).ACCESS_TOKEN ? '액세스 토큰' : '웹소켓 키'}">토큰 타입</h6>
+                                            <div class="d-flex align-items-center mb-2">
+                                                <span class="badge me-2"
+                                                      th:classappend="${entry.value.isValid} ? (${entry.value.isExpiringSoon()} ? 'bg-warning' : 'bg-success') : 'bg-danger'"
+                                                      th:text="${entry.value.isValid} ? (${entry.value.isExpiringSoon()} ? '곧 만료' : '정상') : '만료됨'">
+                                                </span>
+                                            </div>
+                                            <div th:if="${entry.value.isValid}" class="small text-muted">
+                                                <div><strong>발급시간:</strong> <span th:text="${#temporals.format(entry.value.issuedAt, 'yyyy-MM-dd HH:mm:ss')}"></span></div>
+                                                <div><strong>만료시간:</strong> <span th:text="${#temporals.format(entry.value.expiresAt, 'yyyy-MM-dd HH:mm:ss')}"></span></div>
+                                                <div><strong>토큰값:</strong> <code class="small" th:text="${#strings.substring(entry.value.token, 0, 20)} + '...'"></code></div>
+                                            </div>
+                                        </div>
+                                        <div class="ms-3">
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    onclick="refreshToken(this, 'VPS', 'access-token')"
+                                                    th:if="${entry.value.tokenType.name() == 'ACCESS_TOKEN'}">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                                재발급
+                                            </button>
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    onclick="refreshToken(this, 'VPS', 'websocket-key')"
+                                                    th:if="${entry.value.tokenType.name() == 'WEBSOCKET_KEY'}">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                                재발급
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 전체 토큰 재발급 -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <h5 class="card-title text-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                전체 토큰 재발급
+                            </h5>
+                            <p class="card-text">모든 환경의 모든 토큰을 한번에 재발급합니다. 주의해서 사용하세요.</p>
+                            <button class="btn btn-warning" onclick="refreshAllTokens()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                모든 토큰 재발급
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 자동 새로고침 설정 -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">자동 새로고침</h6>
+                                    <small class="text-muted">토큰 상태를 주기적으로 업데이트합니다</small>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                                    <label class="form-check-label" for="autoRefresh">활성화</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer th:replace="~{layout :: footer}"></footer>
+
+    <!-- Scripts -->
+    <div th:replace="~{layout :: scripts}"></div>
+
+    <!-- Token Management Scripts -->
+    <script>
+        let autoRefreshInterval;
+
+        /**
+         * 토큰 재발급
+         */
+        function refreshToken(button, environment, tokenType) {
+            const originalHtml = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>재발급 중...';
+            button.disabled = true;
+
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/tokens/refresh/${tokenType}`;
+
+            const envInput = document.createElement('input');
+            envInput.type = 'hidden';
+            envInput.name = 'environment';
+            envInput.value = environment;
+            form.appendChild(envInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        /**
+         * 모든 토큰 재발급
+         */
+        function refreshAllTokens() {
+            if (confirm('정말로 모든 토큰을 재발급하시겠습니까?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/tokens/refresh/all';
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        /**
+         * 자동 새로고침 토글
+         */
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+
+            if (checkbox.checked) {
+                autoRefreshInterval = setInterval(() => {
+                    window.location.reload();
+                }, 30000); // 30초마다 새로고침
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                }
+            }
+        }
+
+        // 스피너 CSS 추가
+        const style = document.createElement('style');
+        style.textContent = `
+            .spin {
+                animation: spin 1s linear infinite;
+            }
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

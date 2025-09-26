@@ -27,8 +27,8 @@ public class KisTokenRepositoryAdapter implements KisTokenRepositoryPort {
     @Override
     public Optional<KisToken> findById(KisTokenId id) {
         return jpaRepository.findByEnvironmentAndTokenType(
-                id.environment().name(),
-                id.tokenType().name()
+                id.environment(),
+                id.tokenType()
         ).map(KisTokenEntity::toDomain);
     }
 
@@ -48,7 +48,7 @@ public class KisTokenRepositoryAdapter implements KisTokenRepositoryPort {
 
     @Override
     public List<KisToken> findByEnvironment(KisEnvironment environment) {
-        return jpaRepository.findByEnvironment(environment.name()).stream()
+        return jpaRepository.findByEnvironment(environment).stream()
                 .map(KisTokenEntity::toDomain)
                 .toList();
     }

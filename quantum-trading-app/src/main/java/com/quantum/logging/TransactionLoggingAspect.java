@@ -16,7 +16,7 @@ import java.util.UUID;
  * @Transactional이 적용된 메서드의 시작/종료를 로깅합니다.
  */
 @Aspect
-@Component
+// @Component  // 트랜잭션 로깅 비활성화
 public class TransactionLoggingAspect {
 
     private static final Logger log = LoggerFactory.getLogger("com.quantum.logging.TransactionLogger");

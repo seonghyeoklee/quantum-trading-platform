@@ -4,6 +4,7 @@ import com.quantum.backtest.application.port.out.MarketDataPort;
 import com.quantum.backtest.domain.PriceData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -16,10 +17,10 @@ import java.util.Random;
 
 /**
  * Mock 시장 데이터 어댑터
- * 개발 및 테스트용 임시 구현체
- * TODO: 실제 KIS API 연동으로 교체 필요
+ * 테스트 환경에서 사용되는 구현체
  */
 @Component
+@Profile("test")
 public class MockMarketDataAdapter implements MarketDataPort {
 
     private static final Logger log = LoggerFactory.getLogger(MockMarketDataAdapter.class);

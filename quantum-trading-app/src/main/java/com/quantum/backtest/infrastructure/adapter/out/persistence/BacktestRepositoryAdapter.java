@@ -4,13 +4,19 @@ import com.quantum.backtest.application.port.out.BacktestRepositoryPort;
 import com.quantum.backtest.domain.Backtest;
 import com.quantum.backtest.domain.BacktestId;
 import com.quantum.backtest.domain.BacktestResult;
+import com.quantum.backtest.domain.strategy.StrategyCalculationLog;
+import com.quantum.backtest.domain.strategy.StrategyContext;
 import com.quantum.backtest.infrastructure.persistence.BacktestEntity;
 import com.quantum.backtest.infrastructure.persistence.JpaBacktestRepository;
+import com.quantum.backtest.infrastructure.persistence.JpaStrategyExecutionLogRepository;
+import com.quantum.backtest.infrastructure.persistence.StrategyExecutionLogEntity;
 import com.quantum.backtest.infrastructure.persistence.TradeEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -21,9 +27,12 @@ import java.util.Optional;
 public class BacktestRepositoryAdapter implements BacktestRepositoryPort {
 
     private final JpaBacktestRepository jpaRepository;
+    private final JpaStrategyExecutionLogRepository strategyLogRepository;
 
-    public BacktestRepositoryAdapter(JpaBacktestRepository jpaRepository) {
+    public BacktestRepositoryAdapter(JpaBacktestRepository jpaRepository,
+                                   JpaStrategyExecutionLogRepository strategyLogRepository) {
         this.jpaRepository = jpaRepository;
+        this.strategyLogRepository = strategyLogRepository;
     }
 
     @Override
@@ -72,11 +81,20 @@ public class BacktestRepositoryAdapter implements BacktestRepositoryPort {
             existingEntity.setTotalFees(result.totalFees());
         }
 
-        // 거래 내역은 기존 것을 유지하고 새것만 추가 (현재는 단순화)
-        existingEntity.getTrades().clear();
-        backtest.getTrades().forEach(trade -> {
-            existingEntity.getTrades().add(TradeEntity.from(trade, existingEntity));
-        });
+        // 거래 내역 업데이트 (JPA 컬렉션 안전하게 처리)
+        try {
+            existingEntity.getTrades().clear();
+            backtest.getTrades().forEach(trade -> {
+                existingEntity.getTrades().add(TradeEntity.from(trade, existingEntity));
+            });
+        } catch (UnsupportedOperationException e) {
+            // JPA 컬렉션이 수정 불가능한 경우, 새로운 컬렉션으로 설정
+            List<TradeEntity> newTrades = new ArrayList<>();
+            backtest.getTrades().forEach(trade -> {
+                newTrades.add(TradeEntity.from(trade, existingEntity));
+            });
+            existingEntity.setTrades(newTrades);
+        }
     }
 
 

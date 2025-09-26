@@ -4,6 +4,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import com.quantum.kis.domain.KisEnvironment;
+import com.quantum.kis.domain.TokenType;
 import com.quantum.kis.domain.token.TokenStatus;
 
 import java.time.LocalDateTime;
@@ -19,12 +21,12 @@ public interface JpaKisTokenRepository extends JpaRepository<KisTokenEntity, Str
     /**
      * 환경과 토큰 타입으로 토큰 조회 (KisTokenRepositoryAdapter용)
      */
-    Optional<KisTokenEntity> findByEnvironmentAndTokenType(String environment, String tokenType);
+    Optional<KisTokenEntity> findByEnvironmentAndTokenType(KisEnvironment environment, TokenType tokenType);
 
     /**
      * 특정 환경의 모든 토큰 조회 (KisTokenRepositoryAdapter용)
      */
-    List<KisTokenEntity> findByEnvironment(String environment);
+    List<KisTokenEntity> findByEnvironment(KisEnvironment environment);
 
     /**
      * 활성 상태의 토큰들 조회

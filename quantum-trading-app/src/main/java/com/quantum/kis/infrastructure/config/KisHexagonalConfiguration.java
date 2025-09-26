@@ -1,6 +1,7 @@
 package com.quantum.kis.infrastructure.config;
 
 import com.quantum.kis.application.port.out.KisApiPort;
+import com.quantum.kis.application.port.out.KisTokenRepositoryPort;
 import com.quantum.kis.application.port.out.NotificationPort;
 import com.quantum.kis.infrastructure.adapter.out.kis.KisApiAdapter;
 import com.quantum.kis.infrastructure.adapter.out.notification.LoggingNotificationAdapter;
@@ -21,8 +22,9 @@ public class KisHexagonalConfiguration {
      * KIS API 포트 구현체 빈 등록
      */
     @Bean
-    public KisApiPort kisApiPort(RestClient restClient, KisConfig config, ObjectMapper objectMapper) {
-        return new KisApiAdapter(restClient, config, objectMapper);
+    public KisApiPort kisApiPort(RestClient restClient, KisConfig config, ObjectMapper objectMapper,
+                               KisTokenRepositoryPort kisTokenRepositoryPort) {
+        return new KisApiAdapter(restClient, config, objectMapper, kisTokenRepositoryPort);
     }
 
 

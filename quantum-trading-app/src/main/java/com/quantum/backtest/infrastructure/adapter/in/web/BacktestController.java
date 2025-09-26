@@ -5,6 +5,8 @@ import com.quantum.backtest.application.port.in.GetBacktestUseCase;
 import com.quantum.backtest.application.port.in.RunBacktestUseCase;
 import com.quantum.backtest.application.port.out.MarketDataPort;
 import com.quantum.backtest.domain.*;
+import com.quantum.backtest.infrastructure.persistence.JpaStrategyExecutionLogRepository;
+import com.quantum.backtest.infrastructure.persistence.StrategyExecutionLogEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -18,6 +20,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -35,15 +38,18 @@ public class BacktestController {
     private final GetBacktestUseCase getBacktestUseCase;
     private final CancelBacktestUseCase cancelBacktestUseCase;
     private final MarketDataPort marketDataPort;
+    private final JpaStrategyExecutionLogRepository strategyLogRepository;
 
     public BacktestController(RunBacktestUseCase runBacktestUseCase,
                             GetBacktestUseCase getBacktestUseCase,
                             CancelBacktestUseCase cancelBacktestUseCase,
-                            MarketDataPort marketDataPort) {
+                            MarketDataPort marketDataPort,
+                            JpaStrategyExecutionLogRepository strategyLogRepository) {
         this.runBacktestUseCase = runBacktestUseCase;
         this.getBacktestUseCase = getBacktestUseCase;
         this.cancelBacktestUseCase = cancelBacktestUseCase;
         this.marketDataPort = marketDataPort;
+        this.strategyLogRepository = strategyLogRepository;
     }
 
     /**
@@ -69,9 +75,9 @@ public class BacktestController {
     /**
      * 백테스팅 생성 폼
      */
-    @GetMapping("/create")
-    public String createForm(Model model) {
-        log.info("백테스팅 생성 폼 접근");
+    @GetMapping("/new")
+    public String newBacktest(Model model) {
+        log.info("🟢 GET /backtest/new - 백테스팅 생성 폼 접근");
 
         // 전략 타입 목록
         model.addAttribute("strategyTypes", StrategyType.values());
@@ -90,7 +96,7 @@ public class BacktestController {
     /**
      * 백테스팅 실행
      */
-    @PostMapping("/create")
+    @PostMapping
     public String createBacktest(@RequestParam String stockCode,
                                @RequestParam String startDate,
                                @RequestParam String endDate,
@@ -98,7 +104,7 @@ public class BacktestController {
                                @RequestParam StrategyType strategyType,
                                RedirectAttributes redirectAttributes,
                                Model model) {
-        log.info("백테스팅 생성 요청 - 종목: {}, 기간: {} ~ {}, 전략: {}",
+        log.info("🔴 POST /backtest - 백테스팅 생성 요청 - 종목: {}, 기간: {} ~ {}, 전략: {}",
                 stockCode, startDate, endDate, strategyType);
 
         try {
@@ -121,8 +127,8 @@ public class BacktestController {
 
             String stockName = marketDataPort.getStockName(stockCode);
 
-            // 백테스팅 설정 생성
-            BacktestConfig config = new BacktestConfig(
+            // 백테스팅 설정 생성 (시장 구분 자동 감지)
+            BacktestConfig config = BacktestConfig.createWithAutoDetection(
                     stockCode,
                     stockName,
                     start,
@@ -182,6 +188,13 @@ public class BacktestController {
                 model.addAttribute("profitLoss", result.getProfitLoss(backtest.getConfig().initialCapital()));
                 model.addAttribute("isProfitable", result.isProfitable());
             }
+
+            // 전략 실행 로그 조회 (올바른 백테스트 UUID 사용)
+            List<StrategyExecutionLogEntity> strategyLogs =
+                strategyLogRepository.findByBacktestIdOrderByTimestampAscStepSequenceAsc(backtest.getId().value());
+            model.addAttribute("strategyLogs", strategyLogs);
+
+            log.info("백테스팅 상세 조회 완료: {} (로그 {}개)", id, strategyLogs.size());
 
             return "backtest/detail";
 
