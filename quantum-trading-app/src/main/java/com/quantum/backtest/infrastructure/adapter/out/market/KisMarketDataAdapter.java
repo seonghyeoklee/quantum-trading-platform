@@ -2,9 +2,8 @@ package com.quantum.backtest.infrastructure.adapter.out.market;
 
 import com.quantum.backtest.application.port.out.MarketDataPort;
 import com.quantum.backtest.domain.PriceData;
-import com.quantum.kis.application.port.out.KisApiPort;
-import com.quantum.kis.domain.KisEnvironment;
-import com.quantum.kis.dto.ChartDataResponse;
+import com.quantum.shared.MarketDataDto;
+import com.quantum.shared.MarketDataService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -22,7 +21,7 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * 실제 KIS API를 사용하는 시장 데이터 어댑터
+ * 시장 데이터 서비스를 사용하는 시장 데이터 어댑터
  * MockMarketDataAdapter를 대체하는 실제 구현체
  */
 @Component
@@ -32,44 +31,39 @@ public class KisMarketDataAdapter implements MarketDataPort {
 
     private static final Logger log = LoggerFactory.getLogger(KisMarketDataAdapter.class);
 
-    private final KisApiPort kisApiPort;
+    private final MarketDataService marketDataService;
 
-    public KisMarketDataAdapter(KisApiPort kisApiPort) {
-        this.kisApiPort = kisApiPort;
+    public KisMarketDataAdapter(MarketDataService marketDataService) {
+        this.marketDataService = marketDataService;
     }
 
     @Override
     public List<PriceData> getPriceHistory(String stockCode, LocalDate startDate, LocalDate endDate) {
-        log.info("KIS API 주가 데이터 조회: {} ({} ~ {})", stockCode, startDate, endDate);
+        log.info("시장 데이터 주가 조회: {} ({} ~ {})", stockCode, startDate, endDate);
 
         try {
-            // KIS API 호출
-            ChartDataResponse response = kisApiPort.getDailyChartData(
-                    KisEnvironment.PROD, // TODO: 환경 설정 가능하도록 개선
-                    stockCode,
-                    startDate,
-                    endDate
-            );
+            // 시장 데이터 서비스 호출
+            MarketDataDto.ChartResponse response = marketDataService.getDailyChartData(stockCode, startDate, endDate);
 
             // 응답 검증
-            if (response == null || !response.isSuccess()) {
-                log.warn("KIS API 호출 실패 - Mock 데이터로 폴백: {}", response != null ? response.message() : "null response");
+            if (response == null || !response.success()) {
+                log.warn("시장 데이터 조회 실패 - Mock 데이터로 폴백: {}", response != null ? response.message() : "null response");
                 return generateMockPriceHistory(stockCode, startDate, endDate);
             }
 
-            if (response.output2() == null || response.output2().isEmpty()) {
+            if (response.dailyPrices() == null || response.dailyPrices().isEmpty()) {
                 log.warn("차트 데이터가 없습니다 - Mock 데이터로 폴백: {}", stockCode);
                 return generateMockPriceHistory(stockCode, startDate, endDate);
             }
 
-            // KIS API 응답을 PriceData로 변환
-            List<PriceData> priceHistory = convertToPriceData(response.output2());
+            // 시장 데이터 응답을 PriceData로 변환
+            List<PriceData> priceHistory = convertToPriceData(response.dailyPrices());
 
-            log.info("KIS API 주가 데이터 조회 완료: {} 건", priceHistory.size());
+            log.info("시장 데이터 주가 조회 완료: {} 건", priceHistory.size());
             return priceHistory;
 
         } catch (Exception e) {
-            log.warn("KIS API 주가 데이터 조회 실패 - Mock 데이터로 폴백: {} - {}", stockCode, e.getMessage());
+            log.warn("시장 데이터 주가 조회 실패 - Mock 데이터로 폴백: {} - {}", stockCode, e.getMessage());
             // API 실패 시 Mock 데이터 생성하여 반환
             return generateMockPriceHistory(stockCode, startDate, endDate);
         }
@@ -83,75 +77,36 @@ public class KisMarketDataAdapter implements MarketDataPort {
 
     @Override
     public boolean isValidStock(String stockCode) {
-        // 기본적인 종목코드 형식 검증
-        if (stockCode == null || stockCode.length() != 6) {
-            return false;
-        }
-
-        try {
-            // 실제 검증을 위해 최근 1일 데이터 조회 시도
-            LocalDate today = LocalDate.now();
-            LocalDate yesterday = today.minusDays(1);
-
-            List<PriceData> testData = getPriceHistory(stockCode, yesterday, today);
-            boolean isValid = !testData.isEmpty();
-
-            log.debug("종목코드 유효성 검증: {} -> {}", stockCode, isValid);
-            return isValid;
-
-        } catch (Exception e) {
-            log.debug("종목코드 유효성 검증 실패: {} - {}", stockCode, e.getMessage());
-            return false;
-        }
+        return marketDataService.isValidStock(stockCode);
     }
 
     @Override
     public String getStockName(String stockCode) {
-        try {
-            // 최근 1일 데이터로 종목명 조회
-            LocalDate today = LocalDate.now();
-            ChartDataResponse response = kisApiPort.getDailyChartData(
-                    KisEnvironment.PROD,
-                    stockCode,
-                    today.minusDays(1),
-                    today
-            );
-
-            if (response != null && response.isSuccess() && response.output1() != null) {
-                String stockName = response.output1().htsKorIsnm();
-                log.debug("종목명 조회: {} -> {}", stockCode, stockName);
-                return stockName != null ? stockName : stockCode;
-            }
-
-        } catch (Exception e) {
-            log.debug("종목명 조회 실패: {} - {}", stockCode, e.getMessage());
-        }
-
-        return stockCode; // 조회 실패 시 종목코드 반환
+        return marketDataService.getStockName(stockCode);
     }
 
     /**
-     * KIS API 응답을 PriceData 리스트로 변환한다.
+     * 시장 데이터 DTO를 PriceData 리스트로 변환한다.
      */
-    private List<PriceData> convertToPriceData(List<ChartDataResponse.Output2> output2List) {
+    private List<PriceData> convertToPriceData(List<MarketDataDto.DailyPrice> dailyPrices) {
         List<PriceData> priceDataList = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-        for (ChartDataResponse.Output2 output2 : output2List) {
+        for (MarketDataDto.DailyPrice dailyPrice : dailyPrices) {
             try {
-                LocalDate date = LocalDate.parse(output2.stckBsopDate(), formatter);
-                BigDecimal open = new BigDecimal(output2.stckOprc());
-                BigDecimal high = new BigDecimal(output2.stckHgpr());
-                BigDecimal low = new BigDecimal(output2.stckLwpr());
-                BigDecimal close = new BigDecimal(output2.stckClpr());
-                long volume = Long.parseLong(output2.acmlVol());
+                LocalDate date = LocalDate.parse(dailyPrice.date(), formatter);
+                BigDecimal open = new BigDecimal(dailyPrice.openPrice());
+                BigDecimal high = new BigDecimal(dailyPrice.highPrice());
+                BigDecimal low = new BigDecimal(dailyPrice.lowPrice());
+                BigDecimal close = new BigDecimal(dailyPrice.closePrice());
+                long volume = Long.parseLong(dailyPrice.volume());
 
                 PriceData priceData = new PriceData(date, open, high, low, close, volume);
                 priceDataList.add(priceData);
 
             } catch (Exception e) {
                 log.warn("가격 데이터 변환 실패 - 날짜: {}, 오류: {}",
-                        output2.stckBsopDate(), e.getMessage());
+                        dailyPrice.date(), e.getMessage());
             }
         }
 
