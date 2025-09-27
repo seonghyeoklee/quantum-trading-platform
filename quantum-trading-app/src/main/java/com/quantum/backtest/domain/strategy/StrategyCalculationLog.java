@@ -1,8 +1,5 @@
 package com.quantum.backtest.domain.strategy;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -23,7 +20,6 @@ public record StrategyCalculationLog(
         Map<String, Object> outputResult
 ) {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 로그 타입 열거형
@@ -128,36 +124,24 @@ public record StrategyCalculationLog(
     }
 
     /**
-     * JSON 형태로 직렬화된 input data 반환
+     * 입력 데이터의 간단한 문자열 표현 반환
      */
-    public String getInputDataAsJson() {
-        try {
-            return objectMapper.writeValueAsString(inputData);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
+    public String getInputDataAsString() {
+        return inputData != null ? inputData.toString() : "{}";
     }
 
     /**
-     * JSON 형태로 직렬화된 calculation details 반환
+     * 계산 세부사항의 간단한 문자열 표현 반환
      */
-    public String getCalculationDetailsAsJson() {
-        try {
-            return objectMapper.writeValueAsString(calculationDetails);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
+    public String getCalculationDetailsAsString() {
+        return calculationDetails != null ? calculationDetails.toString() : "{}";
     }
 
     /**
-     * JSON 형태로 직렬화된 output result 반환
+     * 출력 결과의 간단한 문자열 표현 반환
      */
-    public String getOutputResultAsJson() {
-        try {
-            return objectMapper.writeValueAsString(outputResult);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
+    public String getOutputResultAsString() {
+        return outputResult != null ? outputResult.toString() : "{}";
     }
 
     /**

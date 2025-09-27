@@ -79,9 +79,9 @@ public class StrategyExecutionLogEntity {
                 .strategyType(log.strategyType())
                 .stepSequence(log.stepSequence())
                 .description(log.description())
-                .inputData(log.getInputDataAsJson())
-                .calculationDetails(log.getCalculationDetailsAsJson())
-                .outputResult(log.getOutputResultAsJson())
+                .inputData(mapToJson(log.inputData()))
+                .calculationDetails(mapToJson(log.calculationDetails()))
+                .outputResult(mapToJson(log.outputResult()))
                 .build();
     }
 
@@ -104,6 +104,21 @@ public class StrategyExecutionLogEntity {
                 calculationDetailsMap,
                 outputResultMap
         );
+    }
+
+    /**
+     * Map을 JSON 문자열로 변환
+     */
+    private static String mapToJson(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            return "{}";
+        }
     }
 
     /**
