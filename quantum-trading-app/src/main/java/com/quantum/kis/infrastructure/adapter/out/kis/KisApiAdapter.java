@@ -9,6 +9,8 @@ import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.domain.TokenType;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.ChartDataResponse;
+import com.quantum.kis.dto.KisTokenRequest;
+import com.quantum.kis.dto.KisWebSocketRequest;
 import com.quantum.kis.dto.WebSocketKeyResponse;
 import com.quantum.kis.exception.KisApiException;
 import org.slf4j.Logger;
@@ -106,7 +108,8 @@ public class KisApiAdapter implements KisApiPort {
     @SuppressWarnings("unchecked")
     private <T> T issueToken(KisEnvironment environment, TokenType tokenType) {
         String url = config.getRestApiUrl(environment) + tokenType.getEndpoint();
-        Object request = tokenType.createRequest(environment, config);
+        Object request = createRequest(environment, tokenType);
+        Class<?> responseType = getResponseType(tokenType);
 
         try {
             var response = restClient.post()
@@ -117,7 +120,7 @@ public class KisApiAdapter implements KisApiPort {
                     .header("User-Agent", config.getMyAgent())
                     .body(request)
                     .retrieve()
-                    .body(tokenType.getResponseType());
+                    .body(responseType);
 
             // curl 로깅
             logCurlCommand(url, request);
@@ -183,6 +186,34 @@ public class KisApiAdapter implements KisApiPort {
             } catch (Exception e) {
                 log.debug("Curl 로깅 실패: {}", e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 토큰 타입별로 요청 객체를 생성한다.
+     */
+    private Object createRequest(KisEnvironment environment, TokenType tokenType) {
+        switch (tokenType) {
+            case ACCESS_TOKEN:
+                return KisTokenRequest.of(environment, config);
+            case WEBSOCKET_KEY:
+                return KisWebSocketRequest.of(environment, config);
+            default:
+                throw new IllegalArgumentException("Unknown token type: " + tokenType);
+        }
+    }
+
+    /**
+     * 토큰 타입별로 응답 타입을 반환한다.
+     */
+    private Class<?> getResponseType(TokenType tokenType) {
+        switch (tokenType) {
+            case ACCESS_TOKEN:
+                return AccessTokenResponse.class;
+            case WEBSOCKET_KEY:
+                return WebSocketKeyResponse.class;
+            default:
+                throw new IllegalArgumentException("Unknown token type: " + tokenType);
         }
     }
 }
