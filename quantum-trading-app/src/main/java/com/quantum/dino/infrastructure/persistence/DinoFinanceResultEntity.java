@@ -1,12 +1,20 @@
 package com.quantum.dino.infrastructure.persistence;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quantum.dino.dto.CalculationStep;
 import com.quantum.dino.dto.DinoFinanceResult;
 import jakarta.persistence.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * DINO 재무 분석 결과 JPA 엔티티
@@ -18,6 +26,9 @@ import java.time.LocalDateTime;
        uniqueConstraints = @UniqueConstraint(columnNames = {"stock_code", "analysis_date"}))
 @EntityListeners(AuditingEntityListener.class)
 public class DinoFinanceResultEntity {
+
+    private static final Logger log = LoggerFactory.getLogger(DinoFinanceResultEntity.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -103,6 +114,13 @@ public class DinoFinanceResultEntity {
     @Column(name = "analysis_date", nullable = false)
     private LocalDateTime analysisDate;
 
+    // 계산 과정 저장 (JSON 형태)
+    @Column(name = "calculation_steps_json", columnDefinition = "TEXT")
+    private String calculationStepsJson;
+
+    @Column(name = "final_calculation", columnDefinition = "TEXT")
+    private String finalCalculation;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -143,6 +161,10 @@ public class DinoFinanceResultEntity {
         entity.previousPeriod = result.previousPeriod();
         entity.analysisDate = result.analyzedAt();
 
+        // 계산 과정 JSON 저장
+        entity.calculationStepsJson = entity.serializeCalculationSteps(result.calculationSteps());
+        entity.finalCalculation = result.finalCalculation();
+
         return entity;
     }
 
@@ -173,5 +195,32 @@ public class DinoFinanceResultEntity {
     public String getCurrentPeriod() { return currentPeriod; }
     public String getPreviousPeriod() { return previousPeriod; }
     public LocalDateTime getAnalysisDate() { return analysisDate; }
+    public String getCalculationStepsJson() { return calculationStepsJson; }
+    public String getFinalCalculation() { return finalCalculation; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+
+    // 계산 과정 JSON 직렬화/역직렬화 메서드
+    private String serializeCalculationSteps(List<CalculationStep> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(steps);
+        } catch (JsonProcessingException e) {
+            log.warn("계산 과정 JSON 직렬화 실패: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public List<CalculationStep> deserializeCalculationSteps() {
+        if (calculationStepsJson == null || calculationStepsJson.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(calculationStepsJson, new TypeReference<List<CalculationStep>>() {});
+        } catch (JsonProcessingException e) {
+            log.warn("계산 과정 JSON 역직렬화 실패: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
 }

@@ -1,6 +1,6 @@
 package com.quantum.dino.repository;
 
-import com.quantum.dino.domain.DinoFinanceResultEntity;
+import com.quantum.dino.infrastructure.persistence.DinoFinanceResultEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
