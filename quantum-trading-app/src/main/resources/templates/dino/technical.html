@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head}">
+    <title th:text="${pageTitle ?: 'DINO 기술 분석'}">DINO 기술 분석</title>
+</head>
+<body data-theme="light">
+    <!-- Header -->
+    <nav th:replace="~{layout :: header}"></nav>
+
+    <!-- Sidebar -->
+    <nav th:replace="~{layout :: sidebar}"></nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Breadcrumb -->
+        <nav th:replace="~{layout :: breadcrumb}"></nav>
+
+        <!-- Page Content -->
+        <div class="content-wrapper">
+            <div class="container-fluid">
+                <!-- Page Header -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="h2 mb-1">
+                                    <i class="bi bi-bar-chart-line text-info me-2"></i>
+                                    DINO 기술 분석
+                                </h1>
+                                <p class="text-muted mb-0">4가지 기술지표로 주가 패턴을 5점 만점으로 분석합니다</p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="/dino" class="btn btn-outline-primary">
+                                    <i class="bi bi-calculator me-1"></i>
+                                    재무 분석
+                                </a>
+                                <a href="/dino/history" class="btn btn-outline-secondary">
+                                    <i class="bi bi-clock-history me-1"></i>
+                                    분석 히스토리
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Messages -->
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <span th:text="${successMessage}">성공 메시지</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span th:text="${errorMessage}">오류 메시지</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <!-- Analysis Form -->
+                <div class="row mb-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-search me-2"></i>
+                                    기술 분석
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form th:action="@{/dino/technical/analyze}" method="post">
+                                    <div class="mb-3">
+                                        <label for="stockCode" class="form-label">종목코드</label>
+                                        <div class="input-group">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   id="stockCode"
+                                                   name="stockCode"
+                                                   placeholder="예: 005930 (삼성전자)"
+                                                   maxlength="6"
+                                                   pattern="[0-9]{6}"
+                                                   required>
+                                            <button type="submit" class="btn btn-info">
+                                                <i class="bi bi-graph-up me-1"></i>
+                                                기술 분석
+                                            </button>
+                                        </div>
+                                        <div class="form-text">6자리 종목코드를 입력해주세요 (예: 005930)</div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    기술 분석이란?
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">주가 차트와 거래량을 분석하여 향후 주가 움직임을 예측하는 시스템입니다.</p>
+                                <ul class="list-unstyled mb-0">
+                                    <li><i class="bi bi-check text-info me-2"></i><strong>OBV 분석:</strong> 거래량과 주가의 상관관계</li>
+                                    <li><i class="bi bi-check text-info me-2"></i><strong>RSI 지표:</strong> 과매수/과매도 상태 판단</li>
+                                    <li><i class="bi bi-check text-info me-2"></i><strong>Stochastic:</strong> 투자 심리와 매매 신호</li>
+                                    <li><i class="bi bi-check text-info me-2"></i><strong>MACD 분석:</strong> 단기/장기 추세 변화</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Analysis Results -->
+                <div th:if="${result != null}" class="row">
+                    <div class="col-12">
+                        <!-- Overall Score Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-graph-up-arrow me-2"></i>
+                                    기술 분석 결과
+                                </h5>
+                                <span class="badge fs-6 px-3 py-2"
+                                      th:class="${result.totalScore >= 4} ? 'bg-success' : (${result.totalScore >= 2} ? 'bg-warning text-dark' : 'bg-danger')"
+                                      th:text="'등급: ' + ${result.technicalGrade}">등급: A+</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <h2 class="display-4 mb-0" th:text="${result.companyName}">회사명</h2>
+                                        <p class="text-muted mb-0" th:text="'종목코드: ' + ${result.stockCode}">종목코드</p>
+                                    </div>
+                                    <div class="col-md-6 text-md-end">
+                                        <div class="d-flex align-items-center justify-content-md-end">
+                                            <div class="score-circle me-3"
+                                                 th:class="${result.totalScore >= 4} ? 'score-excellent' : (${result.totalScore >= 2} ? 'score-good' : 'score-poor')">
+                                                <span class="score-number" th:text="${result.totalScore}">5</span>
+                                                <span class="score-max">/5</span>
+                                            </div>
+                                            <div>
+                                                <div class="fs-5 fw-bold">기술 점수</div>
+                                                <small class="text-muted" th:text="'분석일: ' + ${#temporals.format(result.analysisDateTime, 'MM-dd HH:mm')}">분석일</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Technical Summary -->
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="alert"
+                                             th:class="${result.totalScore >= 4} ? 'alert-success' : (${result.totalScore >= 2} ? 'alert-warning' : 'alert-danger')">
+                                            <h6 class="mb-1">기술적 분석 종합 의견</h6>
+                                            <p class="mb-0" th:text="${result.technicalSummary}">종합 의견이 여기 표시됩니다</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Indicators Scores -->
+                        <div class="row g-3 mb-4">
+                            <!-- OBV Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 technical-card">
+                                    <div class="card-body text-center">
+                                        <div class="technical-icon mb-3">
+                                            <i class="bi bi-bar-chart display-4"
+                                               th:class="${result.obvScore > 0} ? 'text-success' : (${result.obvScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">OBV 분석</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.obvScore > 0} ? 'badge bg-success' : (${result.obvScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.obvScore} + '점'">+1점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.obvSignal}">거래량 분석 신호</p>
+                                        <p class="small" th:if="${result.obvValue != null}">
+                                            현재값: <span th:text="${#numbers.formatDecimal(result.obvValue, 0, 0)}">1,234,567</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RSI Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 technical-card">
+                                    <div class="card-body text-center">
+                                        <div class="technical-icon mb-3">
+                                            <i class="bi bi-speedometer2 display-4"
+                                               th:class="${result.rsiScore > 0} ? 'text-success' : (${result.rsiScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">RSI 지표</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.rsiScore > 0} ? 'badge bg-success' : (${result.rsiScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.rsiScore} + '점'">0점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.rsiSignal}">RSI 신호</p>
+                                        <p class="small" th:if="${result.currentRSI != null}">
+                                            RSI(14): <span th:text="${#numbers.formatDecimal(result.currentRSI, 1, 1)}">65.3</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Stochastic Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 technical-card">
+                                    <div class="card-body text-center">
+                                        <div class="technical-icon mb-3">
+                                            <i class="bi bi-graph-down-arrow display-4"
+                                               th:class="${result.stochasticScore > 0} ? 'text-success' : (${result.stochasticScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">Stochastic</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.stochasticScore > 0} ? 'badge bg-success' : (${result.stochasticScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.stochasticScore} + '점'">+1점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.stochasticSignal}">Stochastic 신호</p>
+                                        <p class="small" th:if="${result.stochasticValue != null}">
+                                            %K: <span th:text="${#numbers.formatDecimal(result.stochasticValue, 1, 1)}">78.9</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- MACD Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 technical-card">
+                                    <div class="card-body text-center">
+                                        <div class="technical-icon mb-3">
+                                            <i class="bi bi-arrows-expand display-4"
+                                               th:class="${result.macdScore > 0} ? 'text-success' : (${result.macdScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">MACD 분석</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.macdScore > 0} ? 'badge bg-success' : (${result.macdScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.macdScore} + '점'">+1점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.macdSignal}">MACD 신호</p>
+                                        <p class="small" th:if="${result.macdValue != null}">
+                                            MACD: <span th:text="${#numbers.formatDecimal(result.macdValue, 1, 2)}">1.25</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Indicators Details -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-graph-up me-2"></i>
+                                    기술 지표 상세 정보
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-info mb-3">거래량 및 추세 지표</h6>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>OBV 분석</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.obvSignal}">거래량 신호</span>
+                                                <div class="small text-muted" th:if="${result.obvValue != null}">
+                                                    현재 OBV: <span th:text="${#numbers.formatDecimal(result.obvValue, 0, 0)}">1,234,567,890</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>MACD 분석</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.macdSignal}">MACD 신호</span>
+                                                <div class="small text-muted" th:if="${result.macdValue != null}">
+                                                    MACD 값: <span th:text="${#numbers.formatDecimal(result.macdValue, 1, 3)}">1.250</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-warning mb-3">모멘텀 지표</h6>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>RSI(14)</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.rsiSignal}">RSI 신호</span>
+                                                <div class="small text-muted" th:if="${result.currentRSI != null}">
+                                                    현재 RSI: <span th:text="${#numbers.formatDecimal(result.currentRSI, 1, 1)}">65.3</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>Stochastic</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.stochasticSignal}">Stochastic 신호</span>
+                                                <div class="small text-muted" th:if="${result.stochasticValue != null}">
+                                                    %K 값: <span th:text="${#numbers.formatDecimal(result.stochasticValue, 1, 1)}">78.9</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-muted small mt-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    기술 분석은 과거 가격과 거래량 데이터를 기반으로 한 참고 자료입니다. 투자 판단 시 다른 요소들도 함께 고려해주세요.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer th:replace="~{layout :: footer}"></footer>
+
+    <!-- Scripts -->
+    <div th:replace="~{layout :: scripts}"></div>
+
+    <style>
+        /* 기술 분석 전용 스타일 */
+        .technical-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0, 123, 255, 0.1);
+        }
+
+        .technical-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .technical-icon {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .score-circle.score-excellent {
+            background: linear-gradient(135deg, #17a2b8, #20c997);
+            color: white;
+        }
+
+        .score-circle.score-good {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+            color: #212529;
+        }
+
+        .score-circle.score-poor {
+            background: linear-gradient(135deg, #dc3545, #e83e8c);
+            color: white;
+        }
+
+        .score-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .score-max {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .score-badge {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
+        }
+
+        /* 기술 지표별 색상 구분 */
+        .card-header.bg-info {
+            background: linear-gradient(135deg, #17a2b8, #20c997) !important;
+        }
+
+        /* 호버 효과 강화 */
+        .btn-info:hover {
+            background: linear-gradient(135deg, #138496, #1e7e34);
+            border-color: #138496;
+        }
+    </style>
+</body>
+</html>

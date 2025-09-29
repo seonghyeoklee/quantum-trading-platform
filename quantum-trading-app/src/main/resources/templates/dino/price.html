@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head}">
+    <title th:text="${pageTitle ?: 'DINO 가격 분석'}">DINO 가격 분석</title>
+</head>
+<body data-theme="light">
+    <!-- Header -->
+    <nav th:replace="~{layout :: header}"></nav>
+
+    <!-- Sidebar -->
+    <nav th:replace="~{layout :: sidebar}"></nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Breadcrumb -->
+        <nav th:replace="~{layout :: breadcrumb}"></nav>
+
+        <!-- Page Content -->
+        <div class="content-wrapper">
+            <div class="container-fluid">
+                <!-- Page Header -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="h2 mb-1">
+                                    <i class="bi bi-graph-up text-success me-2"></i>
+                                    DINO 가격 분석
+                                </h1>
+                                <p class="text-muted mb-0">가격 트렌드, 모멘텀, 변동성 등을 5점 만점으로 분석합니다</p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="/dino" class="btn btn-outline-primary">
+                                    <i class="bi bi-calculator me-1"></i>
+                                    재무 분석
+                                </a>
+                                <a href="/dino/technical" class="btn btn-outline-info">
+                                    <i class="bi bi-graph-up me-1"></i>
+                                    기술 분석
+                                </a>
+                                <a href="/dino/material" class="btn btn-outline-warning">
+                                    <i class="bi bi-newspaper me-1"></i>
+                                    재료 분석
+                                </a>
+                                <a href="/dino/history" class="btn btn-outline-secondary">
+                                    <i class="bi bi-clock-history me-1"></i>
+                                    분석 히스토리
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Messages -->
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <span th:text="${successMessage}">성공 메시지</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span th:text="${errorMessage}">오류 메시지</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <!-- Analysis Form -->
+                <div class="row mb-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-search me-2"></i>
+                                    가격 분석
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form th:action="@{/dino/price/analyze}" method="post">
+                                    <div class="mb-3">
+                                        <label for="stockCode" class="form-label">종목코드</label>
+                                        <div class="input-group">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   id="stockCode"
+                                                   name="stockCode"
+                                                   placeholder="예: 005930 (삼성전자)"
+                                                   maxlength="6"
+                                                   pattern="[0-9]{6}"
+                                                   required>
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="bi bi-graph-up me-1"></i>
+                                                가격 분석
+                                            </button>
+                                        </div>
+                                        <div class="form-text">6자리 종목코드를 입력해주세요 (예: 005930)</div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    가격 분석이란?
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">주가 움직임과 패턴을 분석하여 가격 동향을 종합적으로 평가합니다.</p>
+                                <ul class="list-unstyled mb-0">
+                                    <li><i class="bi bi-check text-success me-2"></i><strong>가격 트렌드:</strong> 상승/하락 추세 및 강도 분석 (2점)</li>
+                                    <li><i class="bi bi-check text-success me-2"></i><strong>모멘텀 분석:</strong> 가격 변화의 속도와 지속성 (1점)</li>
+                                    <li><i class="bi bi-check text-success me-2"></i><strong>변동성 분석:</strong> 가격 변동의 크기와 안정성 (1점)</li>
+                                    <li><i class="bi bi-check text-success me-2"></i><strong>지지/저항:</strong> 주요 가격 지지선과 저항선 (1점)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Analysis Results -->
+                <div th:if="${result != null}" class="row">
+                    <div class="col-12">
+                        <!-- Overall Score Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-graph-up me-2"></i>
+                                    가격 분석 결과
+                                </h5>
+                                <span class="badge fs-6 px-3 py-2"
+                                      th:class="${result.totalScore >= 4} ? 'bg-success' : (${result.totalScore >= 2} ? 'bg-warning text-dark' : 'bg-danger')"
+                                      th:text="'등급: ' + ${result.priceGrade}">등급: A+</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <h2 class="display-4 mb-0" th:text="${result.companyName}">회사명</h2>
+                                        <p class="text-muted mb-0" th:text="'종목코드: ' + ${result.stockCode}">종목코드</p>
+                                    </div>
+                                    <div class="col-md-6 text-md-end">
+                                        <div class="d-flex align-items-center justify-content-md-end">
+                                            <div class="score-circle me-3"
+                                                 th:class="${result.totalScore >= 4} ? 'score-excellent' : (${result.totalScore >= 2} ? 'score-good' : 'score-poor')">
+                                                <span class="score-number" th:text="${result.totalScore}">5</span>
+                                                <span class="score-max">/5</span>
+                                            </div>
+                                            <div>
+                                                <div class="fs-5 fw-bold">가격 점수</div>
+                                                <small class="text-muted" th:text="'분석일: ' + ${#temporals.format(result.analysisDateTime, 'MM-dd HH:mm')}">분석일</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Price Summary -->
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="alert"
+                                             th:class="${result.totalScore >= 4} ? 'alert-success' : (${result.totalScore >= 2} ? 'alert-warning' : 'alert-danger')">
+                                            <h6 class="mb-1">가격 분석 종합 의견</h6>
+                                            <p class="mb-0" th:text="${result.priceSummary}">종합 의견이 여기 표시됩니다</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Price Factors Scores -->
+                        <div class="row g-3 mb-4">
+                            <!-- Price Trend Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 price-card">
+                                    <div class="card-body text-center">
+                                        <div class="price-icon mb-3">
+                                            <i class="bi bi-graph-up-arrow display-4"
+                                               th:class="${result.trendScore > 0} ? 'text-success' : (${result.trendScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">가격 트렌드</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.trendScore > 0} ? 'badge bg-success' : (${result.trendScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.trendScore} + '점'">+2점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.trendSignal}">트렌드 신호</p>
+                                        <p class="small">
+                                            추세 강도: <span th:text="${result.formattedTrendStrength}">N/A</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Momentum Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 price-card">
+                                    <div class="card-body text-center">
+                                        <div class="price-icon mb-3">
+                                            <i class="bi bi-speedometer display-4"
+                                               th:class="${result.momentumScore > 0} ? 'text-success' : (${result.momentumScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">모멘텀</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.momentumScore > 0} ? 'badge bg-success' : (${result.momentumScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.momentumScore} + '점'">+1점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.momentumSignal}">모멘텀 신호</p>
+                                        <p class="small">
+                                            지수: <span th:text="${result.formattedMomentumIndex}">N/A</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Volatility Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 price-card">
+                                    <div class="card-body text-center">
+                                        <div class="price-icon mb-3">
+                                            <i class="bi bi-activity display-4"
+                                               th:class="${result.volatilityScore > 0} ? 'text-success' : (${result.volatilityScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">변동성</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.volatilityScore > 0} ? 'badge bg-success' : (${result.volatilityScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.volatilityScore} + '점'">0점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.volatilitySignal}">변동성 신호</p>
+                                        <p class="small">
+                                            변동률: <span th:text="${result.formattedVolatilityLevel}">N/A</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Support/Resistance Analysis -->
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <div class="card h-100 price-card">
+                                    <div class="card-body text-center">
+                                        <div class="price-icon mb-3">
+                                            <i class="bi bi-arrows-vertical display-4"
+                                               th:class="${result.supportResistanceScore > 0} ? 'text-success' : (${result.supportResistanceScore < 0} ? 'text-danger' : 'text-secondary')"></i>
+                                        </div>
+                                        <h5 class="card-title">지지/저항</h5>
+                                        <div class="score-badge mb-2"
+                                             th:class="${result.supportResistanceScore > 0} ? 'badge bg-success' : (${result.supportResistanceScore < 0} ? 'badge bg-danger' : 'badge bg-secondary')"
+                                             th:text="${result.supportResistanceScore} + '점'">+1점</div>
+                                        <p class="small text-muted mb-2" th:text="${result.supportResistanceSignal}">지지/저항 신호</p>
+                                        <p class="small">
+                                            강도: <span th:text="${result.formattedSupportStrength}">N/A</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Price Analysis Details -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-graph-up me-2"></i>
+                                    가격 분석 상세 정보
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-success mb-3">트렌드 및 모멘텀</h6>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>가격 트렌드</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.trendSignal}">트렌드 신호</span>
+                                                <div class="small text-muted">
+                                                    추세 방향: <span th:text="${result.trendDirection}">N/A</span> |
+                                                    강도: <span th:text="${result.formattedTrendStrength}">N/A</span> |
+                                                    기간: <span th:text="${result.trendDuration}">N/A</span>일
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>모멘텀 분석</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.momentumSignal}">모멘텀 신호</span>
+                                                <div class="small text-muted">
+                                                    유형: <span th:text="${result.momentumType}">N/A</span> |
+                                                    지수: <span th:text="${result.formattedMomentumIndex}">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary mb-3">변동성 및 지지/저항</h6>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>변동성 분석</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.volatilitySignal}">변동성 신호</span>
+                                                <div class="small text-muted">
+                                                    수준: <span th:text="${result.volatilityLevel}">N/A</span> |
+                                                    변동률: <span th:text="${result.formattedVolatilityLevel}">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-4">
+                                                <strong>지지/저항선</strong>
+                                            </div>
+                                            <div class="col-8">
+                                                <span th:text="${result.supportResistanceSignal}">지지/저항 신호</span>
+                                                <div class="small text-muted">
+                                                    지지선: <span th:text="${result.formattedSupportLevel}">N/A</span> |
+                                                    저항선: <span th:text="${result.formattedResistanceLevel}">N/A</span> |
+                                                    강도: <span th:text="${result.formattedSupportStrength}">N/A</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-muted small mt-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    가격 분석은 과거 주가 데이터를 기반으로 한 참고 자료입니다. 투자 판단 시 다른 요소들도 함께 고려해주세요.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer th:replace="~{layout :: footer}"></footer>
+
+    <!-- Scripts -->
+    <div th:replace="~{layout :: scripts}"></div>
+
+    <style>
+        /* 가격 분석 전용 스타일 */
+        .price-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(40, 167, 69, 0.2);
+        }
+
+        .price-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .price-icon {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .score-circle.score-excellent {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .score-circle.score-good {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+            color: #212529;
+        }
+
+        .score-circle.score-poor {
+            background: linear-gradient(135deg, #dc3545, #e83e8c);
+            color: white;
+        }
+
+        .score-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .score-max {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .score-badge {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
+        }
+
+        /* 가격 분석별 색상 구분 */
+        .card-header.bg-success {
+            background: linear-gradient(135deg, #28a745, #20c997) !important;
+        }
+
+        /* 호버 효과 강화 */
+        .btn-success:hover {
+            background: linear-gradient(135deg, #218838, #1e7e34);
+            border-color: #1e7e34;
+        }
+
+        /* 가격 분석 특화 색상 */
+        .text-success {
+            color: #1e7e34 !important;
+        }
+
+        /* 추세 방향 표시 색상 */
+        .alert-success .small {
+            color: #155724;
+        }
+    </style>
+</body>
+</html>

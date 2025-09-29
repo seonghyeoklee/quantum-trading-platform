@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head}"></head>
+<body data-theme="light">
+    <!-- Header -->
+    <nav th:replace="~{layout :: header}"></nav>
+
+    <!-- Sidebar -->
+    <nav th:replace="~{layout :: sidebar}"></nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="/"><i class="bi bi-house-door"></i></a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">DINO 통합 분석</li>
+            </ol>
+        </nav>
+
+        <!-- Content -->
+        <div class="content-wrapper">
+            <!-- Page Header -->
+            <div class="page-header mb-4">
+                <h1 class="h2 mb-1">
+                    <i class="bi bi-trophy text-warning me-2"></i>
+                    DINO 통합 분석
+                </h1>
+                <p class="text-muted mb-0">4개 영역(재무+기술+재료+가격)을 종합하여 20점 만점으로 분석합니다</p>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-2"></i>
+                <span th:text="${successMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <span th:text="${errorMessage}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Analysis Input Form - Compact Single Column -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <form th:action="@{/dino/analyze}" method="post" class="mb-0" id="stockAnalysisForm">
+                                        <div class="position-relative">
+                                            <div class="input-group">
+                                                <input type="text"
+                                                       class="form-control"
+                                                       id="stockSearch"
+                                                       name="stockSearchDisplay"
+                                                       placeholder="회사명 또는 종목코드 입력 (예: 삼성전자 or 005930)"
+                                                       autocomplete="off"
+                                                       required>
+                                                <input type="hidden"
+                                                       name="stockCode"
+                                                       id="selectedStockCode"
+                                                       required>
+                                                <button type="submit" class="btn btn-warning">
+                                                    <i class="bi bi-trophy me-1"></i>
+                                                    DINO 통합 분석
+                                                </button>
+                                            </div>
+
+                                            <!-- 자동완성 드롭다운 -->
+                                            <div id="stockSearchDropdown" class="dropdown-menu w-100" style="display: none; max-height: 300px; overflow-y: auto;">
+                                                <!-- 검색 결과가 여기에 동적으로 추가됩니다 -->
+                                            </div>
+
+                                            <!-- 로딩 인디케이터 -->
+                                            <div id="searchLoading" class="text-center py-2" style="display: none;">
+                                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                    <span class="visually-hidden">검색 중...</span>
+                                                </div>
+                                                <small class="text-muted ms-2">검색 중...</small>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="text-md-end">
+                                        <small class="text-muted">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            4개 영역(재무+기술+재료+가격) 20점 만점 분석
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Results (Only show when result exists) -->
+            <div th:if="${result}" class="analysis-results">
+                <!-- Compact 3-Column Dashboard -->
+                <div class="row g-3 mb-3">
+                    <!-- Column 1: Overall Score & Grade -->
+                    <div class="col-12 col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-body text-center py-3">
+                                <h5 class="card-title mb-2" th:text="${result.companyName}">삼성전자</h5>
+                                <small class="text-muted d-block mb-3">종목코드: <span th:text="${result.stockCode}">005930</span></small>
+
+                                <div class="score-excellent mb-3">
+                                    <span class="score-number" th:text="${result.totalScore}">16</span>
+                                    <span class="score-max">/20</span>
+                                </div>
+
+                                <div class="mb-2">
+                                    <span class="badge fs-6 px-3 py-2" th:classappend="${result.gradeCssClass}" th:text="${result.overallGrade}">A</span>
+                                </div>
+
+                                <div class="progress mb-2" style="height: 8px;">
+                                    <div class="progress-bar"
+                                         th:classappend="${result.gradeCssClass.contains('success') ? 'bg-success' :
+                                                         result.gradeCssClass.contains('primary') ? 'bg-primary' :
+                                                         result.gradeCssClass.contains('warning') ? 'bg-warning' :
+                                                         result.gradeCssClass.contains('danger') ? 'bg-danger' : 'bg-secondary'}"
+                                         th:style="'width: ' + ${result.scorePercentage} + '%'">
+                                    </div>
+                                </div>
+                                <small class="text-muted">분석일: <span th:text="${#temporals.format(result.analysisDateTime, 'MM-dd HH:mm')}">09-27 14:51</span></small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: 4 Areas Grid -->
+                    <div class="col-12 col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-body py-3">
+                                <h6 class="card-title mb-3 text-center">4개 영역 분석</h6>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="text-center py-2 border rounded">
+                                            <div class="text-primary mb-1"><i class="bi bi-calculator"></i></div>
+                                            <small class="d-block fw-bold">재무</small>
+                                            <span class="fw-bold" th:text="${result.financeResult != null ? result.financeResult.totalScore : 0}">4</span><small class="text-muted">/5</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-center py-2 border rounded">
+                                            <div class="text-success mb-1"><i class="bi bi-graph-up"></i></div>
+                                            <small class="d-block fw-bold">기술</small>
+                                            <span class="fw-bold" th:text="${result.technicalResult != null ? result.technicalResult.totalScore : 0}">3</span><small class="text-muted">/5</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-center py-2 border rounded">
+                                            <div class="text-warning mb-1"><i class="bi bi-newspaper"></i></div>
+                                            <small class="d-block fw-bold">재료</small>
+                                            <span class="fw-bold" th:text="${result.materialResult != null ? result.materialResult.totalScore : 0}">3</span><small class="text-muted">/5</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-center py-2 border rounded">
+                                            <div class="text-info mb-1"><i class="bi bi-currency-dollar"></i></div>
+                                            <small class="d-block fw-bold">가격</small>
+                                            <span class="fw-bold" th:text="${result.priceResult != null ? result.priceResult.totalScore : 0}">4</span><small class="text-muted">/5</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: Investment Recommendation -->
+                    <div class="col-12 col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-body py-3">
+                                <h6 class="card-title mb-3 text-center">투자 권고</h6>
+                                <div class="text-center mb-3">
+                                    <div class="alert alert-sm py-2" th:classappend="${result.gradeCssClass.contains('success') ? 'alert-success' :
+                                                                      result.gradeCssClass.contains('primary') ? 'alert-primary' :
+                                                                      result.gradeCssClass.contains('warning') ? 'alert-warning' :
+                                                                      result.gradeCssClass.contains('danger') ? 'alert-danger' : 'alert-secondary'}">
+                                        <div class="fw-bold mb-1" th:text="${result.overallSummary}">우수한 투자 기회</div>
+                                        <small th:text="${result.investmentRecommendation}">적극 매수 추천</small>
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <small class="text-muted d-block">점수 분해</small>
+                                    <small class="text-muted" th:text="${result.getScoreBreakdown()}">재무:4점, 기술:3점, 재료:3점, 가격:4점</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Detailed Analysis Tabs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-list-ul me-2"></i>
+                            상세 분석 결과
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Tabs Navigation -->
+                        <ul class="nav nav-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance" type="button" role="tab">
+                                    <i class="bi bi-calculator me-1"></i>재무 분석
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="technical-tab" data-bs-toggle="tab" data-bs-target="#technical" type="button" role="tab">
+                                    <i class="bi bi-graph-up me-1"></i>기술 분석
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="material-tab" data-bs-toggle="tab" data-bs-target="#material" type="button" role="tab">
+                                    <i class="bi bi-newspaper me-1"></i>재료 분석
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="price-tab" data-bs-toggle="tab" data-bs-target="#price" type="button" role="tab">
+                                    <i class="bi bi-currency-dollar me-1"></i>가격 분석
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Tabs Content -->
+                        <div class="tab-content mt-3">
+                            <!-- Finance Analysis Tab -->
+                            <div class="tab-pane fade show active" id="finance" role="tabpanel" th:if="${result.financeResult}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th width="40%">재무 지표</th>
+                                                <th width="20%" class="text-center">점수</th>
+                                                <th width="40%">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>매출 성장률</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.financeResult.revenueGrowthScore} + '점'">+1점</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">연간 성장세 분석</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>영업이익 증가율</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.financeResult.operatingProfitScore} + '점'">+2점</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">수익성 개선도</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>영업이익률</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.financeResult.operatingMarginScore} + '점'">+1점</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">운영 효율성</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>유보율</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.financeResult.retentionRateScore} + '점'">0점</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">재투자 역량</small>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>부채비율</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.financeResult.debtRatioScore} + '점'">0점</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">재무 안정성</small>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <td><strong>종합 등급</strong></td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-primary" th:text="${result.financeResult.getGrade()}">A등급</span>
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">총 <span th:text="${result.financeResult.totalScore}">4</span>점 / 5점</small>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Technical Analysis Tab -->
+                            <div class="tab-pane fade" id="technical" role="tabpanel" th:if="${result.technicalResult}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th width="40%">기술 지표</th>
+                                                <th width="20%" class="text-center">점수</th>
+                                                <th width="40%">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>OBV 분석</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.technicalResult.obvScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">거래량 기반 추세 분석</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Stochastic</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.technicalResult.stochasticScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">과매수/과매도 모멘텀</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>RSI</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.technicalResult.rsiScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">상대강도지수</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>MACD</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.technicalResult.macdScore} + '점'">0점</span>
+                                                </td>
+                                                <td><small class="text-muted">이동평균수렴확산</small></td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <td><strong>종합 등급</strong></td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-success" th:text="${result.technicalResult.getTechnicalGrade()}">B등급</span>
+                                                </td>
+                                                <td><small class="text-muted">총 <span th:text="${result.technicalResult.totalScore}">3</span>점 / 5점</small></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Material Analysis Tab -->
+                            <div class="tab-pane fade" id="material" role="tabpanel" th:if="${result.materialResult}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th width="40%">재료 요소</th>
+                                                <th width="20%" class="text-center">점수</th>
+                                                <th width="40%">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>배당 점수</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.materialResult.dividendScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">배당수익률 분석</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>투자자 수급</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.materialResult.investorSupplyScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">기관/외국인 매매 동향</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>시장 심리</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.materialResult.sentimentScore} + '점'">0점</span>
+                                                </td>
+                                                <td><small class="text-muted">투자 심리 및 뉴스 분석</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>어닝서프라이즈</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.materialResult.earningsSurpriseScore} + '점'">0점</span>
+                                                </td>
+                                                <td><small class="text-muted">실적 기대치 대비 분석</small></td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <td><strong>종합 등급</strong></td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-info" th:text="${result.materialResult.getMaterialGrade()}">B등급</span>
+                                                </td>
+                                                <td><small class="text-muted">총 <span th:text="${result.materialResult.totalScore}">2</span>점 / 5점</small></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Price Analysis Tab -->
+                            <div class="tab-pane fade" id="price" role="tabpanel" th:if="${result.priceResult}">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th width="40%">가격 지표</th>
+                                                <th width="20%" class="text-center">점수</th>
+                                                <th width="40%">상태</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>가격 트렌드</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.priceResult.trendScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">단기/장기 추세 방향</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>모멘텀</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.priceResult.momentumScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">가격 상승/하락 강도</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>변동성</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.priceResult.volatilityScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">가격 변동 범위</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>지지/저항</td>
+                                                <td class="text-center">
+                                                    <span class="fw-bold" th:text="${result.priceResult.supportResistanceScore} + '점'">1점</span>
+                                                </td>
+                                                <td><small class="text-muted">주요 가격대 분석</small></td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <td><strong>종합 등급</strong></td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-warning" th:text="${result.priceResult.getPriceGrade()}">A등급</span>
+                                                </td>
+                                                <td><small class="text-muted">총 <span th:text="${result.priceResult.totalScore}">4</span>점 / 5점</small></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Status Information -->
+                <div th:if="${analysisStatus}" class="mt-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-info-circle me-2"></i>분석 상태
+                            </h6>
+                            <p class="mb-0 text-muted" th:text="${analysisStatus}">재무분석: ✅ | 기술분석: ✅ | 재료분석: ✅ | 가격분석: ✅</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer th:replace="~{layout :: footer}"></footer>
+
+    <!-- Scripts -->
+    <div th:replace="~{layout :: scripts}"></div>
+
+    <!-- Stock Search Autocomplete Script -->
+    <script>
+        // Stock autocomplete functionality with debouncing
+        (function() {
+            const searchInput = document.getElementById('stockSearch');
+            const hiddenStockCodeInput = document.getElementById('selectedStockCode');
+            const dropdown = document.getElementById('stockSearchDropdown');
+            const loadingIndicator = document.getElementById('searchLoading');
+            const form = document.getElementById('stockAnalysisForm');
+
+            let searchTimeout;
+            let currentSearchTerm = '';
+            let selectedIndex = -1;
+            let searchResults = [];
+
+            // Debounced search function
+            function debounceSearch(query) {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => performSearch(query), 300); // 300ms debounce
+            }
+
+            // Perform actual search
+            function performSearch(query) {
+                if (!query || query.length < 1) {
+                    hideDropdown();
+                    return;
+                }
+
+                if (query === currentSearchTerm) {
+                    return; // Already searching or searched for this term
+                }
+
+                currentSearchTerm = query;
+                showLoading();
+
+                // Call stock search API
+                fetch('/api/stocks/search?q=' + encodeURIComponent(query) + '&limit=10')
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoading();
+                        if (data.success && data.data) {
+                            displaySearchResults(data.data);
+                        } else {
+                            showNoResults();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Search error:', error);
+                        hideLoading();
+                        showErrorMessage();
+                    });
+            }
+
+            // Display search results in dropdown
+            function displaySearchResults(results) {
+                searchResults = results;
+                selectedIndex = -1;
+
+                if (results.length === 0) {
+                    showNoResults();
+                    return;
+                }
+
+                let html = '';
+                results.forEach((item, index) => {
+                    const marketIcon = getMarketIcon(item.marketType);
+                    const sectorColor = getSectorColor(item.sector);
+
+                    html += `
+                        <div class="dropdown-item stock-search-item" data-index="${index}" data-stock-code="${item.stockCode}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold text-dark">${item.displayName}</div>
+                                    <small class="text-muted">
+                                        ${marketIcon} ${item.marketType}
+                                        ${item.sector ? `<span class="badge badge-sm ${sectorColor} ms-1">${item.sector}</span>` : ''}
+                                    </small>
+                                </div>
+                                <small class="text-muted">${item.stockCode}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                dropdown.innerHTML = html;
+                showDropdown();
+
+                // Add click handlers
+                document.querySelectorAll('.stock-search-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        selectStock(parseInt(this.dataset.index));
+                    });
+                });
+            }
+
+            // Show "No results found" message
+            function showNoResults() {
+                dropdown.innerHTML = `
+                    <div class="dropdown-item-text text-center text-muted py-3">
+                        <i class="bi bi-search me-2"></i>
+                        검색 결과가 없습니다.
+                        <br><small>다른 키워드로 검색해보세요.</small>
+                    </div>
+                `;
+                showDropdown();
+            }
+
+            // Show error message
+            function showErrorMessage() {
+                dropdown.innerHTML = `
+                    <div class="dropdown-item-text text-center text-danger py-3">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        검색 중 오류가 발생했습니다.
+                        <br><small>잠시 후 다시 시도해주세요.</small>
+                    </div>
+                `;
+                showDropdown();
+            }
+
+            // Helper functions for UI
+            function showDropdown() {
+                dropdown.style.display = 'block';
+                dropdown.classList.add('show');
+            }
+
+            function hideDropdown() {
+                dropdown.style.display = 'none';
+                dropdown.classList.remove('show');
+                selectedIndex = -1;
+            }
+
+            function showLoading() {
+                loadingIndicator.style.display = 'block';
+                hideDropdown();
+            }
+
+            function hideLoading() {
+                loadingIndicator.style.display = 'none';
+            }
+
+            // Select a stock from search results
+            function selectStock(index) {
+                if (index >= 0 && index < searchResults.length) {
+                    const selected = searchResults[index];
+                    searchInput.value = selected.displayName;
+                    hiddenStockCodeInput.value = selected.stockCode;
+                    hideDropdown();
+
+                    // Highlight the selected item briefly
+                    document.querySelector(`[data-index="${index}"]`).classList.add('active');
+                }
+            }
+
+            // Market icon helper
+            function getMarketIcon(marketType) {
+                switch(marketType) {
+                    case 'KOSPI':
+                        return '<i class="bi bi-star-fill text-primary"></i>';
+                    case 'KOSDAQ':
+                        return '<i class="bi bi-star text-success"></i>';
+                    default:
+                        return '<i class="bi bi-circle"></i>';
+                }
+            }
+
+            // Sector color helper
+            function getSectorColor(sector) {
+                const sectorColors = {
+                    '전기전자': 'bg-primary',
+                    '화학': 'bg-success',
+                    '의약품': 'bg-info',
+                    '자동차부품': 'bg-warning',
+                    '은행': 'bg-danger',
+                    '서비스업': 'bg-secondary',
+                    '철강금속': 'bg-dark',
+                    '통신업': 'bg-primary',
+                    '건설업': 'bg-warning',
+                    '기타금융': 'bg-danger',
+                    '전기가스업': 'bg-success',
+                    '보험': 'bg-info',
+                    'IT': 'bg-primary'
+                };
+                return sectorColors[sector] || 'bg-secondary';
+            }
+
+            // Event listeners
+            searchInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                if (query.length >= 1) {
+                    debounceSearch(query);
+                } else {
+                    hideDropdown();
+                    hiddenStockCodeInput.value = '';
+                }
+            });
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', function(e) {
+                const items = document.querySelectorAll('.stock-search-item');
+
+                switch(e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                        updateSelection(items);
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        selectedIndex = Math.max(selectedIndex - 1, -1);
+                        updateSelection(items);
+                        break;
+                    case 'Enter':
+                        e.preventDefault();
+                        if (selectedIndex >= 0) {
+                            selectStock(selectedIndex);
+                        } else if (hiddenStockCodeInput.value) {
+                            form.submit();
+                        }
+                        break;
+                    case 'Escape':
+                        hideDropdown();
+                        break;
+                }
+            });
+
+            // Update visual selection
+            function updateSelection(items) {
+                items.forEach((item, index) => {
+                    if (index === selectedIndex) {
+                        item.classList.add('active');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            }
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    hideDropdown();
+                }
+            });
+
+            // Form validation
+            form.addEventListener('submit', function(e) {
+                if (!hiddenStockCodeInput.value) {
+                    e.preventDefault();
+                    alert('유효한 종목을 선택해주세요.');
+                    searchInput.focus();
+                }
+            });
+
+            // Clear hidden value when input is manually cleared
+            searchInput.addEventListener('blur', function() {
+                // Delay to allow dropdown selection
+                setTimeout(() => {
+                    if (!this.value.trim()) {
+                        hiddenStockCodeInput.value = '';
+                    }
+                }, 150);
+            });
+
+        })();
+    </script>
+
+    <!-- Custom CSS for Analysis Cards -->
+    <style>
+        .analysis-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .analysis-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .analysis-icon {
+            opacity: 0.8;
+        }
+
+        .score-display .score-num {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #6366f1;
+        }
+
+        .score-display .score-max {
+            font-size: 1.2rem;
+            color: #6b7280;
+        }
+
+        .score-excellent .score-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #10b981;
+        }
+
+        .score-excellent .score-max {
+            font-size: 1.5rem;
+            color: #6b7280;
+        }
+
+        .progress {
+            background-color: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .progress-bar {
+            border-radius: 10px;
+            transition: width 0.6s ease;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-link.active {
+            border-bottom-color: #f59e0b;
+            color: #f59e0b;
+            background: none;
+        }
+
+        .list-group-item {
+            border-left: none;
+            border-right: none;
+            padding: 0.75rem 0;
+        }
+
+        .list-group-item:first-child {
+            border-top: none;
+        }
+
+        .list-group-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Stock Search Autocomplete Styles */
+        .stock-search-item {
+            cursor: pointer;
+            border: none;
+            padding: 0.75rem 1rem;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .stock-search-item:hover,
+        .stock-search-item.active {
+            background-color: #f8f9fa;
+            border-color: transparent;
+        }
+
+        .stock-search-item.active {
+            background-color: #e3f2fd;
+        }
+
+        #stockSearchDropdown {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            z-index: 1050;
+            margin-top: 0.25rem;
+        }
+
+        #stockSearchDropdown .dropdown-item-text {
+            padding: 1rem;
+        }
+
+        .badge-sm {
+            font-size: 0.65em;
+            padding: 0.25em 0.5em;
+        }
+
+        .position-relative {
+            position: relative;
+        }
+
+        #searchLoading {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            z-index: 1049;
+        }
+    </style>
+</body>
+</html>

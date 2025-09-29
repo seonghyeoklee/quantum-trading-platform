@@ -54,22 +54,30 @@
                         <div class="card-body">
                             <form th:action="@{/dino/analyze}" method="post">
                                 <div class="mb-3">
-                                    <label for="stockCode" class="form-label">종목코드</label>
-                                    <div class="input-group">
+                                    <label for="stockCode" class="form-label">종목 검색</label>
+                                    <div class="input-group position-relative">
                                         <input type="text"
                                                class="form-control"
+                                               id="stockSearch"
+                                               placeholder="종목명 또는 종목코드 검색 (예: 삼성전자, 005930)"
+                                               autocomplete="off">
+                                        <input type="hidden"
                                                id="stockCode"
                                                name="stockCode"
-                                               placeholder="예: 005930 (삼성전자)"
-                                               maxlength="6"
-                                               pattern="[0-9]{6}"
                                                required>
-                                        <button type="submit" class="btn btn-primary">
+                                        <button type="submit" class="btn btn-primary" id="analyzeBtn" disabled>
                                             <i class="bi bi-play-fill me-1"></i>
                                             분석 시작
                                         </button>
+
+                                        <!-- Autocomplete Dropdown -->
+                                        <div class="position-absolute w-100 autocomplete-dropdown"
+                                             id="autocompleteDropdown"
+                                             style="top: 100%; z-index: 1050; display: none;">
+                                            <div class="list-group shadow-sm"></div>
+                                        </div>
                                     </div>
-                                    <div class="form-text">6자리 종목코드를 입력해주세요 (예: 005930)</div>
+                                    <div class="form-text">종목명이나 6자리 종목코드로 검색하세요</div>
                                 </div>
                             </form>
                         </div>
@@ -340,7 +348,221 @@
                 font-size: 0.9rem;
                 padding: 0.4rem 0.8rem;
             }
+
+            /* Autocomplete Styles */
+            .autocomplete-dropdown {
+                max-height: 300px;
+                overflow-y: auto;
+                border: 1px solid #dee2e6;
+                border-radius: 0.375rem;
+                background: white;
+            }
+
+            .autocomplete-item {
+                padding: 0.75rem 1rem;
+                cursor: pointer;
+                border: none;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .autocomplete-item:hover {
+                background-color: #f8f9fa;
+            }
+
+            .autocomplete-item.active {
+                background-color: #6366f1;
+                color: white;
+            }
+
+            .stock-code {
+                color: #6c757d;
+                font-size: 0.875rem;
+                font-weight: 500;
+            }
+
+            .autocomplete-item.active .stock-code {
+                color: rgba(255, 255, 255, 0.8);
+            }
+
+            .stock-name {
+                font-weight: 500;
+            }
+
+            .loading-spinner {
+                width: 1rem;
+                height: 1rem;
+                border: 2px solid #f3f3f3;
+                border-top: 2px solid #6366f1;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
         </style>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const stockSearch = document.getElementById('stockSearch');
+                const stockCodeInput = document.getElementById('stockCode');
+                const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+                const listGroup = autocompleteDropdown.querySelector('.list-group');
+                const analyzeBtn = document.getElementById('analyzeBtn');
+
+                let selectedIndex = -1;
+                let searchTimeout;
+                let currentStocks = [];
+
+                // 검색 입력 이벤트
+                stockSearch.addEventListener('input', function() {
+                    const query = this.value.trim();
+                    selectedIndex = -1;
+
+                    if (query.length < 1) {
+                        hideDropdown();
+                        clearSelection();
+                        return;
+                    }
+
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        searchStocks(query);
+                    }, 300);
+                });
+
+                // 키보드 네비게이션
+                stockSearch.addEventListener('keydown', function(e) {
+                    const items = listGroup.querySelectorAll('.autocomplete-item');
+
+                    switch(e.key) {
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                            updateSelection(items);
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            selectedIndex = Math.max(selectedIndex - 1, -1);
+                            updateSelection(items);
+                            break;
+                        case 'Enter':
+                            e.preventDefault();
+                            if (selectedIndex >= 0 && items[selectedIndex]) {
+                                selectStock(currentStocks[selectedIndex]);
+                            }
+                            break;
+                        case 'Escape':
+                            hideDropdown();
+                            break;
+                    }
+                });
+
+                // 외부 클릭 시 드롭다운 숨기기
+                document.addEventListener('click', function(e) {
+                    if (!stockSearch.contains(e.target) && !autocompleteDropdown.contains(e.target)) {
+                        hideDropdown();
+                    }
+                });
+
+                // 종목 검색 함수
+                function searchStocks(query) {
+                    showLoading();
+
+                    fetch(`/api/stocks/search?q=${encodeURIComponent(query)}&limit=10`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.data) {
+                                currentStocks = data.data;
+                                displayResults(data.data);
+                            } else {
+                                displayNoResults();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('검색 중 오류:', error);
+                            displayError();
+                        });
+                }
+
+                // 로딩 표시
+                function showLoading() {
+                    listGroup.innerHTML = '<div class="list-group-item text-center py-3"><div class="loading-spinner mx-auto"></div></div>';
+                    showDropdown();
+                }
+
+                // 검색 결과 표시
+                function displayResults(stocks) {
+                    if (stocks.length === 0) {
+                        displayNoResults();
+                        return;
+                    }
+
+                    listGroup.innerHTML = stocks.map((stock, index) => `
+                        <button type="button" class="list-group-item list-group-item-action autocomplete-item" data-index="${index}">
+                            <span class="stock-name">${stock.displayName}</span>
+                            <span class="stock-code">${stock.stockCode}</span>
+                        </button>
+                    `).join('');
+
+                    // 클릭 이벤트 추가
+                    listGroup.querySelectorAll('.autocomplete-item').forEach((item, index) => {
+                        item.addEventListener('click', () => {
+                            selectStock(currentStocks[index]);
+                        });
+                    });
+
+                    showDropdown();
+                }
+
+                // 결과 없음 표시
+                function displayNoResults() {
+                    listGroup.innerHTML = '<div class="list-group-item text-center py-3 text-muted">검색 결과가 없습니다</div>';
+                    showDropdown();
+                }
+
+                // 오류 표시
+                function displayError() {
+                    listGroup.innerHTML = '<div class="list-group-item text-center py-3 text-danger">검색 중 오류가 발생했습니다</div>';
+                    showDropdown();
+                }
+
+                // 종목 선택
+                function selectStock(stock) {
+                    stockSearch.value = stock.displayName;
+                    stockCodeInput.value = stock.stockCode;
+                    analyzeBtn.disabled = false;
+                    hideDropdown();
+                }
+
+                // 선택 지우기
+                function clearSelection() {
+                    stockCodeInput.value = '';
+                    analyzeBtn.disabled = true;
+                }
+
+                // 키보드 선택 업데이트
+                function updateSelection(items) {
+                    items.forEach((item, index) => {
+                        item.classList.toggle('active', index === selectedIndex);
+                    });
+                }
+
+                // 드롭다운 보이기
+                function showDropdown() {
+                    autocompleteDropdown.style.display = 'block';
+                }
+
+                // 드롭다운 숨기기
+                function hideDropdown() {
+                    autocompleteDropdown.style.display = 'none';
+                    selectedIndex = -1;
+                }
+            });
+        </script>
     </main>
 </body>
 </html>
