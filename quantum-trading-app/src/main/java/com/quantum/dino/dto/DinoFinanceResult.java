@@ -2,6 +2,8 @@ package com.quantum.dino.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * DINO 테스트 재무 분석 결과
@@ -49,7 +51,11 @@ public record DinoFinanceResult(
         String currentPeriod,          // 당년 기준 연월
         String previousPeriod,         // 전년 기준 연월
 
-        LocalDateTime analyzedAt       // 분석 시점
+        LocalDateTime analyzedAt,       // 분석 시점
+
+        // 계산 과정 정보 (로깅 및 화면 표시용)
+        List<CalculationStep> calculationSteps, // 개별 계산 단계들
+        String finalCalculation // 최종 점수 계산 공식 (예: "MAX(0, MIN(5, 2 + (1+(-1)+1+0+1))) = 4점")
 ) {
     /**
      * 분석 성공 여부 확인
@@ -72,5 +78,29 @@ public record DinoFinanceResult(
             case 0 -> "C";
             default -> "D";
         };
+    }
+
+    /**
+     * 분석 실패 시 기본 결과 생성
+     */
+    public static DinoFinanceResult createFailedResult(String stockCode) {
+        List<CalculationStep> failedSteps = List.of(
+                CalculationStep.failure("매출증감분석", "매출액 증감 분석", "데이터 수집 실패"),
+                CalculationStep.failure("영업이익분석", "영업이익 상태 분석", "API 호출 실패"),
+                CalculationStep.failure("영업이익률분석", "영업이익률 분석", "재무 데이터 없음"),
+                CalculationStep.failure("유보율분석", "유보율 분석", "데이터 없음"),
+                CalculationStep.failure("부채비율분석", "부채비율 분석", "데이터 없음")
+        );
+
+        return new DinoFinanceResult(
+                stockCode, stockCode, // 회사명을 종목코드로 대체
+                0, 0, 0, 0, 0, 0, // 모든 점수 0
+                null, null, null, null, null, // 모든 계산 결과 null
+                null, null, null, null, null, null, null, null, // 모든 원본 데이터 null
+                null, null, // 기준 연월 null
+                LocalDateTime.now(), // 분석 시점만 현재 시간
+                failedSteps, // 실패한 계산 단계들
+                "분석 실패로 인한 0점 처리" // 최종 계산 공식
+        );
     }
 }
