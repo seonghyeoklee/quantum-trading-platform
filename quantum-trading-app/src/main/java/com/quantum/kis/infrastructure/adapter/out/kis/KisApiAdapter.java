@@ -9,6 +9,8 @@ import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.domain.TokenType;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.ChartDataResponse;
+import com.quantum.kis.dto.FinancialDataResponse;
+import com.quantum.kis.dto.InvestorInfoResponse;
 import com.quantum.kis.dto.KisTokenRequest;
 import com.quantum.kis.dto.KisWebSocketRequest;
 import com.quantum.kis.dto.WebSocketKeyResponse;
@@ -98,6 +100,47 @@ public class KisApiAdapter implements KisApiPort {
         }
     }
 
+    @Override
+    public FinancialDataResponse getFinancialData(KisEnvironment environment, String stockCode) {
+        log.info("기업 재무 정보 조회 시작 - 환경: {}, 종목: {}", environment, stockCode);
+
+        String url = config.getRestApiUrl(environment) + "/uapi/domestic-stock/v1/finance/balance-sheet";
+        String trId = "FHKST66430100"; // 국내주식 대차대조표
+
+        try {
+            String accessToken = getAccessToken(environment);
+
+            log.debug("재무 정보 API 호출 - URL: {}, TR_ID: {}, 종목: {}", url, trId, stockCode);
+
+            var response = restClient.get()
+                    .uri(url + "?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + stockCode)
+                    .header("Content-Type", "application/json")
+                    .header("authorization", "Bearer " + accessToken)
+                    .header("appkey", config.getMyApp())
+                    .header("appsecret", config.getMySec())
+                    .header("tr_id", trId)
+                    .header("custtype", "P") // 개인
+                    .retrieve()
+                    .body(FinancialDataResponse.class);
+
+            // curl 로깅
+            logFinancialDataCurl(url, stockCode, accessToken, trId);
+
+            if (response != null && response.output() != null && response.output().hasValidFinancialData()) {
+                log.info("기업 재무 정보 조회 성공 - 종목: {}, 기업명: {}",
+                        stockCode, response.output().companyName());
+            } else {
+                log.warn("기업 재무 정보 조회 결과 없음 - 종목: {}, 응답: {}", stockCode, response);
+            }
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("기업 재무 정보 조회 실패 - 종목: {}, 오류: {}", stockCode, e.getMessage());
+            throw new KisApiException("재무 데이터 조회 실패: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * 제네릭 토큰 발급 메서드
      * @param environment KIS 환경
@@ -166,6 +209,25 @@ public class KisApiAdapter implements KisApiPort {
     }
 
     /**
+     * 재무 데이터 조회 curl 명령어를 로깅한다.
+     */
+    private void logFinancialDataCurl(String url, String stockCode, String accessToken, String trId) {
+        if (log.isDebugEnabled()) {
+            String curl = "curl -X GET '%s?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=%s' " +
+                    "-H 'Content-Type: application/json' " +
+                    "-H 'authorization: Bearer %s' " +
+                    "-H 'appkey: %s' " +
+                    "-H 'appsecret: %s' " +
+                    "-H 'tr_id: %s' " +
+                    "-H 'custtype: P'";
+
+            String formattedCurl = String.format(curl, url, stockCode, accessToken,
+                    config.getMyApp(), config.getMySec(), trId);
+            log.debug("KIS Financial API Curl: {}", formattedCurl);
+        }
+    }
+
+    /**
      * curl 명령어를 로깅한다.
      * @param url 요청 URL
      * @param body 요청 바디
@@ -214,6 +276,67 @@ public class KisApiAdapter implements KisApiPort {
                 return WebSocketKeyResponse.class;
             default:
                 throw new IllegalArgumentException("Unknown token type: " + tokenType);
+        }
+    }
+
+    @Override
+    public InvestorInfoResponse getInvestorInfo(KisEnvironment environment, String stockCode,
+                                              String investorType, String startDate, String endDate) {
+        log.info("투자자별 매매동향 조회 시작 - 환경: {}, 종목: {}, 투자자: {}, 기간: {} ~ {}",
+                environment, stockCode, investorType, startDate, endDate);
+
+        String url = config.getRestApiUrl(environment) + "/uapi/domestic-stock/v1/quotations/inquire-investor";
+        String trId = "FHKST01010900"; // 투자자별매매동향
+
+        try {
+            String accessToken = getAccessToken(environment);
+
+            var response = restClient.get()
+                    .uri(url + "?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + stockCode)
+                    .header("Content-Type", "application/json")
+                    .header("authorization", "Bearer " + accessToken)
+                    .header("appkey", config.getMyApp())
+                    .header("appsecret", config.getMySec())
+                    .header("tr_id", trId)
+                    .header("custtype", "P") // 개인
+                    .retrieve()
+                    .body(InvestorInfoResponse.class);
+
+            // curl 로깅
+            logInvestorInfoCurl(url, stockCode, investorType, startDate, endDate, accessToken);
+
+            if (response != null && response.output() != null && !response.output().isEmpty()) {
+                log.info("투자자별 매매동향 조회 성공 - 종목: {}, 투자자: {}, 데이터 건수: {}",
+                        stockCode, investorType, response.output().size());
+            } else {
+                log.warn("투자자별 매매동향 조회 결과 없음 - 종목: {}, 투자자: {}", stockCode, investorType);
+            }
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("투자자별 매매동향 조회 실패 - 종목: {}, 투자자: {}, 오류: {}", stockCode, investorType, e.getMessage());
+            throw new KisApiException("투자자 정보 조회 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 투자자 정보 조회 curl 명령어를 로깅한다.
+     */
+    private void logInvestorInfoCurl(String url, String stockCode, String investorType,
+                                   String startDate, String endDate, String accessToken) {
+        if (log.isDebugEnabled()) {
+            String curl = "curl -X GET '%s?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=%s' " +
+                    "-H 'Content-Type: application/json' " +
+                    "-H 'authorization: Bearer %s' " +
+                    "-H 'appkey: %s' " +
+                    "-H 'appsecret: %s' " +
+                    "-H 'tr_id: FHKST01010900' " +
+                    "-H 'custtype: P'";
+
+            String formattedCurl = String.format(curl, url, stockCode, accessToken,
+                    config.getMyApp(), config.getMySec());
+            log.debug("KIS Investor API Curl: {}", formattedCurl);
         }
     }
 }

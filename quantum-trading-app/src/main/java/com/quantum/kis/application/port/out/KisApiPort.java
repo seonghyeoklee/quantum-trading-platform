@@ -3,6 +3,8 @@ package com.quantum.kis.application.port.out;
 import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.ChartDataResponse;
+import com.quantum.kis.dto.FinancialDataResponse;
+import com.quantum.kis.dto.InvestorInfoResponse;
 import com.quantum.kis.dto.WebSocketKeyResponse;
 
 import java.time.LocalDate;
@@ -37,4 +39,24 @@ public interface KisApiPort {
      */
     ChartDataResponse getDailyChartData(KisEnvironment environment, String stockCode,
                                        LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 기업 재무 정보를 조회한다.
+     * @param environment KIS 환경
+     * @param stockCode 종목코드 (6자리, 예: 005930)
+     * @return 재무 데이터 응답
+     */
+    FinancialDataResponse getFinancialData(KisEnvironment environment, String stockCode);
+
+    /**
+     * 투자자별 매매동향 정보를 조회한다.
+     * @param environment KIS 환경
+     * @param stockCode 종목코드 (6자리, 예: 005930)
+     * @param investorType 투자자 구분 (1: 기관계, 2: 기타법인, 3: 개인, 4: 외국인, 9: 전체)
+     * @param startDate 조회 시작일 (YYYYMMDD)
+     * @param endDate 조회 종료일 (YYYYMMDD)
+     * @return 투자자 정보 응답
+     */
+    InvestorInfoResponse getInvestorInfo(KisEnvironment environment, String stockCode,
+                                       String investorType, String startDate, String endDate);
 }

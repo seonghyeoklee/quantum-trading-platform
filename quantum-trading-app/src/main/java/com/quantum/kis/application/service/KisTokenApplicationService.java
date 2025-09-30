@@ -238,16 +238,15 @@ public class KisTokenApplicationService implements
     public int cleanupExpiredTokens() {
         log.debug("만료된 토큰 정리 시작");
 
+        // 삭제 전 만료된 토큰들의 정보를 수집 (알림용)
         List<KisToken> expiredTokens = repositoryPort.findAllExpired();
 
-        // 만료된 토큰들을 만료 상태로 변경
+        // 알림 발송
         for (KisToken token : expiredTokens) {
-            token.markAsExpired();
-            repositoryPort.save(token);
             notificationPort.notifyTokenExpired(token.getId().environment(), token.getId().tokenType());
         }
 
-        // 데이터베이스에서 만료된 토큰들 삭제
+        // 데이터베이스에서 만료된 토큰들 직접 삭제
         int deletedCount = repositoryPort.deleteExpiredTokens();
 
         log.debug("만료된 토큰 정리 완료 - {}개 정리", deletedCount);

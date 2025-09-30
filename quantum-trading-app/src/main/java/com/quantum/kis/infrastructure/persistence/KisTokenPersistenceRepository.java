@@ -17,11 +17,11 @@ import java.util.Optional;
  */
 @Repository
 @Transactional
-public class KisTokenRepositoryImpl implements KisTokenRepository {
+public class KisTokenPersistenceRepository implements KisTokenRepository {
 
     private final JpaKisTokenRepository jpaRepository;
 
-    public KisTokenRepositoryImpl(JpaKisTokenRepository jpaRepository) {
+    public KisTokenPersistenceRepository(JpaKisTokenRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
     }
 

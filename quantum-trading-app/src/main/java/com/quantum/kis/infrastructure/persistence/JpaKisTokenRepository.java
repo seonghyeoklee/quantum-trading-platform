@@ -19,12 +19,12 @@ import java.util.Optional;
 public interface JpaKisTokenRepository extends JpaRepository<KisTokenEntity, String> {
 
     /**
-     * 환경과 토큰 타입으로 토큰 조회 (KisTokenRepositoryAdapter용)
+     * 환경과 토큰 타입으로 토큰 조회 (KisTokenRepository용)
      */
     Optional<KisTokenEntity> findByEnvironmentAndTokenType(KisEnvironment environment, TokenType tokenType);
 
     /**
-     * 특정 환경의 모든 토큰 조회 (KisTokenRepositoryAdapter용)
+     * 특정 환경의 모든 토큰 조회 (KisTokenRepository용)
      */
     List<KisTokenEntity> findByEnvironment(KisEnvironment environment);
 
@@ -72,7 +72,7 @@ public interface JpaKisTokenRepository extends JpaRepository<KisTokenEntity, Str
      */
     List<KisTokenEntity> findAllByOrderByLastUpdatedAtDesc();
 
-    // ============= KisTokenRepositoryAdapter용 간소화 메서드들 =============
+    // ============= KisTokenRepository용 간소화 메서드들 =============
 
     /**
      * 갱신이 필요한 토큰들 조회 (간소화 버전)
