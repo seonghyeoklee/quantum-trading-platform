@@ -104,10 +104,10 @@ public class DinoFinanceResultEntity {
     private BigDecimal capitalStock;
 
     // 데이터 기준 연월
-    @Column(name = "current_period", length = 6)
+    @Column(name = "current_period", length = 20)
     private String currentPeriod;
 
-    @Column(name = "previous_period", length = 6)
+    @Column(name = "previous_period", length = 20)
     private String previousPeriod;
 
     // 분석 날짜 (하루 1회 제한용)
