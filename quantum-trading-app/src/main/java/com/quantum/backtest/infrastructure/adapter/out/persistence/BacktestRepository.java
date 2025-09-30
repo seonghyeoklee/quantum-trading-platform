@@ -24,13 +24,13 @@ import java.util.Optional;
  * Application Port를 구현하여 JPA Repository와 도메인을 연결
  */
 @Repository
-public class BacktestRepositoryAdapter implements BacktestRepositoryPort {
+public class BacktestRepository implements BacktestRepositoryPort {
 
     private final JpaBacktestRepository jpaRepository;
     private final JpaStrategyExecutionLogRepository strategyLogRepository;
 
-    public BacktestRepositoryAdapter(JpaBacktestRepository jpaRepository,
-                                   JpaStrategyExecutionLogRepository strategyLogRepository) {
+    public BacktestRepository(JpaBacktestRepository jpaRepository,
+                            JpaStrategyExecutionLogRepository strategyLogRepository) {
         this.jpaRepository = jpaRepository;
         this.strategyLogRepository = strategyLogRepository;
     }

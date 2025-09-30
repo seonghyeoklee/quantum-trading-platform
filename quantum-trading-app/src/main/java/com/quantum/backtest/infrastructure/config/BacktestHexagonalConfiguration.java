@@ -3,7 +3,7 @@ package com.quantum.backtest.infrastructure.config;
 import com.quantum.backtest.application.port.out.BacktestRepositoryPort;
 import com.quantum.backtest.application.port.out.MarketDataPort;
 import com.quantum.backtest.infrastructure.adapter.out.market.MockMarketDataAdapter;
-import com.quantum.backtest.infrastructure.adapter.out.persistence.BacktestRepositoryAdapter;
+import com.quantum.backtest.infrastructure.adapter.out.persistence.BacktestRepository;
 import com.quantum.backtest.infrastructure.persistence.JpaBacktestRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +24,6 @@ public class BacktestHexagonalConfiguration {
         return new MockMarketDataAdapter();
     }
 
-    // BacktestRepositoryAdapter는 @Repository 어노테이션으로 자동 빈 등록됨
+    // BacktestRepository는 @Repository 어노테이션으로 자동 빈 등록됨
     // 따라서 별도 빈 정의 불필요
 }

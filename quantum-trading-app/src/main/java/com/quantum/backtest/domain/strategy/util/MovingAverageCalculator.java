@@ -199,6 +199,57 @@ public class MovingAverageCalculator {
     }
 
     /**
+     * 지수 이동평균(Exponential Moving Average) 계산
+     *
+     * @param priceHistory 주가 데이터 리스트 (시간순 정렬)
+     * @param period 이동평균 기간
+     * @return 지수 이동평균 값 리스트
+     */
+    public static List<BigDecimal> calculateEMA(List<PriceData> priceHistory, int period) {
+        if (priceHistory == null || priceHistory.isEmpty() || period <= 0) {
+            return new ArrayList<>();
+        }
+
+        List<BigDecimal> emaValues = new ArrayList<>();
+        BigDecimal multiplier = BigDecimal.valueOf(2.0).divide(BigDecimal.valueOf(period + 1), 10, RoundingMode.HALF_UP);
+
+        for (int i = 0; i < priceHistory.size(); i++) {
+            if (i == 0) {
+                // 첫 번째 EMA는 첫 번째 가격
+                emaValues.add(priceHistory.get(i).close());
+            } else {
+                // EMA = (현재가격 * 승수) + (이전EMA * (1 - 승수))
+                BigDecimal currentPrice = priceHistory.get(i).close();
+                BigDecimal previousEMA = emaValues.get(i - 1);
+
+                BigDecimal currentEMA = currentPrice.multiply(multiplier)
+                        .add(previousEMA.multiply(BigDecimal.ONE.subtract(multiplier)));
+
+                emaValues.add(currentEMA.setScale(2, RoundingMode.HALF_UP));
+            }
+        }
+
+        return emaValues;
+    }
+
+    /**
+     * 특정 인덱스에서의 EMA 값 계산
+     *
+     * @param priceHistory 주가 데이터 리스트
+     * @param index 계산할 인덱스
+     * @param period EMA 기간
+     * @return EMA 값
+     */
+    public static BigDecimal calculateEMAAt(List<PriceData> priceHistory, int index, int period) {
+        if (priceHistory == null || index < 0 || index >= priceHistory.size() || period <= 0) {
+            return null;
+        }
+
+        List<BigDecimal> emaValues = calculateEMA(priceHistory.subList(0, index + 1), period);
+        return emaValues.isEmpty() ? null : emaValues.get(emaValues.size() - 1);
+    }
+
+    /**
      * 로깅 기능이 포함된 교차 신호 감지 메서드
      * 교차 감지 과정을 StrategyContext에 상세히 기록
      */
