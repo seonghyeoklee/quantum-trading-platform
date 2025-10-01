@@ -18,6 +18,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -398,8 +399,8 @@ public class DinoTechnicalService {
                     KisEnvironment.PROD, stockCode, startDate, endDate);
 
             if (response == null || !response.isSuccess() || response.output2() == null) {
-                log.warn("KIS API에서 차트 데이터 조회 실패: {}", stockCode);
-                return createSampleChartDataForTesting(stockCode);
+                log.error("KIS API에서 차트 데이터 조회 실패: {}", stockCode);
+                return Collections.emptyList();
             }
 
             // KIS API 응답을 PriceData로 변환
@@ -429,10 +430,10 @@ public class DinoTechnicalService {
 
         } catch (KisApiException e) {
             log.error("KIS API 차트 데이터 수집 실패: {} - {}", stockCode, e.getMessage());
-            return createSampleChartDataForTesting(stockCode);
+            return Collections.emptyList();
         } catch (Exception e) {
             log.error("차트 데이터 수집 중 예외 발생: {} - {}", stockCode, e.getMessage(), e);
-            return createSampleChartDataForTesting(stockCode);
+            return Collections.emptyList();
         }
     }
 
@@ -620,44 +621,6 @@ public class DinoTechnicalService {
         return emaValues;
     }
 
-    /**
-     * 샘플 차트 데이터 생성 (테스트용) - KIS API 실패시 폴백
-     */
-    private List<PriceData> createSampleChartDataForTesting(String stockCode) {
-        log.warn("KIS API 차트 데이터 불가 - 샘플 데이터 사용: {}", stockCode);
-        List<PriceData> priceHistory = new ArrayList<>();
-
-        // 종목별 기준가 설정
-        BigDecimal basePrice;
-        if ("005930".equals(stockCode)) {
-            basePrice = new BigDecimal("60000");  // 삼성전자
-        } else {
-            basePrice = new BigDecimal("50000");  // 기타 종목 기본값
-        }
-
-        for (int i = 500; i >= 1; i--) {
-            // 가격 변동 시뮬레이션 (±2% 범위)
-            double changeRate = ((i % 7) / 10.0 - 0.35) * 0.04; // 결정적 변동률 (-2% ~ +2%)
-            BigDecimal dayChange = basePrice.multiply(BigDecimal.valueOf(changeRate));
-
-            BigDecimal open = basePrice;
-            BigDecimal close = basePrice.add(dayChange);
-            BigDecimal high = open.max(close).multiply(BigDecimal.valueOf(1.005 + (i % 11) * 0.0014)); // 결정적 고가
-            BigDecimal low = open.min(close).multiply(BigDecimal.valueOf(0.995 - (i % 13) * 0.0012)); // 결정적 저가
-
-            // 거래량 (5만주 ~ 100만주)
-            long volume = 50000 + ((i % 19) * 50000); // 결정적 거래량 (50K~1M)
-
-            priceHistory.add(new PriceData(
-                    java.time.LocalDate.now().minusDays(i),
-                    open, high, low, close, volume
-            ));
-
-            basePrice = close; // 다음날 기준가
-        }
-
-        return priceHistory;
-    }
 
     /**
      * 기술 분석 점수 결과 내부 클래스
