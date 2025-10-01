@@ -3,7 +3,9 @@ package com.quantum.dino.controller;
 import com.quantum.dino.dto.*;
 import com.quantum.dino.service.*;
 import com.quantum.external.application.service.NewsService;
+import com.quantum.external.application.service.DisclosureService;
 import com.quantum.external.domain.news.News;
+import com.quantum.external.domain.disclosure.Disclosure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -34,19 +36,22 @@ public class DinoController {
     private final DinoMaterialService dinoMaterialService;
     private final DinoPriceService dinoPriceService;
     private final NewsService newsService;
+    private final DisclosureService disclosureService;
 
     public DinoController(DinoIntegratedService dinoIntegratedService,
                           DinoFinanceService dinoFinanceService,
                           DinoTechnicalService dinoTechnicalService,
                           DinoMaterialService dinoMaterialService,
                           DinoPriceService dinoPriceService,
-                          NewsService newsService) {
+                          NewsService newsService,
+                          DisclosureService disclosureService) {
         this.dinoIntegratedService = dinoIntegratedService;
         this.dinoFinanceService = dinoFinanceService;
         this.dinoTechnicalService = dinoTechnicalService;
         this.dinoMaterialService = dinoMaterialService;
         this.dinoPriceService = dinoPriceService;
         this.newsService = newsService;
+        this.disclosureService = disclosureService;
     }
 
     /**
@@ -117,6 +122,19 @@ public class DinoController {
                 } catch (Exception e) {
                     log.warn("뉴스 조회 실패: {} - {}", result.companyName(), e.getMessage());
                     model.addAttribute("recentNews", List.of());
+                }
+
+                // 최근 30일 공시 조회 (종목코드 사용)
+                try {
+                    LocalDate endDate = LocalDate.now();
+                    LocalDate startDate = endDate.minusDays(30);
+                    List<Disclosure> recentDisclosures = disclosureService.searchDisclosures(cleanStockCode, startDate, endDate);
+
+                    model.addAttribute("recentDisclosures", recentDisclosures);
+                    log.info("공시 조회 성공: {} - {}건", cleanStockCode, recentDisclosures.size());
+                } catch (Exception e) {
+                    log.warn("공시 조회 실패: {} - {}", cleanStockCode, e.getMessage());
+                    model.addAttribute("recentDisclosures", List.of());
                 }
 
             } else {

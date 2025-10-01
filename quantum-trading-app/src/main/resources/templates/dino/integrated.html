@@ -662,6 +662,120 @@
                     </div>
                 </div>
 
+                <!-- Recent Disclosures Section -->
+                <div th:if="${recentDisclosures}" class="mt-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-file-earmark-text me-2"></i>
+                                최근 30일 공시
+                                <span class="badge bg-info ms-2" th:text="${#lists.size(recentDisclosures)}">0</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- No Disclosures Message -->
+                            <div th:if="${#lists.isEmpty(recentDisclosures)}" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <p class="mb-0">최근 30일간 공시가 없습니다.</p>
+                            </div>
+
+                            <!-- Disclosures List -->
+                            <div th:if="${!#lists.isEmpty(recentDisclosures)}" class="row g-3">
+                                <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12" th:if="${iterStat.index < 10}">
+                                    <div class="card disclosure-card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0 flex-grow-1">
+                                                    <a th:href="${disclosure.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                        <span th:text="${disclosure.title()}">공시 제목</span>
+                                                        <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                    </a>
+                                                </h6>
+                                                <span class="badge ms-2"
+                                                      th:classappend="${disclosure.type().name() == 'REGULAR' ? 'bg-primary' :
+                                                                     disclosure.type().name() == 'MAJOR_ISSUE' ? 'bg-warning' :
+                                                                     disclosure.type().name() == 'ISSUANCE' ? 'bg-success' :
+                                                                     disclosure.type().name() == 'OWNERSHIP' ? 'bg-info' : 'bg-secondary'}"
+                                                      th:text="${disclosure.type().name() == 'REGULAR' ? '정기' :
+                                                               disclosure.type().name() == 'MAJOR_ISSUE' ? '주요사항' :
+                                                               disclosure.type().name() == 'ISSUANCE' ? '발행' :
+                                                               disclosure.type().name() == 'OWNERSHIP' ? '지분' : '기타'}">
+                                                    정기
+                                                </span>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-building me-1"></i>
+                                                    <span th:text="${disclosure.companyName()}">회사명</span>
+                                                </small>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-calendar me-1"></i>
+                                                    <span th:text="${#temporals.format(disclosure.filedDate(), 'MM-dd')}">09-27</span>
+                                                </small>
+                                            </div>
+                                            <div th:if="${disclosure.summary() != null && !disclosure.summary().isEmpty()}" class="mt-2">
+                                                <small class="text-muted" th:text="${disclosure.summary()}">비고</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Show All Button -->
+                            <div th:if="${#lists.size(recentDisclosures) > 10}" class="text-center mt-3">
+                                <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="collapse" data-bs-target="#moreDisclosures">
+                                    <i class="bi bi-chevron-down me-1"></i>
+                                    더보기 (<span th:text="${#lists.size(recentDisclosures) - 10}">0</span>개 더)
+                                </button>
+                            </div>
+
+                            <!-- Additional Disclosures (Collapsed) -->
+                            <div th:if="${#lists.size(recentDisclosures) > 10}" id="moreDisclosures" class="collapse">
+                                <div class="row g-3 mt-2">
+                                    <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12" th:if="${iterStat.index >= 10}">
+                                        <div class="card disclosure-card h-100">
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="card-title mb-0 flex-grow-1">
+                                                        <a th:href="${disclosure.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                            <span th:text="${disclosure.title()}">공시 제목</span>
+                                                            <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                        </a>
+                                                    </h6>
+                                                    <span class="badge ms-2"
+                                                          th:classappend="${disclosure.type().name() == 'REGULAR' ? 'bg-primary' :
+                                                                         disclosure.type().name() == 'MAJOR_ISSUE' ? 'bg-warning' :
+                                                                         disclosure.type().name() == 'ISSUANCE' ? 'bg-success' :
+                                                                         disclosure.type().name() == 'OWNERSHIP' ? 'bg-info' : 'bg-secondary'}"
+                                                          th:text="${disclosure.type().name() == 'REGULAR' ? '정기' :
+                                                                   disclosure.type().name() == 'MAJOR_ISSUE' ? '주요사항' :
+                                                                   disclosure.type().name() == 'ISSUANCE' ? '발행' :
+                                                                   disclosure.type().name() == 'OWNERSHIP' ? '지분' : '기타'}">
+                                                        정기
+                                                    </span>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-building me-1"></i>
+                                                        <span th:text="${disclosure.companyName()}">회사명</span>
+                                                    </small>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-calendar me-1"></i>
+                                                        <span th:text="${#temporals.format(disclosure.filedDate(), 'MM-dd')}">09-27</span>
+                                                    </small>
+                                                </div>
+                                                <div th:if="${disclosure.summary() != null && !disclosure.summary().isEmpty()}" class="mt-2">
+                                                    <small class="text-muted" th:text="${disclosure.summary()}">비고</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Recent News Section -->
                 <div th:if="${recentNews}" class="mt-3">
                     <div class="card">
@@ -1193,6 +1307,50 @@
             left: 0;
             z-index: 1;
             content: "";
+        }
+
+        /* Disclosure Card Styles */
+        .disclosure-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.08);
+            position: relative;
+        }
+
+        .disclosure-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #0ea5e9;
+        }
+
+        .disclosure-card .card-body {
+            padding: 1rem;
+        }
+
+        .disclosure-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .disclosure-card .card-title a:hover {
+            color: #0ea5e9 !important;
+        }
+
+        .disclosure-card .stretched-link::after {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 1;
+            content: "";
+        }
+
+        .disclosure-card .badge {
+            font-size: 0.7rem;
+            padding: 0.3em 0.6em;
+            z-index: 2;
+            position: relative;
         }
     </style>
 </body>
