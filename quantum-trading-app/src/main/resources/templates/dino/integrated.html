@@ -303,6 +303,51 @@
                                         </tfoot>
                                     </table>
                                 </div>
+
+                                <!-- 계산 과정 상세 -->
+                                <div class="card mt-3" th:if="${result.financeResult != null and result.financeResult.calculationSteps() != null and !result.financeResult.calculationSteps().isEmpty()}">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-calculator me-2"></i>
+                                            계산 과정 상세
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 각 계산 단계 표시 -->
+                                        <div class="list-group">
+                                            <div th:each="step, iterStat : ${result.financeResult.calculationSteps()}"
+                                                 class="list-group-item"
+                                                 th:classappend="${step.success ? '' : 'list-group-item-danger'}">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <h6 class="mb-1">
+                                                            <span class="badge bg-primary me-2" th:text="${iterStat.count}">1</span>
+                                                            <span th:text="${step.category}">매출증감분석</span>
+                                                        </h6>
+                                                        <p class="mb-1" th:text="${step.description}">매출액 증감률 분석</p>
+                                                        <small class="text-muted" th:text="${step.reasoning}">매출액 10% 이상 증가로 +1점</small>
+                                                        <div th:if="${step.formula != null and !step.formula.isEmpty()}" class="mt-2">
+                                                            <code class="text-primary" th:text="${step.formula}">계산 공식</code>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end ms-3">
+                                                        <span class="badge fs-6"
+                                                              th:classappend="${step.score > 0 ? 'bg-success' : step.score < 0 ? 'bg-danger' : 'bg-secondary'}"
+                                                              th:text="${step.score + '점'}">+1점</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 최종 계산 공식 -->
+                                        <div class="mt-3 p-3 bg-light rounded" th:if="${result.financeResult.finalCalculation() != null and !result.financeResult.finalCalculation().isEmpty()}">
+                                            <strong>최종 점수 계산:</strong>
+                                            <code class="d-block mt-2 text-primary fs-6" th:text="${result.financeResult.finalCalculation()}">
+                                                MAX(0, MIN(5, 2 + (1+(-1)+1+0+1))) = 4점
+                                            </code>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Technical Analysis Tab -->
@@ -356,6 +401,51 @@
                                             </tr>
                                         </tfoot>
                                     </table>
+                                </div>
+
+                                <!-- 계산 과정 상세 (기술 분석) -->
+                                <div class="card mt-3" th:if="${result.technicalResult != null and result.technicalResult.calculationSteps() != null and !result.technicalResult.calculationSteps().isEmpty()}">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-calculator me-2"></i>
+                                            계산 과정 상세
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 각 계산 단계 표시 -->
+                                        <div class="list-group">
+                                            <div th:each="step, iterStat : ${result.technicalResult.calculationSteps()}"
+                                                 class="list-group-item"
+                                                 th:classappend="${step.success ? '' : 'list-group-item-danger'}">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <h6 class="mb-1">
+                                                            <span class="badge bg-success me-2" th:text="${iterStat.count}">1</span>
+                                                            <span th:text="${step.category}">OBV분석</span>
+                                                        </h6>
+                                                        <p class="mb-1" th:text="${step.description}">거래량 기반 추세 분석</p>
+                                                        <small class="text-muted" th:text="${step.reasoning}">OBV 상승 추세로 +1점</small>
+                                                        <div th:if="${step.formula != null and !step.formula.isEmpty()}" class="mt-2">
+                                                            <code class="text-primary" th:text="${step.formula}">계산 공식</code>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end ms-3">
+                                                        <span class="badge fs-6"
+                                                              th:classappend="${step.score > 0 ? 'bg-success' : step.score < 0 ? 'bg-danger' : 'bg-secondary'}"
+                                                              th:text="${step.score + '점'}">+1점</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 최종 계산 공식 -->
+                                        <div class="mt-3 p-3 bg-light rounded" th:if="${result.technicalResult.finalCalculation() != null and !result.technicalResult.finalCalculation().isEmpty()}">
+                                            <strong>최종 점수 계산:</strong>
+                                            <code class="d-block mt-2 text-primary fs-6" th:text="${result.technicalResult.finalCalculation()}">
+                                                MAX(0, MIN(5, 2 + (1+1+1+0))) = 5점
+                                            </code>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -411,6 +501,51 @@
                                         </tfoot>
                                     </table>
                                 </div>
+
+                                <!-- 계산 과정 상세 (재료 분석) -->
+                                <div class="card mt-3" th:if="${result.materialResult != null and result.materialResult.calculationSteps() != null and !result.materialResult.calculationSteps().isEmpty()}">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-calculator me-2"></i>
+                                            계산 과정 상세
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 각 계산 단계 표시 -->
+                                        <div class="list-group">
+                                            <div th:each="step, iterStat : ${result.materialResult.calculationSteps()}"
+                                                 class="list-group-item"
+                                                 th:classappend="${step.success ? '' : 'list-group-item-danger'}">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <h6 class="mb-1">
+                                                            <span class="badge bg-info me-2" th:text="${iterStat.count}">1</span>
+                                                            <span th:text="${step.category}">배당분석</span>
+                                                        </h6>
+                                                        <p class="mb-1" th:text="${step.description}">배당률 분석</p>
+                                                        <small class="text-muted" th:text="${step.reasoning}">배당률 2% 이상으로 +1점</small>
+                                                        <div th:if="${step.formula != null and !step.formula.isEmpty()}" class="mt-2">
+                                                            <code class="text-primary" th:text="${step.formula}">계산 공식</code>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end ms-3">
+                                                        <span class="badge fs-6"
+                                                              th:classappend="${step.score > 0 ? 'bg-success' : step.score < 0 ? 'bg-danger' : 'bg-secondary'}"
+                                                              th:text="${step.score + '점'}">+1점</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 최종 계산 공식 -->
+                                        <div class="mt-3 p-3 bg-light rounded" th:if="${result.materialResult.finalCalculation() != null and !result.materialResult.finalCalculation().isEmpty()}">
+                                            <strong>최종 점수 계산:</strong>
+                                            <code class="d-block mt-2 text-primary fs-6" th:text="${result.materialResult.finalCalculation()}">
+                                                MAX(0, MIN(5, 2 + (1+1+0+0))) = 4점
+                                            </code>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Price Analysis Tab -->
@@ -465,6 +600,51 @@
                                         </tfoot>
                                     </table>
                                 </div>
+
+                                <!-- 계산 과정 상세 (가격 분석) -->
+                                <div class="card mt-3" th:if="${result.priceResult != null and result.priceResult.calculationSteps() != null and !result.priceResult.calculationSteps().isEmpty()}">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-calculator me-2"></i>
+                                            계산 과정 상세
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- 각 계산 단계 표시 -->
+                                        <div class="list-group">
+                                            <div th:each="step, iterStat : ${result.priceResult.calculationSteps()}"
+                                                 class="list-group-item"
+                                                 th:classappend="${step.success ? '' : 'list-group-item-danger'}">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <h6 class="mb-1">
+                                                            <span class="badge bg-warning me-2" th:text="${iterStat.count}">1</span>
+                                                            <span th:text="${step.category}">트렌드분석</span>
+                                                        </h6>
+                                                        <p class="mb-1" th:text="${step.description}">가격 트렌드 분석</p>
+                                                        <small class="text-muted" th:text="${step.reasoning}">상승 추세 확인으로 +1점</small>
+                                                        <div th:if="${step.formula != null and !step.formula.isEmpty()}" class="mt-2">
+                                                            <code class="text-primary" th:text="${step.formula}">계산 공식</code>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end ms-3">
+                                                        <span class="badge fs-6"
+                                                              th:classappend="${step.score > 0 ? 'bg-success' : step.score < 0 ? 'bg-danger' : 'bg-secondary'}"
+                                                              th:text="${step.score + '점'}">+1점</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 최종 계산 공식 -->
+                                        <div class="mt-3 p-3 bg-light rounded" th:if="${result.priceResult.finalCalculation() != null and !result.priceResult.finalCalculation().isEmpty()}">
+                                            <strong>최종 점수 계산:</strong>
+                                            <code class="d-block mt-2 text-primary fs-6" th:text="${result.priceResult.finalCalculation()}">
+                                                MAX(0, MIN(5, 2 + (1+1+1+1))) = 5점
+                                            </code>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -478,6 +658,90 @@
                                 <i class="bi bi-info-circle me-2"></i>분석 상태
                             </h6>
                             <p class="mb-0 text-muted" th:text="${analysisStatus}">재무분석: ✅ | 기술분석: ✅ | 재료분석: ✅ | 가격분석: ✅</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent News Section -->
+                <div th:if="${recentNews}" class="mt-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-newspaper me-2"></i>
+                                최근 7일 뉴스
+                                <span class="badge bg-primary ms-2" th:text="${#lists.size(recentNews)}">0</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- No News Message -->
+                            <div th:if="${#lists.isEmpty(recentNews)}" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <p class="mb-0">최근 7일간 뉴스가 없습니다.</p>
+                            </div>
+
+                            <!-- News List -->
+                            <div th:if="${!#lists.isEmpty(recentNews)}" class="row g-3">
+                                <div th:each="news, iterStat : ${recentNews}" class="col-12" th:if="${iterStat.index < 10}">
+                                    <div class="card news-card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title mb-2">
+                                                <a th:href="${news.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                    <span th:text="${news.title()}">뉴스 제목</span>
+                                                    <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                </a>
+                                            </h6>
+                                            <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-building me-1"></i>
+                                                    <span th:text="${news.source()}">출처</span>
+                                                </small>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Show All Button -->
+                            <div th:if="${#lists.size(recentNews) > 10}" class="text-center mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#moreNews">
+                                    <i class="bi bi-chevron-down me-1"></i>
+                                    더보기 (<span th:text="${#lists.size(recentNews) - 10}">0</span>개 더)
+                                </button>
+                            </div>
+
+                            <!-- Additional News (Collapsed) -->
+                            <div th:if="${#lists.size(recentNews) > 10}" id="moreNews" class="collapse">
+                                <div class="row g-3 mt-2">
+                                    <div th:each="news, iterStat : ${recentNews}" class="col-12" th:if="${iterStat.index >= 10}">
+                                        <div class="card news-card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title mb-2">
+                                                    <a th:href="${news.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                        <span th:text="${news.title()}">뉴스 제목</span>
+                                                        <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                    </a>
+                                                </h6>
+                                                <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-building me-1"></i>
+                                                        <span th:text="${news.source()}">출처</span>
+                                                    </small>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -881,6 +1145,54 @@
             border-top: none;
             border-radius: 0 0 0.375rem 0.375rem;
             z-index: 1049;
+        }
+
+        /* News Card Styles */
+        .news-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.08);
+            position: relative;
+        }
+
+        .news-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: #6366f1;
+        }
+
+        .news-card .card-body {
+            padding: 1rem;
+        }
+
+        .news-card .card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .news-card .card-title a:hover {
+            color: #6366f1 !important;
+        }
+
+        .news-card .card-text {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            max-height: 3em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .news-card .stretched-link::after {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 1;
+            content: "";
         }
     </style>
 </body>

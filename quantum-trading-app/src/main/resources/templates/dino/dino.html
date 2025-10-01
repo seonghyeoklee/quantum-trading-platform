@@ -308,6 +308,70 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 계산 과정 상세 -->
+                    <div class="card mt-4" th:if="${result != null and result.calculationSteps() != null and !result.calculationSteps().isEmpty()}">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-calculator me-2"></i>
+                                DINO 재무 분석 계산 과정
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- 각 계산 단계 표시 -->
+                            <div class="list-group">
+                                <div th:each="step, iterStat : ${result.calculationSteps()}"
+                                     class="list-group-item"
+                                     th:classappend="${step.success ? '' : 'list-group-item-danger'}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-2">
+                                                <span class="badge bg-primary me-2" th:text="${'Step ' + iterStat.count}">Step 1</span>
+                                                <span class="fw-bold" th:text="${step.category}">매출증감분석</span>
+                                            </h6>
+                                            <p class="mb-2" th:text="${step.description}">매출액 증감률 분석</p>
+                                            <div th:if="${step.inputValue != null and step.outputValue != null}" class="mb-2">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-arrow-right-circle me-1"></i>
+                                                    <span th:text="${step.inputValue}">입력값</span>
+                                                    → <span th:text="${step.outputValue}">출력값</span>
+                                                </small>
+                                            </div>
+                                            <div class="alert alert-sm py-2 mb-2"
+                                                 th:classappend="${step.score > 0 ? 'alert-success' : step.score < 0 ? 'alert-danger' : 'alert-secondary'}">
+                                                <small th:text="${step.reasoning}">매출액 10% 이상 증가로 +1점</small>
+                                            </div>
+                                            <div th:if="${step.formula != null and !step.formula.isEmpty()}" class="mt-2">
+                                                <small class="text-muted">계산 공식:</small>
+                                                <br/>
+                                                <code class="text-primary" th:text="${step.formula}">계산 공식</code>
+                                            </div>
+                                        </div>
+                                        <div class="text-end ms-3">
+                                            <span class="badge badge-lg fs-5 px-3 py-2"
+                                                  th:classappend="${step.score > 0 ? 'bg-success' : step.score < 0 ? 'bg-danger' : 'bg-secondary'}"
+                                                  th:text="${step.score + '점'}">+1점</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 최종 계산 공식 -->
+                            <div class="mt-4 p-3 border rounded bg-light" th:if="${result.finalCalculation() != null and !result.finalCalculation().isEmpty()}">
+                                <h6 class="mb-3">
+                                    <i class="bi bi-star-fill text-warning me-2"></i>
+                                    최종 점수 계산
+                                </h6>
+                                <code class="d-block p-3 bg-white border rounded text-primary fs-5" th:text="${result.finalCalculation()}">
+                                    MAX(0, MIN(5, 2 + (1+(-1)+1+0+1))) = 4점
+                                </code>
+                                <p class="text-muted mt-3 mb-0 small">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    기본 2점에서 시작하여 각 지표의 점수를 합산하고, 최소 0점 ~ 최대 5점으로 제한됩니다.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

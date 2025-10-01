@@ -2,6 +2,8 @@ package com.quantum.dino.controller;
 
 import com.quantum.dino.dto.*;
 import com.quantum.dino.service.*;
+import com.quantum.external.application.service.NewsService;
+import com.quantum.external.domain.news.News;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -11,6 +13,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.time.LocalDate;
+import java.util.List;
 
 /**
  * DINO 테스트 웹 인터페이스 컨트롤러
@@ -28,17 +33,20 @@ public class DinoController {
     private final DinoTechnicalService dinoTechnicalService;
     private final DinoMaterialService dinoMaterialService;
     private final DinoPriceService dinoPriceService;
+    private final NewsService newsService;
 
     public DinoController(DinoIntegratedService dinoIntegratedService,
                           DinoFinanceService dinoFinanceService,
                           DinoTechnicalService dinoTechnicalService,
                           DinoMaterialService dinoMaterialService,
-                          DinoPriceService dinoPriceService) {
+                          DinoPriceService dinoPriceService,
+                          NewsService newsService) {
         this.dinoIntegratedService = dinoIntegratedService;
         this.dinoFinanceService = dinoFinanceService;
         this.dinoTechnicalService = dinoTechnicalService;
         this.dinoMaterialService = dinoMaterialService;
         this.dinoPriceService = dinoPriceService;
+        this.newsService = newsService;
     }
 
     /**
@@ -97,6 +105,19 @@ public class DinoController {
 
                 // 각 영역별 성공/실패 상태 정보
                 model.addAttribute("analysisStatus", generateAnalysisStatusSummary(result));
+
+                // 최근 7일 뉴스 조회
+                try {
+                    LocalDate endDate = LocalDate.now();
+                    LocalDate startDate = endDate.minusDays(7);
+                    List<News> recentNews = newsService.searchNews(result.companyName(), startDate, endDate);
+
+                    model.addAttribute("recentNews", recentNews);
+                    log.info("뉴스 조회 성공: {} - {}건", result.companyName(), recentNews.size());
+                } catch (Exception e) {
+                    log.warn("뉴스 조회 실패: {} - {}", result.companyName(), e.getMessage());
+                    model.addAttribute("recentNews", List.of());
+                }
 
             } else {
                 log.warn("DINO 통합 분석 실패: {}", cleanStockCode);
