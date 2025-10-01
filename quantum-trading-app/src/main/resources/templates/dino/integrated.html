@@ -1138,6 +1138,24 @@
         })();
     </script>
 
+    <!-- Tab Navigation Initialization Script -->
+    <script>
+        // Initialize Bootstrap tabs manually
+        document.addEventListener('DOMContentLoaded', function() {
+            const triggerTabList = document.querySelectorAll('button[data-bs-toggle="tab"]');
+            triggerTabList.forEach(triggerEl => {
+                const tabTrigger = new bootstrap.Tab(triggerEl);
+
+                triggerEl.addEventListener('click', event => {
+                    event.preventDefault();
+                    tabTrigger.show();
+                });
+            });
+
+            console.log('Bootstrap tabs initialized:', triggerTabList.length + ' tabs found');
+        });
+    </script>
+
     <!-- Custom CSS for Analysis Cards -->
     <style>
         .analysis-card {
