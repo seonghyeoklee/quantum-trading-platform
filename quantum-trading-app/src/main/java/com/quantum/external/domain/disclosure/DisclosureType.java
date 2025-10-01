@@ -1,12 +1,12 @@
 package com.quantum.external.domain.disclosure;
 
 /**
- * 공시 유형
- * TODO: DART 공시 유형 확인 후 추가
+ * 공시 유형 (DART API 기반)
  */
 public enum DisclosureType {
-    MAJOR_DISCLOSURE,       // 주요사항보고
-    FAIR_DISCLOSURE,        // 공정공시
-    PERIODIC_REPORT,        // 정기보고
+    REGULAR,                // 정기공시 (사업보고서, 분기보고서, 반기보고서)
+    MAJOR_ISSUE,            // 주요사항보고 (풍문또는보도, 조회공시, 기타주요경영사항)
+    ISSUANCE,               // 발행공시 (증권발행, 유상증자, 무상증자, 전환사채)
+    OWNERSHIP,              // 지분공시 (임원·주요주주 특정증권, 자기주식)
     OTHER                   // 기타공시
 }

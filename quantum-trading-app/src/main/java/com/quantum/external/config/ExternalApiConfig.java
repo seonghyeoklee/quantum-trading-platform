@@ -1,5 +1,6 @@
 package com.quantum.external.config;
 
+import com.quantum.external.infrastructure.config.DartProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,7 +10,7 @@ import org.springframework.web.client.RestClient;
  * External API 설정
  */
 @Configuration
-@EnableConfigurationProperties(NaverNewsProperties.class)
+@EnableConfigurationProperties({NaverNewsProperties.class, DartProperties.class})
 public class ExternalApiConfig {
 
     /**
@@ -33,9 +34,15 @@ public class ExternalApiConfig {
                 .build();
     }
 
-    // TODO: DART API 설정
-    // @Bean
-    // public RestClient dartRestClient(DartProperties properties) { ... }
+    /**
+     * DART API 전용 RestClient
+     */
+    @Bean
+    public RestClient dartRestClient(DartProperties properties) {
+        return RestClient.builder()
+                .baseUrl(properties.baseUrl())
+                .build();
+    }
 
     // TODO: OpenAI API 설정
     // @Bean
