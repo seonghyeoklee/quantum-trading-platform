@@ -662,31 +662,117 @@
                     </div>
                 </div>
 
+                <!-- Recent News Section -->
+                <div th:if="${recentNews}" class="mt-3">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-newspaper me-2"></i>
+                                최근 7일 뉴스
+                                <span class="badge bg-primary ms-2" th:text="${#lists.size(recentNews)}">0</span>
+                            </h5>
+                            <small class="text-muted">네이버 뉴스</small>
+                        </div>
+                        <div class="card-body">
+                            <!-- No News Message -->
+                            <div th:if="${#lists.isEmpty(recentNews)}" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                                <p class="mb-0">최근 7일간 뉴스가 없습니다.</p>
+                            </div>
+
+                            <!-- News List -->
+                            <div th:if="${!#lists.isEmpty(recentNews)}" class="row g-3">
+                                <div th:each="news, iterStat : ${recentNews}" class="col-12 col-md-6" th:if="${iterStat.index < 6}">
+                                    <div class="card news-card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title mb-2">
+                                                <a th:href="${news.url()}" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-dark stretched-link">
+                                                    <span th:text="${news.title()}">뉴스 제목</span>
+                                                    <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                </a>
+                                            </h6>
+                                            <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-building me-1"></i>
+                                                    <span th:text="${news.source()}">출처</span>
+                                                </small>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Show All Button for News -->
+                            <div th:if="${#lists.size(recentNews) > 6}" class="text-center mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#moreNews">
+                                    <i class="bi bi-chevron-down me-1"></i>
+                                    더보기 (<span th:text="${#lists.size(recentNews) - 6}">0</span>개 더)
+                                </button>
+                            </div>
+
+                            <!-- Additional News (Collapsed) -->
+                            <div th:if="${#lists.size(recentNews) > 6}" id="moreNews" class="collapse">
+                                <div class="row g-3 mt-2">
+                                    <div th:each="news, iterStat : ${recentNews}" class="col-12 col-md-6" th:if="${iterStat.index >= 6}">
+                                        <div class="card news-card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title mb-2">
+                                                    <a th:href="${news.url()}" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-dark stretched-link">
+                                                        <span th:text="${news.title()}">뉴스 제목</span>
+                                                        <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
+                                                    </a>
+                                                </h6>
+                                                <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-building me-1"></i>
+                                                        <span th:text="${news.source()}">출처</span>
+                                                    </small>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i>
+                                                        <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Recent Disclosures Section -->
                 <div th:if="${recentDisclosures}" class="mt-3">
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="card-title mb-0">
                                 <i class="bi bi-file-earmark-text me-2"></i>
                                 최근 30일 공시
                                 <span class="badge bg-info ms-2" th:text="${#lists.size(recentDisclosures)}">0</span>
                             </h5>
+                            <small class="text-muted">DART 금융감독원</small>
                         </div>
                         <div class="card-body">
                             <!-- No Disclosures Message -->
                             <div th:if="${#lists.isEmpty(recentDisclosures)}" class="text-center py-4 text-muted">
-                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
                                 <p class="mb-0">최근 30일간 공시가 없습니다.</p>
                             </div>
 
                             <!-- Disclosures List -->
                             <div th:if="${!#lists.isEmpty(recentDisclosures)}" class="row g-3">
-                                <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12" th:if="${iterStat.index < 10}">
+                                <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12 col-md-6" th:if="${iterStat.index < 8}">
                                     <div class="card disclosure-card h-100">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <h6 class="card-title mb-0 flex-grow-1">
-                                                    <a th:href="${disclosure.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
+                                                    <a th:href="${disclosure.url()}" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-dark stretched-link">
                                                         <span th:text="${disclosure.title()}">공시 제목</span>
                                                         <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
                                                     </a>
@@ -722,17 +808,17 @@
                             </div>
 
                             <!-- Show All Button -->
-                            <div th:if="${#lists.size(recentDisclosures) > 10}" class="text-center mt-3">
+                            <div th:if="${#lists.size(recentDisclosures) > 8}" class="text-center mt-3">
                                 <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="collapse" data-bs-target="#moreDisclosures">
                                     <i class="bi bi-chevron-down me-1"></i>
-                                    더보기 (<span th:text="${#lists.size(recentDisclosures) - 10}">0</span>개 더)
+                                    더보기 (<span th:text="${#lists.size(recentDisclosures) - 8}">0</span>개 더)
                                 </button>
                             </div>
 
                             <!-- Additional Disclosures (Collapsed) -->
-                            <div th:if="${#lists.size(recentDisclosures) > 10}" id="moreDisclosures" class="collapse">
+                            <div th:if="${#lists.size(recentDisclosures) > 8}" id="moreDisclosures" class="collapse">
                                 <div class="row g-3 mt-2">
-                                    <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12" th:if="${iterStat.index >= 10}">
+                                    <div th:each="disclosure, iterStat : ${recentDisclosures}" class="col-12 col-md-6" th:if="${iterStat.index >= 8}">
                                         <div class="card disclosure-card h-100">
                                             <div class="card-body">
                                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -776,89 +862,6 @@
                     </div>
                 </div>
 
-                <!-- Recent News Section -->
-                <div th:if="${recentNews}" class="mt-3">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">
-                                <i class="bi bi-newspaper me-2"></i>
-                                최근 7일 뉴스
-                                <span class="badge bg-primary ms-2" th:text="${#lists.size(recentNews)}">0</span>
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <!-- No News Message -->
-                            <div th:if="${#lists.isEmpty(recentNews)}" class="text-center py-4 text-muted">
-                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                <p class="mb-0">최근 7일간 뉴스가 없습니다.</p>
-                            </div>
-
-                            <!-- News List -->
-                            <div th:if="${!#lists.isEmpty(recentNews)}" class="row g-3">
-                                <div th:each="news, iterStat : ${recentNews}" class="col-12" th:if="${iterStat.index < 10}">
-                                    <div class="card news-card h-100">
-                                        <div class="card-body">
-                                            <h6 class="card-title mb-2">
-                                                <a th:href="${news.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
-                                                    <span th:text="${news.title()}">뉴스 제목</span>
-                                                    <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
-                                                </a>
-                                            </h6>
-                                            <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <small class="text-muted">
-                                                    <i class="bi bi-building me-1"></i>
-                                                    <span th:text="${news.source()}">출처</span>
-                                                </small>
-                                                <small class="text-muted">
-                                                    <i class="bi bi-clock me-1"></i>
-                                                    <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Show All Button -->
-                            <div th:if="${#lists.size(recentNews) > 10}" class="text-center mt-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#moreNews">
-                                    <i class="bi bi-chevron-down me-1"></i>
-                                    더보기 (<span th:text="${#lists.size(recentNews) - 10}">0</span>개 더)
-                                </button>
-                            </div>
-
-                            <!-- Additional News (Collapsed) -->
-                            <div th:if="${#lists.size(recentNews) > 10}" id="moreNews" class="collapse">
-                                <div class="row g-3 mt-2">
-                                    <div th:each="news, iterStat : ${recentNews}" class="col-12" th:if="${iterStat.index >= 10}">
-                                        <div class="card news-card h-100">
-                                            <div class="card-body">
-                                                <h6 class="card-title mb-2">
-                                                    <a th:href="${news.url()}" target="_blank" class="text-decoration-none text-dark stretched-link">
-                                                        <span th:text="${news.title()}">뉴스 제목</span>
-                                                        <i class="bi bi-box-arrow-up-right ms-1 fs-6 text-muted"></i>
-                                                    </a>
-                                                </h6>
-                                                <p class="card-text text-muted small mb-2" th:text="${news.content()}">뉴스 내용 요약...</p>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <small class="text-muted">
-                                                        <i class="bi bi-building me-1"></i>
-                                                        <span th:text="${news.source()}">출처</span>
-                                                    </small>
-                                                    <small class="text-muted">
-                                                        <i class="bi bi-clock me-1"></i>
-                                                        <span th:text="${#temporals.format(news.publishedDate(), 'MM-dd HH:mm')}">09-27 14:30</span>
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </main>
