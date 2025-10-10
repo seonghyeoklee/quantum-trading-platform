@@ -11,7 +11,6 @@ class QuantumAdmin {
         this.initSidebarActive();
         this.initResponsive();
         this.initTooltips();
-        this.initMarketData();
         this.initNewsTicker();
     }
 
@@ -285,58 +284,6 @@ class QuantumAdmin {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(num / 100);
-    }
-
-    // ===== 마켓 데이터 업데이트 =====
-    initMarketData() {
-        this.updateMarketData();
-        // 5초마다 마켓 데이터 업데이트
-        setInterval(() => this.updateMarketData(), 5000);
-    }
-
-    updateMarketData() {
-        // 임시 데이터 (실제로는 API에서 가져와야 함)
-        const marketData = {
-            kospi: {
-                value: (2540 + Math.random() * 20).toFixed(2),
-                change: (Math.random() * 2 - 1).toFixed(2)
-            },
-            kosdaq: {
-                value: (840 + Math.random() * 20).toFixed(2),
-                change: (Math.random() * 2 - 1).toFixed(2)
-            },
-            usdkrw: {
-                value: (1340 + Math.random() * 10).toFixed(2),
-                change: (Math.random() * 2 - 1).toFixed(2)
-            }
-        };
-
-        // KOSPI 업데이트
-        const kospiValue = document.querySelector('.ticker-item:nth-child(1) strong');
-        const kospiChange = document.querySelector('.ticker-item:nth-child(1) .text-success, .ticker-item:nth-child(1) .text-danger');
-        if (kospiValue) kospiValue.textContent = marketData.kospi.value;
-        if (kospiChange) {
-            kospiChange.textContent = `${marketData.kospi.change > 0 ? '+' : ''}${marketData.kospi.change}%`;
-            kospiChange.className = marketData.kospi.change > 0 ? 'text-success ms-1' : 'text-danger ms-1';
-        }
-
-        // KOSDAQ 업데이트
-        const kosdaqValue = document.querySelector('.ticker-item:nth-child(2) strong');
-        const kosdaqChange = document.querySelector('.ticker-item:nth-child(2) .text-success, .ticker-item:nth-child(2) .text-danger');
-        if (kosdaqValue) kosdaqValue.textContent = marketData.kosdaq.value;
-        if (kosdaqChange) {
-            kosdaqChange.textContent = `${marketData.kosdaq.change > 0 ? '+' : ''}${marketData.kosdaq.change}%`;
-            kosdaqChange.className = marketData.kosdaq.change > 0 ? 'text-success ms-1' : 'text-danger ms-1';
-        }
-
-        // USD/KRW 업데이트
-        const usdkrwValue = document.querySelector('.ticker-item:nth-child(3) strong');
-        const usdkrwChange = document.querySelector('.ticker-item:nth-child(3) .text-success, .ticker-item:nth-child(3) .text-danger');
-        if (usdkrwValue) usdkrwValue.textContent = marketData.usdkrw.value;
-        if (usdkrwChange) {
-            usdkrwChange.textContent = `${marketData.usdkrw.change > 0 ? '+' : ''}${marketData.usdkrw.change}%`;
-            usdkrwChange.className = marketData.usdkrw.change > 0 ? 'text-success ms-1' : 'text-danger ms-1';
-        }
     }
 
     // ===== 뉴스 티커 =====
