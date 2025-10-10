@@ -29,37 +29,59 @@
                 <span class="text-dark">Quantum Trading</span>
             </a>
 
-            <!-- Market Status Ticker -->
+            <!-- Market Status Ticker - Dynamic -->
             <div class="navbar-nav me-auto ms-4 d-none d-lg-flex">
                 <div class="nav-item d-flex align-items-center">
-                    <div class="market-ticker">
-                        <span class="ticker-item me-4">
-                            <small class="text-muted">KOSPI</small>
-                            <strong class="ms-1">2,547.83</strong>
-                            <span class="text-success ms-1">+1.24%</span>
-                        </span>
-                        <span class="ticker-item me-4">
-                            <small class="text-muted">KOSDAQ</small>
-                            <strong class="ms-1">845.67</strong>
-                            <span class="text-danger ms-1">-0.83%</span>
-                        </span>
-                        <span class="ticker-item me-4">
-                            <small class="text-muted">USD/KRW</small>
-                            <strong class="ms-1">1,345.20</strong>
-                            <span class="text-success ms-1">+0.30%</span>
-                        </span>
+                    <div class="market-ticker" id="marketTicker">
+                        <!-- KOSPI -->
+                        <div class="ticker-item me-4">
+                            <i class="bi bi-graph-up-arrow me-1 text-primary" style="font-size: 0.9rem;"></i>
+                            <small class="text-muted fw-semibold">KOSPI</small>
+                            <strong class="ms-2" id="kospi-value">-</strong>
+                            <span class="ms-1" id="kospi-change">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            </span>
+                        </div>
+
+                        <!-- KOSDAQ -->
+                        <div class="ticker-item me-4">
+                            <i class="bi bi-bar-chart me-1 text-info" style="font-size: 0.9rem;"></i>
+                            <small class="text-muted fw-semibold">KOSDAQ</small>
+                            <strong class="ms-2" id="kosdaq-value">-</strong>
+                            <span class="ms-1" id="kosdaq-change">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            </span>
+                        </div>
+
+                        <!-- USD/KRW -->
+                        <div class="ticker-item me-4">
+                            <i class="bi bi-currency-dollar me-1 text-success" style="font-size: 0.9rem;"></i>
+                            <small class="text-muted fw-semibold">USD/KRW</small>
+                            <strong class="ms-2" id="usdkrw-value">-</strong>
+                            <span class="ms-1" id="usdkrw-change">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            </span>
+                        </div>
+
+                        <!-- Update Time -->
+                        <div class="ticker-item">
+                            <small class="text-muted" id="market-update-time">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                업데이트 중...
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Navbar Right Menu -->
             <ul class="navbar-nav ms-auto">
-                <!-- News Ticker -->
-                <li class="nav-item d-none d-md-block">
+                <!-- News Ticker - Dynamic -->
+                <li class="nav-item d-none d-md-block" style="max-width: 400px;">
                     <div class="nav-link px-0">
-                        <div class="news-ticker">
+                        <div class="news-ticker" id="newsTicker">
                             <i class="bi bi-newspaper text-primary me-2"></i>
-                            <span class="text-muted small">삼성전자, 신규 반도체 공장 건설 발표...</span>
+                            <span class="text-muted small" id="news-text">뉴스를 불러오는 중...</span>
                         </div>
                     </div>
                 </li>
@@ -258,6 +280,139 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
         <!-- Custom JS -->
         <script th:src="@{/js/admin.js}"></script>
+
+        <!-- Market Data Real-time Update Script -->
+        <script>
+            (function() {
+                // 시장 데이터 업데이트 함수
+                function updateMarketData() {
+                    console.log('[Market] 시장 데이터 업데이트 시작...');
+                    fetch('/api/market/indices')
+                        .then(response => {
+                            console.log('[Market] API 응답 받음:', response.status);
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('[Market] 데이터 파싱 완료:', data);
+                            if (data.success && data.data) {
+                                const { kospi, kosdaq, usdkrw } = data.data;
+
+                                // KOSPI 업데이트
+                                console.log('[Market] KOSPI 업데이트:', kospi);
+                                updateIndex('kospi', kospi);
+
+                                // KOSDAQ 업데이트
+                                console.log('[Market] KOSDAQ 업데이트:', kosdaq);
+                                updateIndex('kosdaq', kosdaq);
+
+                                // USD/KRW 업데이트
+                                console.log('[Market] USD/KRW 업데이트:', usdkrw);
+                                updateIndex('usdkrw', usdkrw);
+
+                                // 업데이트 시간 표시
+                                const now = new Date();
+                                const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                                               now.getMinutes().toString().padStart(2, '0') + ':' +
+                                               now.getSeconds().toString().padStart(2, '0');
+                                document.getElementById('market-update-time').innerHTML =
+                                    '<i class="bi bi-arrow-clockwise me-1"></i>' + timeStr;
+                                console.log('[Market] 업데이트 완료:', timeStr);
+                            } else {
+                                console.error('[Market] 데이터 형식 오류:', data);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('[Market] 시장 데이터 업데이트 실패:', error);
+                            document.getElementById('market-update-time').innerHTML =
+                                '<i class="bi bi-exclamation-triangle me-1 text-warning"></i>업데이트 실패';
+                        });
+                }
+
+                // 개별 지수 업데이트 함수
+                function updateIndex(id, data) {
+                    console.log(`[Market] updateIndex 호출: ${id}`, data);
+                    const valueEl = document.getElementById(id + '-value');
+                    const changeEl = document.getElementById(id + '-change');
+
+                    console.log(`[Market] DOM 요소 확인: valueEl=${!!valueEl}, changeEl=${!!changeEl}`);
+
+                    if (valueEl && changeEl) {
+                        // 값 업데이트
+                        const formattedValue = parseFloat(data.value).toLocaleString('ko-KR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
+                        valueEl.textContent = formattedValue;
+                        console.log(`[Market] ${id} 값 업데이트: ${formattedValue}`);
+
+                        // 변동 정보 업데이트
+                        const changePercent = parseFloat(data.changePercent);
+                        const isPositive = data.isPositive;
+                        const colorClass = isPositive ? 'text-success' : 'text-danger';
+                        const arrow = isPositive ? '▲' : '▼';
+
+                        changeEl.innerHTML = `<small class="${colorClass} fw-semibold">${arrow} ${Math.abs(changePercent).toFixed(2)}%</small>`;
+                        console.log(`[Market] ${id} 변동률 업데이트: ${arrow} ${changePercent}%`);
+
+                        // 애니메이션 효과
+                        valueEl.style.transition = 'color 0.3s';
+                        valueEl.classList.add(colorClass);
+                        setTimeout(() => {
+                            valueEl.classList.remove(colorClass);
+                        }, 500);
+                    } else {
+                        console.error(`[Market] DOM 요소를 찾을 수 없음: ${id}-value 또는 ${id}-change`);
+                    }
+                }
+
+                // 현재 시각 업데이트 함수
+                function updateCurrentTime() {
+                    const now = new Date();
+                    const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                                   now.getMinutes().toString().padStart(2, '0') + ':' +
+                                   now.getSeconds().toString().padStart(2, '0');
+                    const timeEl = document.getElementById('current-time');
+                    if (timeEl) {
+                        timeEl.textContent = timeStr;
+                    }
+                }
+
+                // 뉴스 티커 업데이트 함수 (샘플)
+                function updateNewsTicker() {
+                    const newsTexts = [
+                        '삼성전자, 신규 반도체 공장 건설 발표...',
+                        'SK하이닉스, AI 메모리 반도체 공급 확대',
+                        'KOSPI, 외국인 순매수로 상승세 유지',
+                        '네이버, 글로벌 AI 서비스 출시 예정',
+                        '현대차, 전기차 판매 목표 상향 조정'
+                    ];
+
+                    const newsEl = document.getElementById('news-text');
+                    if (newsEl) {
+                        const randomNews = newsTexts[Math.floor(Math.random() * newsTexts.length)];
+                        newsEl.textContent = randomNews;
+
+                        // 페이드 효과
+                        newsEl.style.opacity = '0.5';
+                        setTimeout(() => {
+                            newsEl.style.opacity = '1';
+                        }, 300);
+                    }
+                }
+
+                // 초기 로드
+                document.addEventListener('DOMContentLoaded', function() {
+                    // 즉시 실행
+                    updateMarketData();
+                    updateNewsTicker();
+
+                    // 주기적 업데이트 (KIS API rate limit 고려하여 60초로 조정)
+                    setInterval(updateMarketData, 60000);      // 60초마다 시장 데이터 업데이트
+                    setInterval(updateCurrentTime, 1000);      // 1초마다 시각 업데이트
+                    setInterval(updateNewsTicker, 15000);      // 15초마다 뉴스 티커 업데이트
+                });
+            })();
+        </script>
     </div>
 </body>
 </html>
