@@ -51,6 +51,24 @@ kis:
   scheduler:
     enabled: true  # 스케줄러 활성화 여부
 
+# LogTree 설정
+logtree:
+  enabled: true
+  auto-trace-controllers: true
+  auto-trace-services: false
+  trace-transaction-boundaries: true
+  track-errors: true
+  exclude-urls:
+    - /health
+    - /actuator/**
+    - /logtree/**
+  max-depth: 10
+  colored-output: true
+  log-style: tree
+  admin:
+    enabled: true
+    max-traces: 100
+
 # 로깅 설정 (상세 설정은 logback-spring.xml에서 관리)
 logging:
   config: classpath:logback-spring.xml
@@ -58,6 +76,7 @@ logging:
     file: logs/
   level:
     root: INFO
+    io.github.logtree: DEBUG
     org.hibernate.SQL: DEBUG                    # SQL 쿼리만 표시
     org.hibernate.type.descriptor.sql: WARN     # 파라미터 바인딩 로그 숨김
     org.hibernate.orm.jdbc.bind: WARN           # 파라미터 바인딩 로그 숨김 (Hibernate 6+)
