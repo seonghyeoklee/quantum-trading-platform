@@ -3,6 +3,7 @@ package com.quantum.kis.infrastructure.adapter.out.kis;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quantum.kis.application.port.out.KisApiPort;
 import com.quantum.kis.application.port.out.KisTokenRepositoryPort;
+import com.quantum.kis.domain.token.KisToken;
 import com.quantum.kis.domain.token.KisTokenId;
 import com.quantum.kis.infrastructure.config.KisConfig;
 import com.quantum.kis.domain.KisEnvironment;
@@ -10,6 +11,7 @@ import com.quantum.kis.domain.TokenType;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.ChartDataResponse;
 import com.quantum.kis.dto.FinancialDataResponse;
+import com.quantum.kis.dto.IndexPriceResponse;
 import com.quantum.kis.dto.InvestorInfoResponse;
 import com.quantum.kis.dto.KisTokenRequest;
 import com.quantum.kis.dto.KisWebSocketRequest;
@@ -184,7 +186,7 @@ public class KisApiAdapter implements KisApiPort {
     private String getAccessToken(KisEnvironment environment) {
         KisTokenId tokenId = new KisTokenId(environment, TokenType.ACCESS_TOKEN);
         return kisTokenRepositoryPort.findById(tokenId)
-                .filter(kisToken -> kisToken.isUsable())
+                .filter(KisToken::isUsable)
                 .map(kisToken -> kisToken.getToken().value())
                 .orElseThrow(() -> new KisApiException("사용 가능한 액세스 토큰이 없습니다: " + environment));
     }
@@ -337,6 +339,45 @@ public class KisApiAdapter implements KisApiPort {
             String formattedCurl = String.format(curl, url, stockCode, accessToken,
                     config.getMyApp(), config.getMySec());
             log.debug("KIS Investor API Curl: {}", formattedCurl);
+        }
+    }
+
+    @Override
+    public IndexPriceResponse getIndexPrice(KisEnvironment environment, String indexCode) {
+        log.info("시장 지수 조회 시작 - 환경: {}, 지수코드: {}", environment, indexCode);
+
+        String url = config.getRestApiUrl(environment) + "/uapi/domestic-stock/v1/quotations/inquire-index-price";
+        String trId = "FHPUP02100000";
+        String accessToken = getAccessToken(environment);
+
+        try {
+            IndexPriceResponse response = restClient.get()
+                    .uri(url + "?FID_COND_MRKT_DIV_CODE=U&FID_INPUT_ISCD=" + indexCode)
+                    .header("content-type", "application/json; charset=utf-8")
+                    .header("authorization", "Bearer " + accessToken)
+                    .header("appkey", config.getMyApp())
+                    .header("appsecret", config.getMySec())
+                    .header("tr_id", trId)
+                    .retrieve()
+                    .body(IndexPriceResponse.class);
+
+            if (response == null) {
+                log.error("시장 지수 응답이 null입니다 - 지수코드: {}", indexCode);
+                throw new KisApiException("시장 지수 조회 실패: 응답 없음");
+            }
+
+            if (!response.isSuccess()) {
+                log.error("시장 지수 조회 실패 - 응답코드: {}, 메시지: {}", response.rtCd(), response.msg1());
+                throw new KisApiException("시장 지수 조회 실패: " + response.msg1());
+            }
+
+            log.info("시장 지수 조회 성공 - 지수코드: {}, 현재가: {}", indexCode,
+                    response.output() != null ? response.output().currentPrice() : "N/A");
+            return response;
+
+        } catch (Exception e) {
+            log.error("시장 지수 조회 중 오류 발생 - 지수코드: {}", indexCode, e);
+            throw new KisApiException("시장 지수 조회 중 오류 발생: " + e.getMessage(), e);
         }
     }
 }

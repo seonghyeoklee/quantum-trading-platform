@@ -4,6 +4,7 @@ import com.quantum.kis.domain.KisEnvironment;
 import com.quantum.kis.dto.AccessTokenResponse;
 import com.quantum.kis.dto.ChartDataResponse;
 import com.quantum.kis.dto.FinancialDataResponse;
+import com.quantum.kis.dto.IndexPriceResponse;
 import com.quantum.kis.dto.InvestorInfoResponse;
 import com.quantum.kis.dto.WebSocketKeyResponse;
 
@@ -59,4 +60,12 @@ public interface KisApiPort {
      */
     InvestorInfoResponse getInvestorInfo(KisEnvironment environment, String stockCode,
                                        String investorType, String startDate, String endDate);
+
+    /**
+     * 시장 지수 정보를 조회한다.
+     * @param environment KIS 환경
+     * @param indexCode 지수 코드 (KOSPI: 0001, KOSDAQ: 1001, KOSPI200: 2001)
+     * @return 지수 정보 응답
+     */
+    IndexPriceResponse getIndexPrice(KisEnvironment environment, String indexCode);
 }
