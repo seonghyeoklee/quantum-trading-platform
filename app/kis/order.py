@@ -156,7 +156,7 @@ class KISOrderClient:
 
         url = f"{self.base_url}/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
         headers = self.auth.get_base_headers()
-        headers["tr_id"] = "VTTC8001R"
+        headers["tr_id"] = "VTTC0081R"
 
         params = {
             "CANO": self.account_no,
