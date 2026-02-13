@@ -1,0 +1,104 @@
+"""KIS API 시세 조회 - 현재가, 일봉 차트"""
+
+import logging
+from datetime import datetime, timedelta
+
+from app.kis.auth import KISAuth
+from app.models import ChartData, StockPrice
+
+logger = logging.getLogger(__name__)
+
+
+class KISMarketClient:
+    def __init__(self, auth: KISAuth):
+        self.auth = auth
+
+    @property
+    def base_url(self) -> str:
+        return self.auth.config.base_url
+
+    @property
+    def _client(self):
+        return self.auth._client
+
+    async def get_current_price(self, symbol: str) -> StockPrice:
+        """주식 현재가 조회"""
+        await self.auth.get_token()
+
+        url = f"{self.base_url}/uapi/domestic-stock/v1/quotations/inquire-price"
+        headers = self.auth.get_base_headers()
+        headers["tr_id"] = "FHKST01010100"
+
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": symbol,
+        }
+
+        data = await self._client.get(url, headers=headers, params=params)
+
+        if data.get("rt_cd") != "0":
+            raise RuntimeError(
+                f"KIS API 오류: {data.get('msg_cd')} - {data.get('msg1')}"
+            )
+
+        output = data["output"]
+        return StockPrice(
+            symbol=symbol,
+            name=output.get("hts_kor_isnm", ""),
+            current_price=int(output.get("stck_prpr", 0)),
+            change=int(output.get("prdy_vrss", 0)),
+            change_rate=float(output.get("prdy_ctrt", 0)),
+            volume=int(output.get("acml_vol", 0)),
+            high=int(output.get("stck_hgpr", 0)),
+            low=int(output.get("stck_lwpr", 0)),
+            opening=int(output.get("stck_oprc", 0)),
+        )
+
+    async def get_daily_chart(
+        self, symbol: str, days: int = 30
+    ) -> list[ChartData]:
+        """일봉 차트 조회"""
+        await self.auth.get_token()
+
+        url = f"{self.base_url}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+        headers = self.auth.get_base_headers()
+        headers["tr_id"] = "FHKST03010100"
+
+        end_date = datetime.now().strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=days + 30)).strftime("%Y%m%d")
+
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_DATE_1": start_date,
+            "FID_INPUT_DATE_2": end_date,
+            "FID_PERIOD_DIV_CODE": "D",
+            "FID_ORG_ADJ_PRC": "0",  # 수정주가
+        }
+
+        data = await self._client.get(url, headers=headers, params=params)
+
+        if data.get("rt_cd") != "0":
+            raise RuntimeError(
+                f"KIS API 오류: {data.get('msg_cd')} - {data.get('msg1')}"
+            )
+
+        chart: list[ChartData] = []
+        for item in data.get("output2", []):
+            date = item.get("stck_bsop_date", "")
+            if not date:
+                continue
+            chart.append(
+                ChartData(
+                    date=date,
+                    open=int(item.get("stck_oprc", 0)),
+                    high=int(item.get("stck_hgpr", 0)),
+                    low=int(item.get("stck_lwpr", 0)),
+                    close=int(item.get("stck_clpr", 0)),
+                    volume=int(item.get("acml_vol", 0)),
+                )
+            )
+
+        # 날짜 오름차순 정렬
+        chart.sort(key=lambda c: c.date)
+        return chart
