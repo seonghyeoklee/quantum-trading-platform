@@ -1,7 +1,7 @@
 """자동매매 엔진 로직 테스트"""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -89,8 +89,8 @@ class TestTickSkips:
             engine.market.get_current_price.assert_not_called()
 
 
-class TestDuplicateBuyPrevention:
-    """중복 매수 방지 테스트"""
+class TestBuy:
+    """매수 테스트 (잔고 직접 조회로 중복 방지)"""
 
     @pytest.mark.asyncio
     async def test_no_duplicate_buy(self):
@@ -98,14 +98,13 @@ class TestDuplicateBuyPrevention:
         settings = _make_settings()
         engine = TradingEngine(settings)
 
-        # 이미 005930 보유 중
-        engine._positions_cache = {
-            "005930": Position(
+        # get_balance()가 이미 보유 중인 포지션 반환
+        engine.order.get_balance = AsyncMock(return_value=[
+            Position(
                 symbol="005930", name="삼성전자", quantity=10,
                 avg_price=70000, current_price=72000,
             )
-        }
-
+        ])
         engine.order.buy = AsyncMock()
         now = datetime(2026, 2, 12, 10, 0, 0)
 
@@ -119,76 +118,52 @@ class TestDuplicateBuyPrevention:
         """미보유 종목은 정상 매수"""
         settings = _make_settings()
         engine = TradingEngine(settings)
-        engine._positions_cache = {}
 
+        engine.order.get_balance = AsyncMock(return_value=[])
         engine.order.buy = AsyncMock(return_value={
             "success": True, "order_no": "0001", "message": "ok",
         })
         engine.order.get_order_status = AsyncMock(return_value={
-            "filled_quantity": 7, "filled_price": 71000,
+            "filled_quantity": 6, "filled_price": 71000,
             "remaining_quantity": 0, "order_status": "filled",
         })
-        engine.order.get_balance = AsyncMock(return_value=[])
 
         now = datetime(2026, 2, 12, 10, 0, 0)
         await engine._execute_buy("005930", 72000, 500_000, now)
 
         engine.order.buy.assert_called_once_with("005930", 6)  # 500000 // 72000 = 6
 
-
-class TestChartCache:
-    """일봉 캐시 재사용 테스트"""
-
     @pytest.mark.asyncio
-    async def test_chart_cache_reuse(self):
-        """같은 날 두 번째 tick에서는 일봉을 재조회하지 않음"""
-        settings = _make_settings()
-        engine = TradingEngine(settings)
-        engine._watch_symbols = ["005930"]
-        engine._status = EngineStatus.RUNNING
-
-        chart_data = _make_chart([100] * 25)
-        engine.market.get_daily_chart = AsyncMock(return_value=chart_data)
-        engine.market.get_current_price = AsyncMock(
-            return_value=StockPrice(symbol="005930", current_price=100)
-        )
-
-        # 첫 번째 tick — 캐시 로드
-        with patch("app.trading.engine.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
-            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
-            await engine._tick()
-
-        assert engine.market.get_daily_chart.call_count == 1
-
-        # 두 번째 tick — 같은 날, 캐시 재사용
-        with patch("app.trading.engine.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 1, 0)
-            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
-            await engine._tick()
-
-        # get_daily_chart는 추가 호출 안 됨
-        assert engine.market.get_daily_chart.call_count == 1
-        # get_current_price는 두 번 호출
-        assert engine.market.get_current_price.call_count == 2
-
-
-class TestSellWithPositionCache:
-    """매도 시 포지션 캐시 활용 테스트"""
-
-    @pytest.mark.asyncio
-    async def test_sell_uses_cached_quantity(self):
-        """매도 시 캐시된 보유수량 사용 (잔고 조회 API 호출 안 함)"""
+    async def test_buy_zero_quantity_skip(self):
+        """매수 수량이 0이면 스킵"""
         settings = _make_settings()
         engine = TradingEngine(settings)
 
-        engine._positions_cache = {
-            "005930": Position(
+        engine.order.get_balance = AsyncMock(return_value=[])
+        engine.order.buy = AsyncMock()
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        # 주문금액 500_000 / 가격 1_000_000 = 0주
+        await engine._execute_buy("005930", 1_000_000, 500_000, now)
+
+        engine.order.buy.assert_not_called()
+
+
+class TestSell:
+    """매도 테스트 (잔고 직접 조회)"""
+
+    @pytest.mark.asyncio
+    async def test_sell_when_holding(self):
+        """보유 종목 전량 매도"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=[
+            Position(
                 symbol="005930", name="삼성전자", quantity=10,
                 avg_price=70000, current_price=72000,
-            )
-        }
-
+            ),
+        ])
         engine.order.sell = AsyncMock(return_value={
             "success": True, "order_no": "0002", "message": "ok",
         })
@@ -196,7 +171,6 @@ class TestSellWithPositionCache:
             "filled_quantity": 10, "filled_price": 72000,
             "remaining_quantity": 0, "order_status": "filled",
         })
-        engine.order.get_balance = AsyncMock(return_value=[])
 
         now = datetime(2026, 2, 12, 10, 0, 0)
         await engine._execute_sell("005930", now)
@@ -208,13 +182,32 @@ class TestSellWithPositionCache:
         """미보유 종목은 매도 생략"""
         settings = _make_settings()
         engine = TradingEngine(settings)
-        engine._positions_cache = {}
 
+        engine.order.get_balance = AsyncMock(return_value=[])
         engine.order.sell = AsyncMock()
-        now = datetime(2026, 2, 12, 10, 0, 0)
 
+        now = datetime(2026, 2, 12, 10, 0, 0)
         await engine._execute_sell("005930", now)
+
         engine.order.sell.assert_not_called()
+
+
+class TestStartFailure:
+    """엔진 시작 실패 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_start_fails_on_balance_error(self):
+        """잔고 조회 실패 시 엔진 시작 중단"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine.order.get_balance = AsyncMock(
+            side_effect=RuntimeError("API connection failed")
+        )
+
+        with pytest.raises(RuntimeError, match="API connection failed"):
+            await engine.start(["005930"])
+
+        assert engine._status == EngineStatus.STOPPED
 
 
 class TestConsecutiveErrorPause:
@@ -224,7 +217,6 @@ class TestConsecutiveErrorPause:
     async def test_consecutive_error_pause(self):
         """연속 max_consecutive_errors회 오류 시 PAUSED로 전환"""
         settings = _make_settings()
-        # 테스트 속도를 위해 interval을 극소로 설정
         settings.trading.trading_interval = 0
         engine = TradingEngine(settings)
         engine._status = EngineStatus.RUNNING
@@ -239,7 +231,6 @@ class TestConsecutiveErrorPause:
         import asyncio
 
         task = asyncio.create_task(engine._run_loop())
-        # max_consecutive_errors=3이므로 3번 실패하면 PAUSED
         await asyncio.sleep(0.5)
         task.cancel()
         try:

@@ -10,10 +10,8 @@ from app.kis.client import KISClient
 from app.kis.market import KISMarketClient
 from app.kis.order import KISOrderClient
 from app.models import (
-    ChartData,
     EngineStatus,
     OrderResult,
-    Position,
     SignalType,
     TradingSignal,
     TradingStatus,
@@ -46,13 +44,6 @@ class TradingEngine:
         self._started_at: datetime | None = None
         self._loop_count: int = 0
 
-        # 일봉 캐시 (장 시작 시 1회 로드)
-        self._chart_cache: dict[str, list[ChartData]] = {}
-        self._cache_loaded_date: str | None = None
-
-        # 포지션 캐시 (중복 매수 방지)
-        self._positions_cache: dict[str, Position] = {}
-
         # 에러 복구
         self._consecutive_errors: int = 0
 
@@ -60,7 +51,6 @@ class TradingEngine:
         return TradingStatus(
             status=self._status,
             watch_symbols=self._watch_symbols,
-            positions=list(self._positions_cache.values()),
             recent_signals=self._signals[-MAX_HISTORY:],
             recent_orders=self._orders[-MAX_HISTORY:],
             started_at=self._started_at,
@@ -78,14 +68,16 @@ class TradingEngine:
             self.auth._client = self._client
 
         self._watch_symbols = symbols or self.settings.trading.watch_symbols
+        self._consecutive_errors = 0
+
+        # 시작 시 잔고 조회로 연결 상태 확인 (실패 시 시작 차단)
+        await self.order.get_balance()
+        logger.info("KIS API 연결 확인 완료")
+
         self._status = EngineStatus.RUNNING
         self._started_at = datetime.now()
         self._loop_count = 0
-        self._consecutive_errors = 0
         logger.info("자동매매 시작: %s", self._watch_symbols)
-
-        # 시작 시 잔고 조회로 포지션 캐시 초기화
-        await self._refresh_positions()
 
         self._task = asyncio.create_task(self._run_loop())
 
@@ -146,24 +138,16 @@ class TradingEngine:
                 logger.debug("장 시간 외: %s", now.strftime("%H:%M:%S"))
             return
 
-        # 일봉 캐시 로드 (하루 1회)
-        today = now.strftime("%Y%m%d")
-        if self._cache_loaded_date != today:
-            await self._load_chart_cache()
-            self._cache_loaded_date = today
-
         short_period = self.settings.trading.short_ma_period
         long_period = self.settings.trading.long_ma_period
         order_amount = self.settings.trading.order_amount
 
         for symbol in self._watch_symbols:
             try:
-                # 캐시에서 차트 읽기, 현재가만 API 호출
-                chart = self._chart_cache.get(symbol)
-                if not chart:
-                    logger.warning("[%s] 일봉 캐시 없음 — 스킵", symbol)
-                    continue
-
+                # 매 tick마다 직접 API 호출 (캐시 없음 — 항상 최신 데이터)
+                chart = await self.market.get_daily_chart(
+                    symbol, days=long_period + 10
+                )
                 price_info = await self.market.get_current_price(symbol)
 
                 # 전략 실행
@@ -203,41 +187,18 @@ class TradingEngine:
             except Exception:
                 logger.exception("[%s] 처리 중 오류", symbol)
 
-    async def _load_chart_cache(self) -> None:
-        """전 종목 일봉 데이터 캐시 로드 (장 시작 시 1회)"""
-        long_period = self.settings.trading.long_ma_period
-        logger.info("일봉 캐시 로드 시작: %s", self._watch_symbols)
-
-        for symbol in self._watch_symbols:
-            try:
-                chart = await self.market.get_daily_chart(
-                    symbol, days=long_period + 10
-                )
-                self._chart_cache[symbol] = chart
-                logger.info("[%s] 일봉 %d건 캐시됨", symbol, len(chart))
-            except Exception:
-                logger.exception("[%s] 일봉 캐시 로드 실패", symbol)
-
-    async def _refresh_positions(self) -> None:
-        """잔고 조회 → 포지션 캐시 갱신"""
-        try:
-            positions = await self.order.get_balance()
-            self._positions_cache = {p.symbol: p for p in positions}
-            logger.info("포지션 캐시 갱신: %d종목 보유", len(self._positions_cache))
-        except Exception:
-            logger.exception("포지션 캐시 갱신 실패")
-
     async def _execute_buy(
         self, symbol: str, current_price: int, order_amount: int, now: datetime
     ) -> None:
-        """매수 주문 (중복 매수 방지 + 체결 확인)"""
-        # 중복 매수 방지
-        if symbol in self._positions_cache:
-            pos = self._positions_cache[symbol]
-            logger.info(
-                "[%s] 이미 보유 중 (%d주) — 매수 생략", symbol, pos.quantity
-            )
-            return
+        """매수 주문 (실시간 잔고 확인으로 중복 방지 + 체결 확인)"""
+        # 잔고 직접 조회로 중복 매수 방지
+        positions = await self.order.get_balance()
+        for pos in positions:
+            if pos.symbol == symbol and pos.quantity > 0:
+                logger.info(
+                    "[%s] 이미 보유 중 (%d주) — 매수 생략", symbol, pos.quantity
+                )
+                return
 
         if current_price <= 0:
             return
@@ -268,38 +229,31 @@ class TradingEngine:
 
         self._orders.append(order_result)
 
-        # 주문 후 포지션 캐시 갱신
-        if result.get("success"):
-            await self._refresh_positions()
-
     async def _execute_sell(self, symbol: str, now: datetime) -> None:
-        """보유 종목 전량 매도 (포지션 캐시 활용)"""
-        pos = self._positions_cache.get(symbol)
-        if not pos or pos.quantity <= 0:
-            logger.info("[%s] 보유 수량 없음 — 매도 생략", symbol)
-            return
+        """보유 종목 전량 매도 (실시간 잔고 확인)"""
+        positions = await self.order.get_balance()
+        for pos in positions:
+            if pos.symbol == symbol and pos.quantity > 0:
+                result = await self.order.sell(symbol, pos.quantity)
 
-        result = await self.order.sell(symbol, pos.quantity)
+                order_result = OrderResult(
+                    symbol=symbol,
+                    side="sell",
+                    quantity=pos.quantity,
+                    order_no=result.get("order_no", ""),
+                    message=result.get("message", ""),
+                    success=result.get("success", False),
+                    timestamp=now,
+                )
 
-        order_result = OrderResult(
-            symbol=symbol,
-            side="sell",
-            quantity=pos.quantity,
-            order_no=result.get("order_no", ""),
-            message=result.get("message", ""),
-            success=result.get("success", False),
-            timestamp=now,
-        )
+                # 체결 확인
+                if result.get("success") and result.get("order_no"):
+                    await self._check_fill(order_result, now)
 
-        # 체결 확인
-        if result.get("success") and result.get("order_no"):
-            await self._check_fill(order_result, now)
+                self._orders.append(order_result)
+                return
 
-        self._orders.append(order_result)
-
-        # 주문 후 포지션 캐시 갱신
-        if result.get("success"):
-            await self._refresh_positions()
+        logger.info("[%s] 보유 수량 없음 — 매도 생략", symbol)
 
     async def _check_fill(self, order: OrderResult, now: datetime) -> None:
         """주문 체결 확인 (3초 대기 후 조회)"""

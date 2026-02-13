@@ -85,7 +85,6 @@ class TradingStatus(BaseModel):
 
     status: EngineStatus = EngineStatus.STOPPED
     watch_symbols: list[str] = []
-    positions: list[Position] = []
     recent_signals: list[TradingSignal] = []
     recent_orders: list[OrderResult] = []
     started_at: datetime | None = None
