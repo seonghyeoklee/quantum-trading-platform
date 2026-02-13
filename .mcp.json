@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kis-code-assistant": {
+      "type": "http",
+      "url": "https://kis-code-assistant-mcp--kisopenapi.run.tools"
+    }
+  }
+}

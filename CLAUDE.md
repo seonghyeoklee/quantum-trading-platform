@@ -111,6 +111,51 @@ my_htsid: "HTS_ID"
 | 현금 매도 | `VTTC0801U` | `/uapi/domestic-stock/v1/trading/order-cash` |
 | 잔고 조회 | `VTTC8434R` | `/uapi/domestic-stock/v1/trading/inquire-balance` |
 
+## KIS MCP Server 설정
+
+KIS Open API 코드 어시스턴트를 Claude Code에서 사용하려면 프로젝트 루트에 `.mcp.json` 파일을 생성한다.
+
+### 설정 방법
+
+프로젝트 루트에 `.mcp.json` 생성:
+```json
+{
+  "mcpServers": {
+    "kis-code-assistant": {
+      "type": "http",
+      "url": "https://kis-code-assistant-mcp--kisopenapi.run.tools"
+    }
+  }
+}
+```
+
+### 제공 도구
+
+| 도구 | 설명 |
+|------|------|
+| `search_auth_api` | 인증 (토큰 발급, 웹소켓 키) |
+| `search_domestic_stock_api` | 국내주식 (시세, 호가, 주문, 잔고, 실시간) |
+| `search_domestic_bond_api` | 국내채권 |
+| `search_domestic_futureoption_api` | 국내선물옵션 |
+| `search_overseas_stock_api` | 해외주식 |
+| `search_overseas_futureoption_api` | 해외선물옵션 |
+| `search_etfetn_api` | ETF/ETN |
+| `search_elw_api` | ELW |
+| `read_source_code` | KIS API 예제 소스코드 조회 |
+
+### 사용 예시
+
+Claude Code에서 KIS API 관련 질문을 하면 MCP 도구가 자동으로 호출됨:
+- "삼성전자 현재가 조회 코드 짜줘" → `search_domestic_stock_api` 호출
+- "해외주식 잔고 조회 방법 알려줘" → `search_overseas_stock_api` 호출
+- "토큰 발급 코드 보여줘" → `search_auth_api` 호출
+
+### 주의사항
+
+- `.mcp.json`은 `.gitignore`에 추가하지 않음 (팀 공유 설정)
+- MCP 서버는 외부 호스팅이므로 별도 설치 불필요
+- API 키/시크릿은 MCP에 전달되지 않음 (코드 검색용도만)
+
 ## Critical Rules
 
 - **절대 가짜 데이터 생성 금지**: API 실패 시 에러 반환
