@@ -1,339 +1,123 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-**Quantum Trading Platform** is a comprehensive stock trading system integrating two complementary components:
-1. **quantum-trading-app**: Spring Boot web application with DINO analysis system
-2. **quantum-adapter-kis**: Python FastAPI microservice for KIS Open API integration
+**Quantum Trading Platform** — 국내주식 모의투자 자동매매 시스템 (MVP)
 
-## Technology Stack & Architecture
+Python + FastAPI 기반. KIS Open API 모의투자 환경에서 이동평균 크로스오버 전략으로 자동매매.
 
-### quantum-trading-app (Primary Application)
-- **Backend**: Spring Boot 3.5.6 + Java 21
-- **Frontend**: Thymeleaf templates + Bootstrap 5.3 + Material UI design
-- **Database**: PostgreSQL (primary) + H2 (testing)
-- **Build Tool**: Gradle with Kotlin DSL
-- **Features**: DINO stock analysis system, KIS token management, web interface
+## Technology Stack
 
-### quantum-adapter-kis (KIS API Service)
-- **Framework**: Python FastAPI
-- **Purpose**: KIS API integration, trading strategies, real-time data
-- **Features**: Comprehensive trading analysis, VWAP strategies, sector trading
+- **Python 3.13+**, FastAPI, Uvicorn
+- **httpx**: KIS API 비동기 호출
+- **Pydantic v2**: 데이터 모델 + 설정
+- **pytest + pytest-asyncio**: 테스트
+- **uv**: 패키지 관리
 
-### Infrastructure
-- **PostgreSQL**: Shared database for both services (port 5432)
-- **Docker Compose**: Database orchestration (quantum-trading-app/docker-compose.yml)
-- **Airflow**: Data pipeline orchestration (legacy/reference)
-- **Web Client**: Next.js frontend (quantum-web-client - minimal structure)
+## Project Structure
+
+```
+quantum-trading-platform/
+├── app/
+│   ├── main.py                # FastAPI 진입점
+│   ├── config.py              # 설정 (KIS API, 매매 파라미터)
+│   ├── models.py              # Pydantic 데이터 모델
+│   ├── kis/                   # KIS API 클라이언트
+│   │   ├── auth.py            # 토큰 발급/관리 (메모리 캐싱)
+│   │   ├── market.py          # 현재가/차트 조회
+│   │   └── order.py           # 매수/매도 주문, 잔고 조회
+│   ├── trading/               # 자동매매 핵심
+│   │   ├── engine.py          # 자동매매 루프 (시작/중지/상태)
+│   │   └── strategy.py        # 이동평균 크로스오버 전략
+│   └── api/
+│       └── routes.py          # API 엔드포인트
+├── tests/
+│   ├── test_strategy.py       # 전략 로직 단위 테스트
+│   └── test_kis_client.py     # KIS API 통합 테스트
+├── quantum-adapter-kis/       # MCP 참조 코드
+│   ├── examples_llm/          # KIS API 개별 함수 예제
+│   ├── examples_user/         # 통합 사용 예제
+│   └── docs/
+├── pyproject.toml
+└── CLAUDE.md
+```
 
 ## Development Commands
 
-### quantum-trading-app (Main Application)
-
-#### Database Setup (Required First)
+### Setup
 ```bash
-cd quantum-trading-app/
-
-# Start PostgreSQL
-docker-compose up -d
-
-# Verify database
-docker logs quantum-postgres
-docker exec quantum-postgres psql -U quantum -d quantum_trading -c "\dt"
+uv sync --extra dev
 ```
 
-#### Building and Running
+### Run Server
 ```bash
-# Build and run (standard workflow)
-./gradlew bootRun
-
-# Build only
-./gradlew build
-
-# Run tests
-./gradlew test
-
-# Run specific test
-./gradlew test --tests "DinoFinanceServiceTest"
-
-# Clean build
-./gradlew clean build
-
-# Stop database
-docker-compose down
+uv run python -m app.main
+# → http://localhost:8000
 ```
 
-#### Java 21 Compatibility Note
-May encounter compatibility issues between Gradle Kotlin DSL and Java 21. Simply retry:
+### Run Tests
 ```bash
-./gradlew clean
-./gradlew bootRun  # Usually succeeds on retry
+uv run pytest tests/ -v
 ```
 
-### quantum-adapter-kis (KIS API Service)
-
-#### Environment Setup
+### Run Strategy Tests Only
 ```bash
-cd quantum-adapter-kis/
-
-# Install dependencies (Python 3.13+ required)
-uv sync
-
-# Alternative with pip
-pip install -r requirements.txt
+uv run pytest tests/test_strategy.py -v
 ```
 
-#### Running Services
-```bash
-# Start FastAPI server
-uv run python main.py
+## API Endpoints
 
-# Development with auto-reload
-uvicorn main:app --reload --port 8000
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | 헬스체크 |
+| GET | `/market/price/{symbol}` | 종목 현재가 |
+| POST | `/trading/start` | 자동매매 시작 (body: `{"symbols": ["005930"]}`) |
+| POST | `/trading/stop` | 자동매매 중지 |
+| GET | `/trading/status` | 엔진 상태/시그널/주문 이력 |
+| GET | `/trading/positions` | 보유 포지션 |
 
-#### Trading Systems Testing
-```bash
-# DINO analysis system
-uv run python test_dino_finance.py
-uv run python test_dino_technical.py 005930
+## KIS API Configuration
 
-# Sector trading system
-cd sector_trading_test
-uv run python manual_trader.py
+**모의투자 전용** (`openapivts.koreainvestment.com:29443`)
 
-# VWAP strategy
-uv run python test_vwap_backtest.py
-```
+설정 방법 (택 1):
+1. `~/KIS/config/kis_devlp.yaml` (기존 방식)
+2. 환경변수: `KIS_APP_KEY`, `KIS_APP_SECRET`, `KIS_ACCOUNT_NO`
 
-## Architecture Patterns
-
-### Domain-Driven Design (KIS Module)
-**quantum-trading-app** implements DDD patterns:
-
-- **KisToken** (Aggregate Root): Token lifecycle management
-- **Token** (Value Object): Immutable token data with expiration logic
-- **KisTokenId** (Value Object): Composite identifier (environment + type)
-- **KisTokenRepository**: Domain persistence abstraction
-- **KisTokenPersistenceService**: Domain-infrastructure coordination
-
-### Database Schema
-
-PostgreSQL database `quantum_trading` is shared between both applications and contains the following key tables:
-
-#### KIS Tokens (Shared by both services)
-```sql
-kis_tokens (
-    environment VARCHAR(10),    -- PROD/VPS
-    token_type VARCHAR(20),     -- ACCESS_TOKEN/WEBSOCKET_KEY
-    token_value TEXT,
-    expires_at TIMESTAMP,
-    status VARCHAR(10),         -- ACTIVE/EXPIRED/INVALID
-    PRIMARY KEY (environment, token_type)
-)
-```
-
-#### DINO Analysis Results
-```sql
-dino_finance_results (
-    id BIGSERIAL PRIMARY KEY,
-    stock_code VARCHAR(10),
-    analysis_date DATE,
-    revenue_growth_score INTEGER,
-    operating_profit_score INTEGER,
-    operating_margin_score INTEGER,
-    retention_rate_score INTEGER,
-    debt_ratio_score INTEGER,
-    total_score INTEGER,         -- 0-5 final score
-    UNIQUE(stock_code, analysis_date)
-)
-```
-
-#### Daily Chart Data (Used by both services)
-```sql
-daily_chart_data (
-    id BIGSERIAL PRIMARY KEY,
-    stock_code VARCHAR(10),
-    stck_bsop_date DATE,        -- Business operation date
-    stck_clpr DECIMAL(10,2),    -- Closing price
-    stck_oprc DECIMAL(10,2),    -- Opening price
-    stck_hgpr DECIMAL(10,2),    -- High price
-    stck_lwpr DECIMAL(10,2),    -- Low price
-    acml_vol BIGINT,            -- Volume
-    acml_tr_pbmn DECIMAL(15,2), -- Trading value
-    UNIQUE(stock_code, stck_bsop_date)
-)
-```
-
-### DINO Analysis System (15-Point Stock Evaluation)
-
-**Implementation**: quantum-trading-app/src/main/java/com/quantum/dino/
-**Algorithm**: `MAX(0, MIN(5, 2 + individual_scores))` (Python → Java translation)
-
-**5 Finance Metrics**:
-- Revenue growth analysis
-- Operating profit evaluation
-- Operating margin assessment
-- Retained earnings analysis
-- Debt ratio evaluation
-
-### Token Management Strategy
-- **Automatic Reuse**: PostgreSQL caching until expiration
-- **Proactive Renewal**: 1 hour before expiration
-- **Scheduled Maintenance**: Daily refresh (9 AM KST)
-- **Environment Isolation**: Separate PROD/VPS tokens
-- **Cross-Service**: Shared by both applications via database
-- **Database-First**: quantum-adapter-kis has `db_token_manager.py` for direct PostgreSQL access
-
-## Configuration
-
-### Application Configuration
-**quantum-trading-app**: `src/main/resources/application.yml`
+### kis_devlp.yaml 필수 키
 ```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/quantum_trading
-    username: quantum
-    password: quantum123
-  jpa:
-    hibernate:
-      ddl-auto: update  # Auto-schema updates
-```
-
-**quantum-adapter-kis**: Uses same database via `db_token_manager.py`
-```python
-# Database connection details
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "quantum_trading",
-    "user": "quantum",
-    "password": "quantum123"
-}
-```
-
-### Secret Management
-**Both applications**: `application-secrets.yml` (git-ignored)
-- KIS API credentials (prod/vps keys)
-- Account numbers and HTS ID
-- Auto-imported by Spring Boot
-
-### KIS API Configuration
-**quantum-adapter-kis**: `kis_devlp.yaml` at project root
-```yaml
-my_app: "실전투자_앱키"
-my_sec: "실전투자_앱시크릿"
 paper_app: "모의투자_앱키"
 paper_sec: "모의투자_앱시크릿"
-my_htsid: "사용자_HTS_ID"
-my_acct_stock: "증권계좌_8자리"
+my_paper_stock: "모의투자_계좌번호_8자리"
 my_prod: "01"
+my_htsid: "HTS_ID"
 ```
 
-## Key Endpoints & Services
+## Trading Strategy
 
-### quantum-trading-app (Web Interface)
-- `GET /`: Dashboard overview
-- `GET /dino`: DINO stock analysis interface
-- `GET /api/kis/tokens/status`: Token management status
+**이동평균 크로스오버 (SMA Crossover)**
+- 단기: SMA(5), 장기: SMA(20)
+- 골든크로스 (SMA5가 SMA20 상향돌파) → **매수**
+- 데드크로스 (SMA5가 SMA20 하향돌파) → **매도**
+- 장 시간: 09:00 ~ 15:20, 주기: 1분
 
-### quantum-adapter-kis (API Service)
-- `GET /domestic/price/{symbol}`: Current stock price
-- `GET /domestic/chart/{symbol}`: Chart data
-- `GET /dino-test/finance/{stock_code}`: Financial analysis
-- `WebSocket /ws/realtime`: Real-time data streaming
+## KIS API TR_ID 참조 (모의투자)
 
-## Development Guidelines
+| 기능 | TR_ID | API Path |
+|------|-------|----------|
+| 현재가 조회 | `FHKST01010100` | `/uapi/domestic-stock/v1/quotations/inquire-price` |
+| 일봉 차트 | `FHKST03010100` | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` |
+| 현금 매수 | `VTTC0802U` | `/uapi/domestic-stock/v1/trading/order-cash` |
+| 현금 매도 | `VTTC0801U` | `/uapi/domestic-stock/v1/trading/order-cash` |
+| 잔고 조회 | `VTTC8434R` | `/uapi/domestic-stock/v1/trading/inquire-balance` |
 
-### KIS Token Management
-- Use `KisTokenManager` for token access (not `KisTokenService` directly)
-- Tokens automatically cached and reused from PostgreSQL
-- No manual refresh needed - handled by scheduling
-- Persistence ensures continuity across restarts
+## Critical Rules
 
-### DINO System Development
-- Finance analysis follows exact Python algorithm translation
-- Scoring: `MAX(0, MIN(5, 2 + sum_of_individual_scores))`
-- One analysis per stock per day with database caching
-- Business logic in service layer, controllers handle web concerns
-
-### Data Integrity Rules
-**CRITICAL**: Never generate mock/dummy/fake data when APIs fail
-
-When KIS API calls fail or data unavailable:
-- ✅ **CORRECT**: Return HTTP error codes (404, 503, etc.)
-- ❌ **FORBIDDEN**: Generate placeholder or dummy data
-
-## Quick Start Checklist
-
-1. **Prerequisites**: Java 21, Python 3.13+, Docker Desktop
-2. **Database**: `cd quantum-trading-app && docker-compose up -d`
-3. **Secrets**: Verify `application-secrets.yml` exists in resources
-4. **Main App**: `./gradlew bootRun` (retry if build error)
-5. **KIS Service**: `cd quantum-adapter-kis && uv sync && uv run python main.py`
-6. **Verify**: Visit `http://localhost:8080/dino` for DINO analysis
-7. **API Test**: `curl http://localhost:8000/health` for KIS service
-
-## Common Development Tasks
-
-### Database Operations
-```bash
-# Check PostgreSQL status
-docker ps --filter "name=quantum-postgres"
-
-# View logs
-docker logs quantum-postgres --tail 50
-
-# Reset database (removes all data)
-cd quantum-trading-app
-docker-compose down -v && docker-compose up -d
-
-# Connect to database
-docker exec quantum-postgres psql -U quantum -d quantum_trading
-```
-
-### Service Monitoring
-```bash
-# Spring Boot application logs
-cd quantum-trading-app
-./gradlew bootRun | grep -E "(ERROR|WARN|DINO|KIS)"
-
-# FastAPI service logs
-cd quantum-adapter-kis
-uv run python main.py
-
-# Check token status
-curl -s http://localhost:8080/api/kis/tokens/status | jq .
-curl -s http://localhost:8000/auth/refresh-token?environment=prod
-```
-
-### Testing Individual Components
-```bash
-# Test DINO analysis
-cd quantum-trading-app
-./gradlew test --tests "*Dino*"
-
-# Test KIS integration patterns
-cd quantum-adapter-kis/examples_llm/domestic_stock/inquire_price
-python chk_inquire_price.py
-
-# Test sector trading
-cd quantum-adapter-kis/sector_trading_test
-uv run python test_system.py
-
-# Test database token management
-cd quantum-adapter-kis
-uv run python -c "from db_token_manager import is_db_available; print('DB Available:', is_db_available())"
-
-# Test DINO scoring system
-uv run python test_dino_finance.py 005930
-uv run python test_dino_technical.py 005930
-uv run python test_dino_price.py 005930
-```
+- **절대 가짜 데이터 생성 금지**: API 실패 시 에러 반환
+- **모의투자 전용**: 실전투자 TR_ID 사용 금지
+- 전략 로직은 순수 함수로 유지 (외부 의존성 없음)
 
 ---
 
-*Last Updated: 2025-09-24*
-*Status: Dual Architecture - Spring Boot App + FastAPI Service*
+*Last Updated: 2026-02-13*
+*Status: MVP - 국내주식 모의투자 자동매매*

@@ -66,3 +66,7 @@ yarn-error.log*
 kis_devlp.yaml
 *.key
 *.pem
+
+# uv
+uv.lock
+.pytest_cache/
