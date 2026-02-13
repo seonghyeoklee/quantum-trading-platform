@@ -1,0 +1,18 @@
+services:
+  trading:
+    build: .
+    container_name: quantum-trading
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${HOME}/KIS/config:/root/KIS/config:ro
+    environment:
+      - KIS_APP_KEY=${KIS_APP_KEY:-}
+      - KIS_APP_SECRET=${KIS_APP_SECRET:-}
+      - KIS_ACCOUNT_NO=${KIS_ACCOUNT_NO:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

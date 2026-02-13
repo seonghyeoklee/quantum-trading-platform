@@ -24,9 +24,16 @@ class KISClient:
     """
 
     def __init__(self, timeout: float = 10.0) -> None:
-        self._http = httpx.AsyncClient(timeout=timeout)
+        # KIS API 서버는 keep-alive 커넥션에서 이전 요청의 세션 상태를
+        # 다음 요청에 잘못 적용하는 문제가 있음 → 커넥션 재사용 비활성화
+        limits = httpx.Limits(max_keepalive_connections=0)
+        self._http = httpx.AsyncClient(timeout=timeout, limits=limits)
         # 동시 요청 1개 + 요청 간 0.5초 대기 → 초당 최대 2회
         self._semaphore = asyncio.Semaphore(1)
+
+    @property
+    def is_closed(self) -> bool:
+        return self._http.is_closed
 
     async def close(self) -> None:
         await self._http.aclose()
@@ -63,9 +70,13 @@ class KISClient:
         for attempt in range(len(_BACKOFF) + 1):  # 0, 1, 2, 3 → 최초 + 3회 재시도
             async with self._semaphore:
                 try:
-                    resp = await self._http.request(
-                        method, url, headers=headers, params=params, json=json
-                    )
+                    # KIS API 세션 쿠키 간섭 방지
+                    self._http.cookies.clear()
+
+                    kwargs: dict = {"headers": headers, "params": params}
+                    if json is not None:
+                        kwargs["json"] = json
+                    resp = await self._http.request(method, url, **kwargs)
                     # rate limit 준수: 요청 후 0.5초 대기
                     await asyncio.sleep(0.5)
 

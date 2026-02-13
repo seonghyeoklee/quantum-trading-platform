@@ -73,5 +73,5 @@ class TestKISMarket:
 @pytest.mark.skipif(_skip, reason=skip_reason)
 class TestKISOrder:
     async def test_get_balance(self, order: KISOrderClient):
-        positions = await order.get_balance()
+        positions, summary = await order.get_balance()
         assert isinstance(positions, list)

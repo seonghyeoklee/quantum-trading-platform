@@ -71,6 +71,17 @@ class Position(BaseModel):
     profit_loss_rate: float = 0.0  # 수익률 (%)
 
 
+class AccountSummary(BaseModel):
+    """계좌 요약"""
+
+    deposit: int = 0  # 예수금총금액
+    total_eval: int = 0  # 총평가금액
+    net_asset: int = 0  # 순자산금액
+    purchase_total: int = 0  # 매입금액합계
+    eval_profit_loss: int = 0  # 평가손익합계
+    eval_profit_loss_rate: float = 0.0  # 자산증감율
+
+
 class EngineStatus(str, Enum):
     STOPPED = "STOPPED"
     RUNNING = "RUNNING"

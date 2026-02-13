@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router, set_engine
+from app.api.routes import router
 from app.config import load_settings
 from app.trading.engine import TradingEngine
 
@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     settings = load_settings()
     engine = TradingEngine(settings)
-    set_engine(engine)
+    app.state.engine = engine
     logger.info("자동매매 엔진 초기화 완료")
-    yield
-    await engine.stop()
-    logger.info("자동매매 엔진 종료")
+    try:
+        yield
+    finally:
+        await engine.stop()
+        logger.info("자동매매 엔진 종료")
 
 
 app = FastAPI(
@@ -46,4 +48,4 @@ app.add_middleware(
 app.include_router(router)
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)

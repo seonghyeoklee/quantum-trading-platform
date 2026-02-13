@@ -1,72 +1,36 @@
-# Airflow Logs
-airflow/logs/
-**/airflow/logs/
-*.log
-
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
 # Virtual environments
+.venv/
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Docker
-.docker/
-
-# Temporary files
-*.tmp
-*.temp
-
-# Configuration files with secrets
-kis_devlp.yaml
-*.key
-*.pem
+# Testing
+.pytest_cache/
 
 # uv
 uv.lock
-.pytest_cache/
+
+# KIS credentials
+kis_devlp.yaml
+*.key
+*.pem
+.mcp.json
+
+# KIS MCP
+kis-mcp/.env.*
+kis-mcp/configs/master/
+
+# Logs
+*.log

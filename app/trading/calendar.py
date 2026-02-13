@@ -64,4 +64,4 @@ def is_market_open(now: datetime) -> bool:
     if not is_trading_day(now.date()):
         return False
     current_time = now.time()
-    return MARKET_OPEN <= current_time <= MARKET_CLOSE
+    return MARKET_OPEN <= current_time < MARKET_CLOSE

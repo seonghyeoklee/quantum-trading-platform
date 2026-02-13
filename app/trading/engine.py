@@ -44,6 +44,9 @@ class TradingEngine:
         self._started_at: datetime | None = None
         self._loop_count: int = 0
 
+        # 종목별 주문 잠금 (잔고 확인 → 주문 실행 원자성 보장)
+        self._order_locks: dict[str, asyncio.Lock] = {}
+
         # 에러 복구
         self._consecutive_errors: int = 0
 
@@ -63,15 +66,19 @@ class TradingEngine:
             return
 
         # 재시작 시 HTTP 클라이언트 재생성
-        if self._client._http.is_closed:
+        if self._client.is_closed:
             self._client = KISClient(timeout=self.settings.kis.timeout)
             self.auth._client = self._client
 
         self._watch_symbols = symbols or self.settings.trading.watch_symbols
         self._consecutive_errors = 0
 
-        # 시작 시 잔고 조회로 연결 상태 확인 (실패 시 시작 차단)
-        await self.order.get_balance()
+        # 시작 시 잔고 조회로 연결 상태 확인 (실패 시 시작 차단 + 리소스 정리)
+        try:
+            await self.order.get_balance()  # 연결 검증 (반환값 무시)
+        except Exception:
+            await self._client.close()
+            raise
         logger.info("KIS API 연결 확인 완료")
 
         self._status = EngineStatus.RUNNING
@@ -185,65 +192,74 @@ class TradingEngine:
                 logger.exception("[%s] 처리 중 오류", symbol)
                 fail_count += 1
 
-        # 모든 종목이 실패하면 예외를 올려 _run_loop 에러 카운터에 반영
-        if fail_count > 0 and fail_count == len(self._watch_symbols):
-            raise RuntimeError(f"모든 종목({fail_count}개) 처리 실패")
+        # 1개라도 실패하면 예외를 올려 _run_loop 에러 카운터에 반영
+        if fail_count > 0:
+            raise RuntimeError(
+                f"종목 처리 실패: {fail_count}/{len(self._watch_symbols)}개"
+            )
+
+    def _get_order_lock(self, symbol: str) -> asyncio.Lock:
+        """종목별 주문 Lock 반환 (없으면 생성)"""
+        if symbol not in self._order_locks:
+            self._order_locks[symbol] = asyncio.Lock()
+        return self._order_locks[symbol]
 
     async def _execute_buy(
         self, symbol: str, current_price: int, order_amount: int, now: datetime
     ) -> None:
-        """매수 주문 (실시간 잔고 확인으로 중복 방지)"""
-        # 잔고 직접 조회로 중복 매수 방지
-        positions = await self.order.get_balance()
-        for pos in positions:
-            if pos.symbol == symbol and pos.quantity > 0:
-                logger.info(
-                    "[%s] 이미 보유 중 (%d주) — 매수 생략", symbol, pos.quantity
+        """매수 주문 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
+        async with self._get_order_lock(symbol):
+            positions, _ = await self.order.get_balance()
+            for pos in positions:
+                if pos.symbol == symbol and pos.quantity > 0:
+                    logger.info(
+                        "[%s] 이미 보유 중 (%d주) — 매수 생략", symbol, pos.quantity
+                    )
+                    return
+
+            if current_price <= 0:
+                return
+
+            quantity = order_amount // current_price
+            if quantity <= 0:
+                logger.warning(
+                    "[%s] 매수 수량 0 (금액=%d, 가격=%d)",
+                    symbol, order_amount, current_price,
                 )
                 return
 
-        if current_price <= 0:
-            return
+            result = await self.order.buy(symbol, quantity)
 
-        quantity = order_amount // current_price
-        if quantity <= 0:
-            logger.warning(
-                "[%s] 매수 수량 0 (금액=%d, 가격=%d)",
-                symbol, order_amount, current_price,
+            order_result = OrderResult(
+                symbol=symbol,
+                side="buy",
+                quantity=quantity,
+                order_no=result.get("order_no", ""),
+                message=result.get("message", ""),
+                success=result.get("success", False),
+                timestamp=now,
             )
-            return
-
-        result = await self.order.buy(symbol, quantity)
-
-        order_result = OrderResult(
-            symbol=symbol,
-            side="buy",
-            quantity=quantity,
-            order_no=result.get("order_no", ""),
-            message=result.get("message", ""),
-            success=result.get("success", False),
-            timestamp=now,
-        )
-        self._orders.append(order_result)
+            self._orders.append(order_result)
 
     async def _execute_sell(self, symbol: str, now: datetime) -> None:
-        """보유 종목 전량 매도 (실시간 잔고 확인)"""
-        positions = await self.order.get_balance()
-        for pos in positions:
-            if pos.symbol == symbol and pos.quantity > 0:
-                result = await self.order.sell(symbol, pos.quantity)
+        """보유 종목 전량 매도 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
+        async with self._get_order_lock(symbol):
+            positions, _ = await self.order.get_balance()
+            for pos in positions:
+                if pos.symbol == symbol and pos.quantity > 0:
+                    result = await self.order.sell(symbol, pos.quantity)
 
-                order_result = OrderResult(
-                    symbol=symbol,
-                    side="sell",
-                    quantity=pos.quantity,
-                    order_no=result.get("order_no", ""),
-                    message=result.get("message", ""),
-                    success=result.get("success", False),
-                    timestamp=now,
-                )
-                self._orders.append(order_result)
-                return
+                    order_result = OrderResult(
+                        symbol=symbol,
+                        side="sell",
+                        quantity=pos.quantity,
+                        order_no=result.get("order_no", ""),
+                        message=result.get("message", ""),
+                        success=result.get("success", False),
+                        timestamp=now,
+                    )
+                    self._orders.append(order_result)
+                    return
 
-        logger.info("[%s] 보유 수량 없음 — 매도 생략", symbol)
+            logger.info("[%s] 보유 수량 없음 — 매도 생략", symbol)
 

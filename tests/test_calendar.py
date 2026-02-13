@@ -49,9 +49,14 @@ class TestIsMarketOpen:
         dt = datetime(2026, 2, 12, 9, 0, 0)
         assert is_market_open(dt) is True
 
-    def test_market_open_at_close(self):
-        """장 마감 정각"""
+    def test_market_closed_at_close(self):
+        """장 마감 정각 (15:20:00)은 주문 불가"""
         dt = datetime(2026, 2, 12, 15, 20, 0)
+        assert is_market_open(dt) is False
+
+    def test_market_open_just_before_close(self):
+        """장 마감 직전 (15:19:59)은 주문 가능"""
+        dt = datetime(2026, 2, 12, 15, 19, 59)
         assert is_market_open(dt) is True
 
     def test_market_closed_before_open(self):
