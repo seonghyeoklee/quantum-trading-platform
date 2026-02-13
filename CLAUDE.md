@@ -23,21 +23,21 @@ quantum-trading-platform/
 │   ├── config.py              # 설정 (KIS API, 매매 파라미터)
 │   ├── models.py              # Pydantic 데이터 모델
 │   ├── kis/                   # KIS API 클라이언트
+│   │   ├── client.py          # HTTP 클라이언트 (재시도, rate limit)
 │   │   ├── auth.py            # 토큰 발급/관리 (메모리 캐싱)
 │   │   ├── market.py          # 현재가/차트 조회
 │   │   └── order.py           # 매수/매도 주문, 잔고 조회
 │   ├── trading/               # 자동매매 핵심
 │   │   ├── engine.py          # 자동매매 루프 (시작/중지/상태)
-│   │   └── strategy.py        # 이동평균 크로스오버 전략
+│   │   ├── strategy.py        # 이동평균 크로스오버 전략
+│   │   └── calendar.py        # 매매일/장시간 판단
 │   └── api/
 │       └── routes.py          # API 엔드포인트
 ├── tests/
 │   ├── test_strategy.py       # 전략 로직 단위 테스트
+│   ├── test_engine.py         # 엔진 로직 단위 테스트
+│   ├── test_calendar.py       # 매매일/장시간 단위 테스트
 │   └── test_kis_client.py     # KIS API 통합 테스트
-├── quantum-adapter-kis/       # MCP 참조 코드
-│   ├── examples_llm/          # KIS API 개별 함수 예제
-│   ├── examples_user/         # 통합 사용 예제
-│   └── docs/
 ├── pyproject.toml
 └── CLAUDE.md
 ```
