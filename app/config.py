@@ -44,7 +44,7 @@ class TradingConfig(BaseSettings):
     # 매매 주기 (초)
     trading_interval: int = 60
 
-    # 연속 에러 허용 횟수 (초과 시 엔진 일시정지)
+    # 연속 에러 허용 횟수 (초과 시 엔진 정지)
     max_consecutive_errors: int = 5
 
 

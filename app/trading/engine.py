@@ -101,12 +101,7 @@ class TradingEngine:
     async def _run_loop(self) -> None:
         interval = self.settings.trading.trading_interval
         try:
-            while self._status in (EngineStatus.RUNNING, EngineStatus.PAUSED):
-                if self._status == EngineStatus.PAUSED:
-                    logger.info("엔진 일시정지 상태 — 대기 중")
-                    await asyncio.sleep(interval)
-                    continue
-
+            while self._status == EngineStatus.RUNNING:
                 try:
                     await self._tick()
                     self._loop_count += 1
@@ -118,9 +113,10 @@ class TradingEngine:
                     max_errors = self.settings.trading.max_consecutive_errors
                     if self._consecutive_errors >= max_errors:
                         logger.warning(
-                            "연속 %d회 오류 — 엔진 일시정지", self._consecutive_errors
+                            "연속 %d회 오류 — 엔진 정지", self._consecutive_errors
                         )
-                        self._status = EngineStatus.PAUSED
+                        self._status = EngineStatus.STOPPED
+                        break
 
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:
@@ -142,6 +138,7 @@ class TradingEngine:
         long_period = self.settings.trading.long_ma_period
         order_amount = self.settings.trading.order_amount
 
+        fail_count = 0
         for symbol in self._watch_symbols:
             try:
                 # 매 tick마다 직접 API 호출 (캐시 없음 — 항상 최신 데이터)
@@ -186,11 +183,16 @@ class TradingEngine:
 
             except Exception:
                 logger.exception("[%s] 처리 중 오류", symbol)
+                fail_count += 1
+
+        # 모든 종목이 실패하면 예외를 올려 _run_loop 에러 카운터에 반영
+        if fail_count > 0 and fail_count == len(self._watch_symbols):
+            raise RuntimeError(f"모든 종목({fail_count}개) 처리 실패")
 
     async def _execute_buy(
         self, symbol: str, current_price: int, order_amount: int, now: datetime
     ) -> None:
-        """매수 주문 (실시간 잔고 확인으로 중복 방지 + 체결 확인)"""
+        """매수 주문 (실시간 잔고 확인으로 중복 방지)"""
         # 잔고 직접 조회로 중복 매수 방지
         positions = await self.order.get_balance()
         for pos in positions:
@@ -222,11 +224,6 @@ class TradingEngine:
             success=result.get("success", False),
             timestamp=now,
         )
-
-        # 체결 확인
-        if result.get("success") and result.get("order_no"):
-            await self._check_fill(order_result, now)
-
         self._orders.append(order_result)
 
     async def _execute_sell(self, symbol: str, now: datetime) -> None:
@@ -245,42 +242,8 @@ class TradingEngine:
                     success=result.get("success", False),
                     timestamp=now,
                 )
-
-                # 체결 확인
-                if result.get("success") and result.get("order_no"):
-                    await self._check_fill(order_result, now)
-
                 self._orders.append(order_result)
                 return
 
         logger.info("[%s] 보유 수량 없음 — 매도 생략", symbol)
 
-    async def _check_fill(self, order: OrderResult, now: datetime) -> None:
-        """주문 체결 확인 (3초 대기 후 조회)"""
-        await asyncio.sleep(3)
-
-        order_date = now.strftime("%Y%m%d")
-        try:
-            status = await self.order.get_order_status(order_date, order.order_no)
-            order.filled_quantity = status["filled_quantity"]
-            order.filled_price = status["filled_price"]
-            order.order_status = status["order_status"]
-
-            if status["order_status"] == "filled":
-                logger.info(
-                    "[%s] %s 체결 완료: %d주 @ %d원",
-                    order.symbol,
-                    order.side,
-                    status["filled_quantity"],
-                    status["filled_price"],
-                )
-            elif status["order_status"] in ("partial", "pending"):
-                logger.warning(
-                    "[%s] %s 미체결: 체결=%d, 잔량=%d",
-                    order.symbol,
-                    order.side,
-                    status["filled_quantity"],
-                    status["remaining_quantity"],
-                )
-        except Exception:
-            logger.exception("[%s] 체결 확인 실패", order.symbol)

@@ -56,9 +56,6 @@ class OrderResult(BaseModel):
     message: str = ""
     success: bool = False
     timestamp: datetime
-    filled_quantity: int = 0
-    filled_price: int = 0
-    order_status: str = ""  # filled / partial / pending / unknown
 
 
 class Position(BaseModel):
@@ -77,7 +74,6 @@ class Position(BaseModel):
 class EngineStatus(str, Enum):
     STOPPED = "STOPPED"
     RUNNING = "RUNNING"
-    PAUSED = "PAUSED"
 
 
 class TradingStatus(BaseModel):

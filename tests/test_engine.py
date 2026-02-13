@@ -123,10 +123,6 @@ class TestBuy:
         engine.order.buy = AsyncMock(return_value={
             "success": True, "order_no": "0001", "message": "ok",
         })
-        engine.order.get_order_status = AsyncMock(return_value={
-            "filled_quantity": 6, "filled_price": 71000,
-            "remaining_quantity": 0, "order_status": "filled",
-        })
 
         now = datetime(2026, 2, 12, 10, 0, 0)
         await engine._execute_buy("005930", 72000, 500_000, now)
@@ -167,10 +163,6 @@ class TestSell:
         engine.order.sell = AsyncMock(return_value={
             "success": True, "order_no": "0002", "message": "ok",
         })
-        engine.order.get_order_status = AsyncMock(return_value={
-            "filled_quantity": 10, "filled_price": 72000,
-            "remaining_quantity": 0, "order_status": "filled",
-        })
 
         now = datetime(2026, 2, 12, 10, 0, 0)
         await engine._execute_sell("005930", now)
@@ -210,12 +202,12 @@ class TestStartFailure:
         assert engine._status == EngineStatus.STOPPED
 
 
-class TestConsecutiveErrorPause:
-    """연속 에러 시 엔진 일시정지 테스트"""
+class TestConsecutiveErrorStop:
+    """연속 에러 시 엔진 정지 테스트"""
 
     @pytest.mark.asyncio
-    async def test_consecutive_error_pause(self):
-        """연속 max_consecutive_errors회 오류 시 PAUSED로 전환"""
+    async def test_consecutive_error_stop(self):
+        """연속 max_consecutive_errors회 오류 시 STOPPED로 전환"""
         settings = _make_settings()
         settings.trading.trading_interval = 0
         engine = TradingEngine(settings)
@@ -238,5 +230,5 @@ class TestConsecutiveErrorPause:
         except asyncio.CancelledError:
             pass
 
-        assert engine._status == EngineStatus.PAUSED
+        assert engine._status == EngineStatus.STOPPED
         assert engine._consecutive_errors >= 3
