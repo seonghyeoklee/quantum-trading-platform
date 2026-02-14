@@ -3,6 +3,29 @@
 import json
 import sys
 
+from app.report_theme import wrap_html
+
+_EXTRA_CSS = """
+.summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 24px 0; }
+.overview-chart { background: #1a1d27; border-radius: 12px; padding: 24px; margin: 24px 0; }
+.overview-chart h2 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+.table-section { background: #1a1d27; border-radius: 12px; padding: 24px; margin: 24px 0; overflow-x: auto; }
+.table-section h2 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+th { padding: 10px 8px; white-space: nowrap; position: sticky; top: 0; }
+td { padding: 10px 8px; white-space: nowrap; }
+.strategy-header { text-align: center !important; font-size: 12px; padding: 6px 8px; }
+.trades-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.trade-section h4 { font-size: 14px; margin-bottom: 8px; }
+.buy { color: #ef4444; font-weight: 600; }
+.sell { color: #3b82f6; font-weight: 600; }
+.no-trades { color: #555; font-size: 13px; }
+.divider { border: none; border-top: 1px solid #252830; margin: 8px 0; }
+@media (max-width: 900px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .trades-grid { grid-template-columns: 1fr; }
+}
+"""
+
 
 def generate_html(data: list[dict]) -> str:
     # Aggregate portfolio-level stats
@@ -155,70 +178,7 @@ def generate_html(data: list[dict]) -> str:
         ]
     }, ensure_ascii=False)
 
-    html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>전략 비교 백테스트 리포트</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<style>
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, 'Pretendard', sans-serif; background: #0f1117; color: #e0e0e0; }}
-.container {{ max-width: 1400px; margin: 0 auto; padding: 24px; }}
-header {{ text-align: center; padding: 40px 0 24px; }}
-header h1 {{ font-size: 28px; font-weight: 700; color: #fff; }}
-header p {{ color: #888; margin-top: 8px; font-size: 14px; }}
-.summary-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 24px 0; }}
-.summary-card {{ background: #1a1d27; border-radius: 12px; padding: 20px; }}
-.summary-card h3 {{ font-size: 14px; color: #aaa; margin-bottom: 8px; }}
-.metric-main {{ font-size: 32px; font-weight: 700; }}
-.metric-label {{ font-size: 12px; color: #666; margin-bottom: 12px; }}
-.metric-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }}
-.metric-value {{ font-size: 16px; font-weight: 600; display: block; }}
-.metric-sub {{ font-size: 11px; color: #666; }}
-.positive {{ color: #22c55e; }}
-.negative {{ color: #ef4444; }}
-.overview-chart {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 24px 0; }}
-.overview-chart h2 {{ font-size: 18px; margin-bottom: 16px; color: #fff; }}
-.table-section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 24px 0; overflow-x: auto; }}
-.table-section h2 {{ font-size: 18px; margin-bottom: 16px; color: #fff; }}
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-th {{ background: #252830; color: #aaa; font-weight: 600; padding: 10px 8px; text-align: right; white-space: nowrap; position: sticky; top: 0; }}
-th:first-child {{ text-align: left; }}
-td {{ padding: 10px 8px; border-bottom: 1px solid #252830; text-align: right; white-space: nowrap; }}
-td:first-child {{ text-align: left; }}
-.stock-cell {{ display: flex; flex-direction: column; gap: 2px; }}
-.stock-code {{ font-weight: 600; color: #fff; font-size: 13px; }}
-.stock-name {{ color: #888; font-size: 11px; }}
-.strategy-header {{ text-align: center !important; font-size: 12px; padding: 6px 8px; }}
-.detail-btn {{ background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px; }}
-.detail-btn:hover {{ background: #1d4ed8; }}
-.detail-panel {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 12px 0; }}
-.detail-panel h3 {{ font-size: 16px; color: #fff; margin-bottom: 16px; }}
-.chart-container {{ height: 300px; margin-bottom: 24px; }}
-.trades-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }}
-.trade-section h4 {{ font-size: 14px; margin-bottom: 8px; }}
-.trade-table {{ font-size: 12px; }}
-.trade-table th {{ background: #1e2028; font-size: 11px; padding: 6px; }}
-.trade-table td {{ padding: 5px 6px; border-bottom: 1px solid #1e2028; }}
-.buy {{ color: #ef4444; font-weight: 600; }}
-.sell {{ color: #3b82f6; font-weight: 600; }}
-.badge {{ display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }}
-.badge-red {{ background: rgba(239,68,68,0.15); color: #f87171; }}
-.badge-orange {{ background: rgba(245,158,11,0.15); color: #fbbf24; }}
-.badge-blue {{ background: rgba(59,130,246,0.15); color: #60a5fa; }}
-.no-trades {{ color: #555; font-size: 13px; }}
-.divider {{ border: none; border-top: 1px solid #252830; margin: 8px 0; }}
-footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
-@media (max-width: 900px) {{
-    .summary-row {{ grid-template-columns: repeat(2, 1fr); }}
-    .trades-grid {{ grid-template-columns: 1fr; }}
-}}
-</style>
-</head>
-<body>
-<div class="container">
+    body = f"""<div class="container">
     <header>
         <h1>전략 비교 백테스트 리포트</h1>
         <p>2024.01.01 ~ 2026.02.14 | 초기자본 1,000만원 | 종목당 주문금액 100만원 | {len(data)}개 종목</p>
@@ -260,10 +220,9 @@ footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
     {stock_detail_sections}
 </div>
 
-<footer>Quantum Trading Platform — Strategy Comparison Report</footer>
+<footer>Quantum Trading Platform — Strategy Comparison Report</footer>"""
 
-<script>
-const barData = {bar_chart_data};
+    js = f"""const barData = {bar_chart_data};
 
 // Overview bar chart
 const ctx = document.getElementById('overviewChart').getContext('2d');
@@ -322,11 +281,14 @@ function toggleDetail(sym) {{
     }} else {{
         el.style.display = 'none';
     }}
-}}
-</script>
-</body>
-</html>"""
-    return html
+}}"""
+
+    return wrap_html(
+        title="전략 비교 백테스트 리포트",
+        body=body,
+        extra_css=_EXTRA_CSS,
+        extra_js=js,
+    )
 
 
 if __name__ == "__main__":

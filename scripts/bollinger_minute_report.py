@@ -9,6 +9,7 @@ import webbrowser
 import yfinance as yf
 
 from app.models import ChartData
+from app.report_theme import DARK_THEME_CSS
 from app.trading.backtest import run_bollinger_backtest
 from app.trading.strategy import compute_bollinger_bands
 
@@ -133,8 +134,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <title>볼린저밴드 1분봉 백테스트 리포트</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, 'Pretendard', sans-serif; background: #0f1117; color: #e0e0e0; padding: 20px; }
+""" + DARK_THEME_CSS + """
+  body { padding: 20px; }
   h1 { text-align: center; margin: 20px 0; color: #fff; font-size: 24px; }
   .params { text-align: center; color: #888; margin-bottom: 30px; font-size: 14px; }
   .stock-section { background: #1a1d28; border-radius: 12px; padding: 20px; margin-bottom: 30px; }

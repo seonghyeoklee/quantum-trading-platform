@@ -29,6 +29,7 @@ from app.trading.regime import (
     detect_current_regime,
     segment_by_regime,
 )
+from app.report_theme import wrap_html
 from app.trading.strategy import compute_rsi, compute_sma
 
 
@@ -103,6 +104,109 @@ REGIME_EMOJI = {
     "bear": "&#x2198;&#xFE0F;",
     "strong_bear": "&#x1F4C9;",
 }
+
+# 이 리포트 전용 CSS (공통 DARK_THEME_CSS에 없는 것들)
+# 동적 값(rbg, rc)을 쓰는 .regime-banner / .regime-badge / .recommend-box는 여기 포함하지 않고
+# body HTML 안에 인라인 <style> 블록으로 넣는다.
+_EXTRA_CSS = """
+.container { max-width: 1300px; }
+header { padding: 40px 0 16px; }
+
+.regime-value { font-size: 48px; font-weight: 800; color: #fff; }
+.regime-label { font-size: 14px; color: #aaa; margin-top: 4px; }
+.regime-sma { font-size: 13px; color: #888; margin-top: 12px; }
+
+.perf-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 20px 0; }
+.perf-card { background: #1a1d27; border-radius: 10px; padding: 16px; text-align: center; }
+.perf-card .label { font-size: 12px; color: #888; }
+.perf-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+.chart-box { height: 350px; }
+.chart-box-sm { height: 150px; }
+
+.indicator-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+.indicator { background: #1a1d27; border-radius: 10px; padding: 16px; }
+.indicator .label { font-size: 12px; color: #888; }
+.indicator .val { font-size: 20px; font-weight: 700; color: #fff; margin-top: 4px; }
+.indicator .sub { font-size: 11px; color: #666; margin-top: 2px; }
+
+.ticker { color: #555; font-size: 11px; }
+
+/* Timeline */
+.timeline-section { background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }
+.timeline-section h2 { font-size: 18px; color: #fff; margin-bottom: 16px; }
+.timeline { position: relative; height: 40px; background: #252830; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.tl-seg { position: absolute; top: 0; height: 100%; cursor: pointer; transition: opacity 0.2s; }
+.tl-seg:hover { opacity: 0.7; }
+.tl-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.tl-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #aaa; }
+.tl-legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+/* Heatmap */
+.heatmap-section { background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }
+.heatmap-section h2 { font-size: 18px; color: #fff; margin-bottom: 16px; }
+.heat-cell { text-align: center !important; font-weight: 600; font-size: 14px; padding: 14px 10px !important; }
+.heat-count { font-size: 10px; font-weight: 400; color: #888; }
+
+/* Recommend */
+.recommend-label { font-size: 12px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.recommend-regime { font-size: 16px; color: #ccc; margin-bottom: 4px; }
+.recommend-strategy { font-size: 24px; color: #fff; margin-bottom: 8px; }
+.recommend-avg { font-size: 18px; }
+
+/* Tooltip */
+.help { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #333; color: #888; font-size: 11px; cursor: help; position: relative; margin-left: 6px; vertical-align: middle; flex-shrink: 0; font-weight: 400; }
+.help:hover { background: #444; color: #ccc; }
+.help:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #2a2d37; color: #e0e0e0; padding: 10px 14px; border-radius: 8px; font-size: 12px; white-space: normal; width: max-content; max-width: 300px; z-index: 100; line-height: 1.6; font-weight: 400; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 1px solid #3a3d47; pointer-events: none; }
+.help:hover::before { content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #3a3d47; z-index: 101; }
+
+/* Stock details */
+.stock-detail { margin: 8px 0; }
+.stock-toggle { width: 100%; background: #1a1d27; border: 1px solid #252830; border-radius: 8px; padding: 12px 16px; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 14px; text-align: left; }
+.stock-toggle:hover { background: #22252f; }
+.stock-toggle .stock-code { font-weight: 700; color: #fff; }
+.stock-toggle .stock-name { color: #888; flex: 1; }
+.stock-toggle .arrow { color: #555; margin-left: auto; }
+.stock-body { background: #1a1d27; border: 1px solid #252830; border-top: none; border-radius: 0 0 8px 8px; padding: 16px; }
+.stock-desc { color: #888; font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+.stock-desc strong { color: #ccc; }
+.regime-table { font-size: 13px; }
+.regime-table th { font-size: 12px; padding: 8px; }
+.regime-table td { padding: 8px; }
+.date-cell { font-size: 11px; color: #aaa; white-space: nowrap; }
+.days-sub { font-size: 10px; color: #666; }
+.best-cell { border-left: 3px solid #3b82f6 !important; }
+.best-dot { display: inline-block; width: 3px; height: 14px; background: #3b82f6; vertical-align: middle; margin: 0 4px; border-radius: 1px; }
+.tip-cell { position: relative; cursor: help; }
+.tip-cell:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #2a2d37; color: #e0e0e0; padding: 12px 16px; border-radius: 10px; font-size: 12px; white-space: pre-line; width: max-content; max-width: 280px; z-index: 100; line-height: 1.9; font-weight: 400; box-shadow: 0 6px 20px rgba(0,0,0,0.5); border: 1px solid #3a3d47; pointer-events: none; }
+.tip-cell:hover::before { content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #3a3d47; z-index: 101; }
+.heatmap-section tbody tr:hover { background: rgba(255,255,255,0.04); }
+
+/* Recommendation */
+.rec-section { background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }
+.rec-section h2 { font-size: 18px; color: #fff; margin-bottom: 16px; }
+.rec-card { background: #0f1117; border: 1px solid #252830; border-radius: 10px; padding: 20px; margin: 12px 0; display: flex; gap: 20px; }
+.rec-rank { font-size: 32px; font-weight: 800; color: #3b82f6; min-width: 40px; text-align: center; line-height: 1; padding-top: 4px; }
+.rec-rank.rank-1 { color: #f59e0b; }
+.rec-body { flex: 1; }
+.rec-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.rec-name { font-size: 18px; font-weight: 700; color: #fff; }
+.rec-code { font-size: 13px; color: #555; }
+.rec-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.rec-strat { font-size: 15px; color: #e0e0e0; margin-bottom: 10px; }
+.rec-strat strong { color: #3b82f6; }
+.rec-reasons { display: flex; flex-direction: column; gap: 4px; }
+.rec-reason { font-size: 13px; color: #aaa; line-height: 1.5; }
+.rec-reason.pro { color: #4ade80; }
+.rec-reason.con { color: #f87171; }
+.rec-reason.neutral { color: #facc15; }
+.rec-disclaimer { color: #555; font-size: 12px; margin-top: 16px; padding: 12px; border: 1px solid #252830; border-radius: 8px; }
+
+@media (max-width: 768px) {
+    .perf-row { grid-template-columns: repeat(3, 1fr); }
+    .indicator-row { grid-template-columns: repeat(2, 1fr); }
+}
+""".strip()
 
 
 def collect_data() -> dict:
@@ -701,131 +805,14 @@ def generate_html(data: dict) -> str:
         <div class="rec-disclaimer">위 추천은 과거 백테스트 + 기술적 지표 기반이며, 미래 수익을 보장하지 않습니다. 모의투자 환경에서 검증 후 활용하세요.</div>
     </div>"""
 
-    html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>시장 국면 기반 전략 선택 리포트</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    # 동적 국면 색상 CSS (rbg/rc를 쓰므로 인라인 <style>로 body에 포함)
+    body = f"""
 <style>
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, 'Pretendard', sans-serif; background: #0f1117; color: #e0e0e0; }}
-.container {{ max-width: 1300px; margin: 0 auto; padding: 24px; }}
-header {{ text-align: center; padding: 40px 0 16px; }}
-header h1 {{ font-size: 28px; font-weight: 700; color: #fff; }}
-header p {{ color: #888; margin-top: 8px; font-size: 14px; }}
-
 .regime-banner {{ background: {rbg}; border: 1px solid {rc}; border-radius: 16px; padding: 32px; margin: 24px 0; text-align: center; }}
 .regime-badge {{ display: inline-block; background: {rc}22; border: 1px solid {rc}; border-radius: 8px; padding: 6px 20px; font-size: 14px; font-weight: 600; color: {rc}; margin-bottom: 12px; }}
-.regime-value {{ font-size: 48px; font-weight: 800; color: #fff; }}
-.regime-label {{ font-size: 14px; color: #aaa; margin-top: 4px; }}
-.regime-sma {{ font-size: 13px; color: #888; margin-top: 12px; }}
-
-.perf-row {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 20px 0; }}
-.perf-card {{ background: #1a1d27; border-radius: 10px; padding: 16px; text-align: center; }}
-.perf-card .label {{ font-size: 12px; color: #888; }}
-.perf-card .value {{ font-size: 22px; font-weight: 700; margin-top: 4px; }}
-.positive {{ color: #22c55e; }}
-.negative {{ color: #ef4444; }}
-
-.section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.section h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
-.chart-box {{ height: 350px; }}
-.chart-box-sm {{ height: 150px; }}
-
-.indicator-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }}
-.indicator {{ background: #1a1d27; border-radius: 10px; padding: 16px; }}
-.indicator .label {{ font-size: 12px; color: #888; }}
-.indicator .val {{ font-size: 20px; font-weight: 700; color: #fff; margin-top: 4px; }}
-.indicator .sub {{ font-size: 11px; color: #666; margin-top: 2px; }}
-
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-th {{ background: #252830; color: #aaa; font-weight: 600; padding: 10px 12px; text-align: right; }}
-th:first-child {{ text-align: left; }}
-td {{ padding: 10px 12px; border-bottom: 1px solid #252830; text-align: right; }}
-td:first-child {{ text-align: left; }}
-.ticker {{ color: #555; font-size: 11px; }}
-
-/* Timeline */
-.timeline-section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.timeline-section h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
-.timeline {{ position: relative; height: 40px; background: #252830; border-radius: 8px; overflow: hidden; margin-bottom: 8px; }}
-.tl-seg {{ position: absolute; top: 0; height: 100%; cursor: pointer; transition: opacity 0.2s; }}
-.tl-seg:hover {{ opacity: 0.7; }}
-.tl-legend {{ display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }}
-.tl-legend-item {{ display: flex; align-items: center; gap: 6px; font-size: 12px; color: #aaa; }}
-.tl-legend-dot {{ width: 12px; height: 12px; border-radius: 3px; }}
-
-/* Heatmap */
-.heatmap-section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.heatmap-section h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
-.heat-cell {{ text-align: center !important; font-weight: 600; font-size: 14px; padding: 14px 10px !important; }}
-.heat-count {{ font-size: 10px; font-weight: 400; color: #888; }}
-
-/* Recommend */
 .recommend-box {{ background: {rbg}; border: 1px solid {rc}; border-radius: 12px; padding: 24px; margin: 20px 0; text-align: center; }}
-.recommend-label {{ font-size: 12px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }}
-.recommend-regime {{ font-size: 16px; color: #ccc; margin-bottom: 4px; }}
-.recommend-strategy {{ font-size: 24px; color: #fff; margin-bottom: 8px; }}
-.recommend-avg {{ font-size: 18px; }}
-
-/* Tooltip */
-.help {{ display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #333; color: #888; font-size: 11px; cursor: help; position: relative; margin-left: 6px; vertical-align: middle; flex-shrink: 0; font-weight: 400; }}
-.help:hover {{ background: #444; color: #ccc; }}
-.help:hover::after {{ content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #2a2d37; color: #e0e0e0; padding: 10px 14px; border-radius: 8px; font-size: 12px; white-space: normal; width: max-content; max-width: 300px; z-index: 100; line-height: 1.6; font-weight: 400; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 1px solid #3a3d47; pointer-events: none; }}
-.help:hover::before {{ content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #3a3d47; z-index: 101; }}
-
-/* Stock details */
-.stock-detail {{ margin: 8px 0; }}
-.stock-toggle {{ width: 100%; background: #1a1d27; border: 1px solid #252830; border-radius: 8px; padding: 12px 16px; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 14px; text-align: left; }}
-.stock-toggle:hover {{ background: #22252f; }}
-.stock-toggle .stock-code {{ font-weight: 700; color: #fff; }}
-.stock-toggle .stock-name {{ color: #888; flex: 1; }}
-.stock-toggle .arrow {{ color: #555; margin-left: auto; }}
-.stock-body {{ background: #1a1d27; border: 1px solid #252830; border-top: none; border-radius: 0 0 8px 8px; padding: 16px; }}
-.stock-desc {{ color: #888; font-size: 13px; line-height: 1.6; margin-bottom: 14px; }}
-.stock-desc strong {{ color: #ccc; }}
-.regime-table {{ font-size: 13px; }}
-.regime-table th {{ font-size: 12px; padding: 8px; }}
-.regime-table td {{ padding: 8px; }}
-.date-cell {{ font-size: 11px; color: #aaa; white-space: nowrap; }}
-.days-sub {{ font-size: 10px; color: #666; }}
-.best-cell {{ border-left: 3px solid #3b82f6 !important; }}
-.best-dot {{ display: inline-block; width: 3px; height: 14px; background: #3b82f6; vertical-align: middle; margin: 0 4px; border-radius: 1px; }}
-.tip-cell {{ position: relative; cursor: help; }}
-.tip-cell:hover::after {{ content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #2a2d37; color: #e0e0e0; padding: 12px 16px; border-radius: 10px; font-size: 12px; white-space: pre-line; width: max-content; max-width: 280px; z-index: 100; line-height: 1.9; font-weight: 400; box-shadow: 0 6px 20px rgba(0,0,0,0.5); border: 1px solid #3a3d47; pointer-events: none; }}
-.tip-cell:hover::before {{ content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #3a3d47; z-index: 101; }}
-.heatmap-section tbody tr:hover {{ background: rgba(255,255,255,0.04); }}
-
-/* Recommendation */
-.rec-section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.rec-section h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
-.rec-card {{ background: #0f1117; border: 1px solid #252830; border-radius: 10px; padding: 20px; margin: 12px 0; display: flex; gap: 20px; }}
-.rec-rank {{ font-size: 32px; font-weight: 800; color: #3b82f6; min-width: 40px; text-align: center; line-height: 1; padding-top: 4px; }}
-.rec-rank.rank-1 {{ color: #f59e0b; }}
-.rec-body {{ flex: 1; }}
-.rec-header {{ display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }}
-.rec-name {{ font-size: 18px; font-weight: 700; color: #fff; }}
-.rec-code {{ font-size: 13px; color: #555; }}
-.rec-badge {{ display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
-.rec-strat {{ font-size: 15px; color: #e0e0e0; margin-bottom: 10px; }}
-.rec-strat strong {{ color: #3b82f6; }}
-.rec-reasons {{ display: flex; flex-direction: column; gap: 4px; }}
-.rec-reason {{ font-size: 13px; color: #aaa; line-height: 1.5; }}
-.rec-reason.pro {{ color: #4ade80; }}
-.rec-reason.con {{ color: #f87171; }}
-.rec-reason.neutral {{ color: #facc15; }}
-.rec-disclaimer {{ color: #555; font-size: 12px; margin-top: 16px; padding: 12px; border: 1px solid #252830; border-radius: 8px; }}
-
-footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
-@media (max-width: 768px) {{
-    .perf-row {{ grid-template-columns: repeat(3, 1fr); }}
-    .indicator-row {{ grid-template-columns: repeat(2, 1fr); }}
-}}
 </style>
-</head>
-<body>
+
 <div class="container">
     <header>
         <h1>시장 국면 기반 전략 선택 리포트</h1>
@@ -961,9 +948,9 @@ footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
 </div>
 
 <footer>Quantum Trading Platform — Market Regime Strategy Report</footer>
+"""
 
-<script>
-const dates = {kospi_dates_json};
+    js = f"""const dates = {kospi_dates_json};
 const closes = {kospi_closes_json};
 const sma20 = {sma20_json};
 const sma60 = {sma60_json};
@@ -1068,11 +1055,14 @@ new Chart(document.getElementById('normChart'), {{
             y: {{ ticks: {{ color: '#888', callback: v => v }}, grid: {{ color: '#1e2028' }} }}
         }}
     }}
-}});
-</script>
-</body>
-</html>"""
-    return html
+}});"""
+
+    return wrap_html(
+        title="시장 국면 기반 전략 선택 리포트",
+        body=body,
+        extra_css=_EXTRA_CSS,
+        extra_js=js,
+    )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 """API 엔드포인트"""
 
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.config import StrategyConfig, load_settings
@@ -164,3 +165,40 @@ async def run_backtest_api(req: BacktestRequest):
             for t in result.trades
         ],
     }
+
+
+# --- 저널 엔드포인트 ---
+
+
+@router.get("/trading/journal")
+async def list_journal_dates(engine: TradingEngine = Depends(get_engine)):
+    """저널 날짜 목록 (내림차순)"""
+    return {"dates": engine.journal.list_dates()}
+
+
+@router.get("/trading/journal/{date_str}")
+async def get_journal_events(
+    date_str: str, engine: TradingEngine = Depends(get_engine)
+):
+    """특정 날짜 이벤트 조회"""
+    try:
+        d = date.fromisoformat(date_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식: YYYY-MM-DD")
+    events = engine.journal.read_events(d)
+    return {"date": date_str, "count": len(events), "events": [e.model_dump(mode="json") for e in events]}
+
+
+@router.get("/trading/journal/{date_str}/report")
+async def get_journal_report(
+    date_str: str, engine: TradingEngine = Depends(get_engine)
+):
+    """일일 리포트 HTML 반환"""
+    try:
+        d = date.fromisoformat(date_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식: YYYY-MM-DD")
+    path = engine.journal.generate_daily_report(d)
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    return HTMLResponse(content=html)

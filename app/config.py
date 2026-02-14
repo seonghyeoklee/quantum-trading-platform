@@ -148,6 +148,9 @@ class TradingConfig(BaseSettings):
     auto_regime: bool = False
     regime_reference_symbol: str = "005930"  # 국면 판별 기준 종목
 
+    # 저널 저장 경로 (빈 문자열이면 기본 경로 data/journal/logs)
+    journal_dir: str = ""
+
     # 매매 주기 (초)
     trading_interval: int = 60
 

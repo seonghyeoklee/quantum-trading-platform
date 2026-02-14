@@ -34,3 +34,6 @@ kis-mcp/configs/master/
 
 # Logs
 *.log
+
+# Journal data
+data/

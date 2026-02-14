@@ -1,7 +1,7 @@
 """자동매매 엔진 로직 테스트"""
 
 from datetime import date, datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,6 +10,15 @@ from app.models import AccountSummary, ChartData, EngineStatus, Position, Signal
 from app.trading.engine import TradingEngine
 
 _EMPTY_SUMMARY = AccountSummary()
+
+
+@pytest.fixture(autouse=True)
+def _mock_journal(monkeypatch):
+    """모든 엔진 테스트에서 저널 파일 I/O 방지"""
+    monkeypatch.setattr(
+        "app.trading.engine.TradingJournal",
+        lambda log_dir="": MagicMock(),
+    )
 
 
 def _make_settings(

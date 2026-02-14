@@ -32,19 +32,22 @@ quantum-trading-platform/
 │   │   ├── engine.py          # 자동매매 루프 (분봉/일봉, 동적수량, 런타임 전략 전환)
 │   │   ├── strategy.py        # SMA 크로스오버 + RSI/거래량/OBV 복합 전략
 │   │   ├── regime.py          # 시장 국면 판별 (SMA 정배열/역배열 기반)
+│   │   ├── journal.py         # 일일 매매 저널 (JSONL 로깅 + HTML 리포트)
 │   │   ├── backtest.py        # 백테스트 엔진 (yfinance, 국면별 분할 백테스트)
 │   │   └── calendar.py        # 매매일/장시간 판단
 │   └── api/
-│       └── routes.py          # API 엔드포인트 (매매 + 전략 전환 + 백테스트)
+│       └── routes.py          # API 엔드포인트 (매매 + 전략 전환 + 백테스트 + 저널)
 ├── scripts/                   # 분석 + 백테스트 스크립트
 │   ├── generate_regime_report.py  # 국면 기반 전략 선택 통합 리포트
 │   ├── generate_comparison_report.py  # 전략 비교 리포트
 │   ├── generate_market_report.py      # 시장 분석 리포트
+│   ├── generate_daily_report.py       # 일일 매매 저널 리포트
 │   ├── optimize.sh            # 파라미터 탐색 실행
 │   └── run_backtest.py        # 단일 백테스트 실행
 ├── tests/
 │   ├── test_strategy.py       # 전략 로직 단위 테스트 (29개)
 │   ├── test_engine.py         # 엔진 로직 + E2E 테스트 (23개)
+│   ├── test_journal.py        # 매매 저널 단위 테스트 (12개)
 │   ├── test_regime.py         # 국면 판별 단위 테스트 (19개)
 │   ├── test_calendar.py       # 매매일/장시간 단위 테스트 (14개)
 │   ├── test_backtest.py       # 백테스트 단위 테스트 (32개)
@@ -76,13 +79,20 @@ uv run pytest tests/ -v
 
 ### Run Unit Tests Only (KIS API 키 불필요)
 ```bash
-uv run pytest tests/test_strategy.py tests/test_engine.py tests/test_calendar.py tests/test_regime.py -v
+uv run pytest tests/test_strategy.py tests/test_engine.py tests/test_calendar.py tests/test_regime.py tests/test_journal.py -v
 ```
 
 ### Generate Regime Report (yfinance 필요)
 ```bash
 uv run python scripts/generate_regime_report.py
 # → regime_strategy_report.html 생성
+```
+
+### Generate Daily Journal Report
+```bash
+uv run python scripts/generate_daily_report.py              # 오늘
+uv run python scripts/generate_daily_report.py 2026-02-14   # 특정 날짜
+# → data/journal/reports/YYYY-MM-DD.html 생성
 ```
 
 ### Docker
@@ -104,6 +114,9 @@ docker compose down           # 종료
 | GET | `/trading/positions` | 보유 포지션 + 계좌 요약 |
 | GET | `/trading/strategy` | 현재 전략 설정 조회 |
 | POST | `/trading/strategy` | 전략 + 파라미터 런타임 변경 (body: `StrategyConfig`) |
+| GET | `/trading/journal` | 저널 날짜 목록 |
+| GET | `/trading/journal/{date}` | 특정 날짜 이벤트 조회 |
+| GET | `/trading/journal/{date}/report` | 일일 리포트 HTML |
 | POST | `/backtest` | 과거 데이터 백테스트 (yfinance) |
 
 ## KIS API Configuration
@@ -149,7 +162,12 @@ my_htsid: "HTS_ID"
 **동적 주문수량**
 - `target_order_amount` (기본 100만원) / 현재가로 수량 계산
 - `min_quantity`(1) ~ `max_quantity`(50) 범위 제한
-- 효성중공업 240만원 → 1주, 두산에너빌리티 2만원 → 50주, 삼성전자 5.5만원 → 18주
+- `capital_ratio` (0=비활성): 예수금 대비 비율로 주문금액 산출 (target_order_amount 대체)
+
+**리스크 관리**
+- `stop_loss_pct`: 매수가 대비 N% 하락 시 손절 (0=비활성)
+- `max_holding_days`: 최대 보유 거래일 초과 시 매도 (0=비활성)
+- `trailing_stop_pct`: 고점 대비 N% 하락 시 트레일링 스탑 매도 (0=비활성, 전략 무관)
 
 ## Market Regime Strategy Selection (국면 기반 전략 선택)
 
@@ -278,6 +296,57 @@ class StrategyConfig(BaseModel):
     use_minute_chart: bool           # 분봉/일봉 모드
     minute_short_period: int = 5
     minute_long_period: int = 20
+    trailing_stop_pct: float = 0.0   # 고점 대비 N% 하락 시 매도 (0=비활성)
+    capital_ratio: float = 0.0       # 예수금 대비 투자 비율 (0=target_order_amount 사용)
+    auto_regime: bool = False        # 자동 국면 전환
+```
+
+## Trading Journal (매매 저널)
+
+엔진이 생성하는 모든 시그널/주문/이벤트를 JSONL로 기록하고, 일일 HTML 리포트를 생성.
+
+### 저장 경로
+
+| 파일 | 경로 |
+|------|------|
+| 이벤트 로그 | `data/journal/logs/YYYY-MM-DD.jsonl` |
+| 일일 리포트 | `data/journal/reports/YYYY-MM-DD.html` |
+
+`TradingConfig.journal_dir`로 커스텀 경로 설정 가능 (빈 문자열이면 프로젝트 하위 `data/journal/logs/`).
+
+### 이벤트 타입
+
+| event_type | 시점 |
+|-----------|------|
+| `engine_start` | 엔진 시작 |
+| `engine_stop` | 엔진 중지 |
+| `signal` | 시그널 생성 시 (BUY/SELL/HOLD) |
+| `order` | 매수/매도 주문 실행 |
+| `force_close` | 장 마감 강제 청산 |
+| `regime_change` | 시장 국면 변경 감지 |
+| `strategy_change` | 전략 설정 변경 |
+
+### 매도 사유 (reason)
+
+| reason | 설명 |
+|--------|------|
+| `signal` | 전략 시그널 (데드크로스/볼린저 상단) |
+| `stop_loss` | 손절 (매수가 대비 N% 하락) |
+| `trailing_stop` | 트레일링 스탑 (고점 대비 N% 하락) |
+| `max_holding` | 보유기간 초과 |
+| `force_close` | 장 마감 강제 청산 |
+
+### API
+
+```bash
+# 저널 날짜 목록
+curl http://localhost:8000/trading/journal
+
+# 특정 날짜 이벤트
+curl http://localhost:8000/trading/journal/2026-02-14
+
+# 일일 리포트 HTML
+curl http://localhost:8000/trading/journal/2026-02-14/report
 ```
 
 ## Error Handling
@@ -354,4 +423,4 @@ KIS Open API 코드 어시스턴트를 Claude Code에서 사용하려면 프로�
 ---
 
 *Last Updated: 2026-02-14*
-*Status: MVP - 국내주식 모의투자 자동매매 + 시장 국면 기반 전략 선택*
+*Status: MVP - 국내주식 모의투자 자동매매 + 시장 국면 기반 전략 선택 + 매매 저널*

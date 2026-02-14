@@ -1,7 +1,21 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel
+
+
+class EventType(str, Enum):
+    """저널 이벤트 타입"""
+
+    SIGNAL = "signal"
+    ORDER = "order"
+    FORCE_CLOSE = "force_close"
+    ENGINE_START = "engine_start"
+    ENGINE_STOP = "engine_stop"
+    REGIME_CHANGE = "regime_change"
+    STRATEGY_CHANGE = "strategy_change"
 
 
 class StockPrice(BaseModel):
@@ -65,6 +79,7 @@ class OrderResult(BaseModel):
     message: str = ""
     success: bool = False
     timestamp: datetime
+    reason: str = ""  # "signal" / "stop_loss" / "trailing_stop" / "max_holding" / "force_close"
 
 
 class Position(BaseModel):
@@ -130,3 +145,91 @@ class TradingStatus(BaseModel):
     started_at: datetime | None = None
     loop_count: int = 0
     current_regime: str | None = None  # 현재 시장 국면 (auto_regime 활성 시)
+
+
+class TradeEvent(BaseModel):
+    """저널용 통합 이벤트"""
+
+    event_type: EventType
+    timestamp: datetime
+    symbol: str = ""
+    # 시그널 필드
+    signal: str = ""
+    current_price: int = 0
+    short_ma: float = 0.0
+    long_ma: float = 0.0
+    rsi: float | None = None
+    volume_confirmed: bool | None = None
+    upper_band: float | None = None
+    middle_band: float | None = None
+    lower_band: float | None = None
+    # 주문 필드
+    side: str = ""
+    quantity: int = 0
+    order_no: str = ""
+    success: bool = False
+    reason: str = ""
+    entry_price: float = 0.0
+    # 이벤트 상세
+    detail: str = ""
+
+    @classmethod
+    def from_signal(cls, signal: TradingSignal) -> TradeEvent:
+        """TradingSignal → 시그널 이벤트"""
+        return cls(
+            event_type=EventType.SIGNAL,
+            timestamp=signal.timestamp,
+            symbol=signal.symbol,
+            signal=signal.signal.value,
+            current_price=signal.current_price,
+            short_ma=signal.short_ma,
+            long_ma=signal.long_ma,
+            rsi=signal.rsi,
+            volume_confirmed=signal.volume_confirmed,
+            upper_band=signal.upper_band,
+            middle_band=signal.middle_band,
+            lower_band=signal.lower_band,
+        )
+
+    @classmethod
+    def from_order(
+        cls,
+        symbol: str,
+        side: str,
+        quantity: int,
+        result: dict,
+        reason: str,
+        current_price: int,
+        entry_price: float = 0.0,
+        *,
+        event_type: EventType = EventType.ORDER,
+        timestamp: datetime | None = None,
+    ) -> TradeEvent:
+        """주문 결과 → 주문/강제청산 이벤트"""
+        return cls(
+            event_type=event_type,
+            timestamp=timestamp or datetime.now(),
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            order_no=result.get("order_no", ""),
+            success=result.get("success", False),
+            reason=reason,
+            current_price=current_price,
+            entry_price=entry_price,
+        )
+
+    @classmethod
+    def engine_event(
+        cls,
+        event_type: EventType,
+        detail: str = "",
+        *,
+        timestamp: datetime | None = None,
+    ) -> TradeEvent:
+        """엔진 시작/중지/국면변경/전략변경 이벤트"""
+        return cls(
+            event_type=event_type,
+            timestamp=timestamp or datetime.now(),
+            detail=detail,
+        )

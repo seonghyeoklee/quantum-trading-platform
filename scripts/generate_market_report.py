@@ -2,6 +2,49 @@
 
 import json
 
+from app.report_theme import wrap_html
+
+# Script-specific CSS (static parts only).
+# Dynamic CSS that uses Python variables (rc, rbg) is injected inline in the body.
+_EXTRA_CSS = """
+.container { max-width: 1200px; }
+header { padding: 40px 0 16px; }
+
+.regime-value { font-size: 48px; font-weight: 800; color: #fff; }
+.regime-label { font-size: 14px; color: #aaa; margin-top: 4px; }
+.regime-sma { font-size: 13px; color: #888; margin-top: 12px; }
+
+.perf-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 20px 0; }
+.perf-card { background: #1a1d27; border-radius: 10px; padding: 16px; text-align: center; }
+.perf-card .label { font-size: 12px; color: #888; }
+.perf-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+.chart-box { height: 350px; }
+.chart-box-sm { height: 150px; }
+
+.indicator-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+.indicator { background: #1a1d27; border-radius: 10px; padding: 16px; }
+.indicator .label { font-size: 12px; color: #888; }
+.indicator .val { font-size: 20px; font-weight: 700; color: #fff; margin-top: 4px; }
+.indicator .sub { font-size: 11px; color: #666; margin-top: 2px; }
+
+.ticker { color: #555; font-size: 11px; }
+
+.strategy-box { border-radius: 12px; padding: 24px; margin: 20px 0; }
+.strategy-box.bull { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); }
+.strategy-box.bear { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); }
+.strategy-box.sideways { background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.3); }
+.strategy-box h4 { font-size: 16px; color: #fff; margin-bottom: 12px; }
+.strategy-box ul { padding-left: 20px; }
+.strategy-box li { padding: 4px 0; font-size: 14px; line-height: 1.6; color: #ccc; }
+.strategy-box strong { color: #fff; }
+
+@media (max-width: 768px) {
+    .perf-row { grid-template-columns: repeat(3, 1fr); }
+    .indicator-row { grid-template-columns: repeat(2, 1fr); }
+}
+"""
+
 
 def generate_html(data: dict) -> str:
     indices = data["indices"]
@@ -163,75 +206,18 @@ def generate_html(data: dict) -> str:
 
     analysis_html = "\n".join(f"<li>{p}</li>" for p in analysis_points)
 
-    html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>시장 국면 분석 리포트</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    # Dynamic CSS that depends on Python variables (rc, rbg)
+    body = f"""
 <style>
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, 'Pretendard', sans-serif; background: #0f1117; color: #e0e0e0; }}
-.container {{ max-width: 1200px; margin: 0 auto; padding: 24px; }}
-header {{ text-align: center; padding: 40px 0 16px; }}
-header h1 {{ font-size: 28px; font-weight: 700; color: #fff; }}
-header p {{ color: #888; margin-top: 8px; font-size: 14px; }}
-
 .regime-banner {{ background: {rbg}; border: 1px solid {rc}; border-radius: 16px; padding: 32px; margin: 24px 0; text-align: center; }}
 .regime-badge {{ display: inline-block; background: {rc}22; border: 1px solid {rc}; border-radius: 8px; padding: 6px 20px; font-size: 14px; font-weight: 600; color: {rc}; margin-bottom: 12px; }}
-.regime-value {{ font-size: 48px; font-weight: 800; color: #fff; }}
-.regime-label {{ font-size: 14px; color: #aaa; margin-top: 4px; }}
-.regime-sma {{ font-size: 13px; color: #888; margin-top: 12px; }}
-
-.perf-row {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 20px 0; }}
-.perf-card {{ background: #1a1d27; border-radius: 10px; padding: 16px; text-align: center; }}
-.perf-card .label {{ font-size: 12px; color: #888; }}
-.perf-card .value {{ font-size: 22px; font-weight: 700; margin-top: 4px; }}
-.positive {{ color: #22c55e; }}
-.negative {{ color: #ef4444; }}
-
-.section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.section h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
-.chart-box {{ height: 350px; }}
-.chart-box-sm {{ height: 150px; }}
-
-.indicator-row {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }}
-.indicator {{ background: #1a1d27; border-radius: 10px; padding: 16px; }}
-.indicator .label {{ font-size: 12px; color: #888; }}
-.indicator .val {{ font-size: 20px; font-weight: 700; color: #fff; margin-top: 4px; }}
-.indicator .sub {{ font-size: 11px; color: #666; margin-top: 2px; }}
-
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-th {{ background: #252830; color: #aaa; font-weight: 600; padding: 10px 12px; text-align: right; }}
-th:first-child {{ text-align: left; }}
-td {{ padding: 10px 12px; border-bottom: 1px solid #252830; text-align: right; }}
-td:first-child {{ text-align: left; }}
-.ticker {{ color: #555; font-size: 11px; }}
-
 .analysis-box {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 20px 0; }}
 .analysis-box h2 {{ font-size: 18px; color: #fff; margin-bottom: 16px; }}
 .analysis-box ul {{ list-style: none; }}
 .analysis-box li {{ padding: 8px 0; border-bottom: 1px solid #252830; font-size: 14px; line-height: 1.6; }}
 .analysis-box li::before {{ content: "\\25CF "; color: {rc}; margin-right: 8px; }}
-
-.strategy-box {{ border-radius: 12px; padding: 24px; margin: 20px 0; }}
-.strategy-box.bull {{ background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.3); }}
-.strategy-box.bear {{ background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); }}
-.strategy-box.sideways {{ background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.3); }}
-.strategy-box h4 {{ font-size: 16px; color: #fff; margin-bottom: 12px; }}
-.strategy-box ul {{ padding-left: 20px; }}
-.strategy-box li {{ padding: 4px 0; font-size: 14px; line-height: 1.6; color: #ccc; }}
-.strategy-box strong {{ color: #fff; }}
-
-footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
-@media (max-width: 768px) {{
-    .perf-row {{ grid-template-columns: repeat(3, 1fr); }}
-    .indicator-row {{ grid-template-columns: repeat(2, 1fr); }}
-}}
 </style>
-</head>
-<body>
+
 <div class="container">
     <header>
         <h1>시장 국면 분석</h1>
@@ -307,10 +293,9 @@ footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
     {strategy_text}
 </div>
 
-<footer>Quantum Trading Platform — Market Regime Analysis</footer>
+<footer>Quantum Trading Platform — Market Regime Analysis</footer>"""
 
-<script>
-const dates = {kospi_dates};
+    js = f"""const dates = {kospi_dates};
 const closes = {kospi_closes};
 const sma20 = {kospi_sma20};
 const sma60 = {kospi_sma60};
@@ -402,11 +387,14 @@ new Chart(document.getElementById('normChart'), {{
             y: {{ ticks: {{ color: '#888', callback: v => v }}, grid: {{ color: '#1e2028' }} }}
         }}
     }}
-}});
-</script>
-</body>
-</html>"""
-    return html
+}});"""
+
+    return wrap_html(
+        title="시장 국면 분석 리포트",
+        body=body,
+        extra_css=_EXTRA_CSS,
+        extra_js=js,
+    )
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, ".")
 
 from app.models import ChartData
+from app.report_theme import wrap_html
 from app.trading.backtest import run_backtest, run_bollinger_backtest
 
 SYMBOLS = {
@@ -73,6 +74,19 @@ STRATEGIES = [
     {"label": "SMA+Adv+리스크", "type": "sma", "use_advanced": True, "stop_loss": 5.0, "max_hold": 20},
     {"label": "볼린저", "type": "bollinger"},
 ]
+
+_EXTRA_CSS = """
+.summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+.summary-card h3 { margin-bottom: 4px; }
+th, td { padding: 10px 8px; white-space: nowrap; }
+.heatmap-table td, .heatmap-table th { text-align: center; padding: 12px 16px; }
+.configs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 16px; }
+.config-detail h4 { font-size: 14px; }
+@media (max-width: 900px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    .configs-grid { grid-template-columns: 1fr; }
+}
+"""
 
 
 def fetch_chart(ticker: str, start: str, end: str) -> list[ChartData]:
@@ -400,62 +414,7 @@ def generate_html(data: list[dict]) -> str:
             <div class="configs-grid">{detail_tables}</div>
         </div>"""
 
-    html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>자본 활용률 개선 효과 비교</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<style>
-* {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, 'Pretendard', sans-serif; background: #0f1117; color: #e0e0e0; }}
-.container {{ max-width: 1400px; margin: 0 auto; padding: 24px; }}
-header {{ text-align: center; padding: 40px 0 24px; }}
-header h1 {{ font-size: 28px; font-weight: 700; color: #fff; }}
-header p {{ color: #888; margin-top: 8px; font-size: 14px; }}
-.summary-row {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }}
-.summary-card {{ background: #1a1d27; border-radius: 12px; padding: 20px; }}
-.summary-card h3 {{ font-size: 14px; color: #aaa; margin-bottom: 4px; }}
-.metric-main {{ font-size: 32px; font-weight: 700; }}
-.metric-label {{ font-size: 12px; color: #666; margin-bottom: 12px; }}
-.metric-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }}
-.metric-value {{ font-size: 16px; font-weight: 600; display: block; }}
-.metric-sub {{ font-size: 11px; color: #666; }}
-.positive {{ color: #22c55e; }}
-.negative {{ color: #ef4444; }}
-.section {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 24px 0; }}
-.section h2 {{ font-size: 18px; margin-bottom: 16px; color: #fff; }}
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-th {{ background: #252830; color: #aaa; font-weight: 600; padding: 10px 8px; text-align: right; white-space: nowrap; }}
-th:first-child {{ text-align: left; }}
-td {{ padding: 10px 8px; border-bottom: 1px solid #252830; text-align: right; white-space: nowrap; }}
-td:first-child {{ text-align: left; }}
-.stock-cell {{ display: flex; flex-direction: column; gap: 2px; }}
-.stock-code {{ font-weight: 600; color: #fff; font-size: 13px; }}
-.stock-name {{ color: #888; font-size: 11px; }}
-.detail-btn {{ background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 12px; }}
-.detail-btn:hover {{ background: #1d4ed8; }}
-.detail-panel {{ background: #1a1d27; border-radius: 12px; padding: 24px; margin: 12px 0; }}
-.detail-panel h3 {{ font-size: 16px; color: #fff; margin-bottom: 16px; }}
-.chart-container {{ height: 300px; margin-bottom: 24px; }}
-.configs-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 16px; }}
-.config-detail h4 {{ font-size: 14px; }}
-.trade-table {{ font-size: 12px; }}
-.trade-table th {{ background: #1e2028; font-size: 11px; padding: 6px; }}
-.trade-table td {{ padding: 5px 6px; border-bottom: 1px solid #1e2028; }}
-.badge {{ display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }}
-.badge-green {{ background: rgba(34,197,94,0.15); color: #4ade80; }}
-.heatmap-table td, .heatmap-table th {{ text-align: center; padding: 12px 16px; }}
-footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
-@media (max-width: 900px) {{
-    .summary-row {{ grid-template-columns: repeat(2, 1fr); }}
-    .configs-grid {{ grid-template-columns: 1fr; }}
-}}
-</style>
-</head>
-<body>
-<div class="container">
+    body = f"""<div class="container">
     <header>
         <h1>자본 활용률 개선 효과 비교</h1>
         <p>2년간 백테스트 | 초기자본 1,000만원 | {len(data)}개 종목 | 구성 {n_configs}가지 x 전략 {n_strategies}가지</p>
@@ -501,10 +460,9 @@ footer {{ text-align: center; padding: 32px; color: #555; font-size: 12px; }}
     {detail_sections}
 </div>
 
-<footer>Quantum Trading Platform — Capital Utilization Comparison Report</footer>
+<footer>Quantum Trading Platform — Capital Utilization Comparison Report</footer>"""
 
-<script>
-const barData = {bar_json};
+    js = f"""const barData = {bar_json};
 const ctx = document.getElementById('overviewChart').getContext('2d');
 const datasets = [
     {{ label: 'Buy & Hold', data: barData.bnh, backgroundColor: 'rgba(255,255,255,0.12)', borderColor: '#555', borderWidth: 1, borderRadius: 3 }},
@@ -560,11 +518,9 @@ function toggleDetail(sym) {{
     }} else {{
         el.style.display = 'none';
     }}
-}}
-</script>
-</body>
-</html>"""
-    return html
+}}"""
+
+    return wrap_html(title="자본 활용률 개선 효과 비교", body=body, extra_css=_EXTRA_CSS, extra_js=js)
 
 
 if __name__ == "__main__":

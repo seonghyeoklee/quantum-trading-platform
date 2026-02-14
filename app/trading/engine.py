@@ -11,12 +11,15 @@ from app.kis.market import KISMarketClient
 from app.kis.order import KISOrderClient
 from app.models import (
     EngineStatus,
+    EventType,
     OrderResult,
     SignalType,
+    TradeEvent,
     TradingSignal,
     TradingStatus,
 )
 from app.trading.calendar import is_market_open, is_trading_day
+from app.trading.journal import TradingJournal
 from app.trading.regime import MarketRegime, REGIME_KR, detect_current_regime
 from app.trading.strategy import (
     evaluate_bollinger_signal,
@@ -67,6 +70,13 @@ class TradingEngine:
         # 자동 국면 감지
         self._current_regime: MarketRegime | None = None
         self._regime_checked_date: date | None = None
+
+        # 매매 저널
+        self._journal = TradingJournal(log_dir=settings.trading.journal_dir)
+
+    @property
+    def journal(self) -> TradingJournal:
+        return self._journal
 
     def get_status(self) -> TradingStatus:
         return TradingStatus(
@@ -149,6 +159,10 @@ class TradingEngine:
             config.short_ma_period, config.long_ma_period,
             config.use_advanced_strategy, config.use_minute_chart,
         )
+        self._journal.log_event(TradeEvent.engine_event(
+            EventType.STRATEGY_CHANGE,
+            f"{old_type.value} -> {config.strategy_type.value}",
+        ))
 
     async def start(self, symbols: list[str] | None = None) -> None:
         if self._status == EngineStatus.RUNNING:
@@ -175,6 +189,11 @@ class TradingEngine:
         self._started_at = datetime.now()
         self._loop_count = 0
         logger.info("자동매매 시작: %s", self._watch_symbols)
+        self._journal.log_event(TradeEvent.engine_event(
+            EventType.ENGINE_START,
+            f"symbols={self._watch_symbols}",
+            timestamp=self._started_at,
+        ))
 
         self._task = asyncio.create_task(self._run_loop())
 
@@ -194,6 +213,12 @@ class TradingEngine:
         # HTTP 클라이언트 정리
         await self._client.close()
         logger.info("자동매매 중지")
+        self._journal.log_event(TradeEvent.engine_event(EventType.ENGINE_STOP))
+
+        # 당일 이벤트가 있으면 일일 리포트 자동 생성
+        today = date.today()
+        if self._journal.read_events(today):
+            self._journal.generate_daily_report(today)
 
     async def _run_loop(self) -> None:
         interval = self.settings.trading.trading_interval
@@ -244,6 +269,7 @@ class TradingEngine:
         for pos in positions:
             if pos.quantity > 0:
                 result = await self.order.sell(pos.symbol, pos.quantity)
+                entry_price = self._entry_prices.get(pos.symbol, 0.0)
                 order_result = OrderResult(
                     symbol=pos.symbol,
                     side="sell",
@@ -252,8 +278,14 @@ class TradingEngine:
                     message=result.get("message", ""),
                     success=result.get("success", False),
                     timestamp=now,
+                    reason="force_close",
                 )
                 self._orders.append(order_result)
+                self._journal.log_event(TradeEvent.from_order(
+                    pos.symbol, "sell", pos.quantity, result,
+                    "force_close", pos.current_price, entry_price,
+                    event_type=EventType.FORCE_CLOSE, timestamp=now,
+                ))
                 self._entry_prices.pop(pos.symbol, None)
                 self._buy_timestamps.pop(pos.symbol, None)
                 self._peak_prices.pop(pos.symbol, None)
@@ -378,11 +410,14 @@ class TradingEngine:
         if regime == old_regime:
             return
 
-        logger.info(
-            "국면 변경 감지: %s → %s",
-            REGIME_KR.get(old_regime, "없음") if old_regime else "초기",
-            REGIME_KR[regime],
-        )
+        old_kr = REGIME_KR.get(old_regime, "없음") if old_regime else "초기"
+        new_kr = REGIME_KR[regime]
+        logger.info("국면 변경 감지: %s → %s", old_kr, new_kr)
+        self._journal.log_event(TradeEvent.engine_event(
+            EventType.REGIME_CHANGE,
+            f"{old_kr} -> {new_kr}",
+            timestamp=now,
+        ))
 
         # 국면별 전략 매핑 (히트맵 분석 결과 기반)
         if regime in (MarketRegime.STRONG_BULL, MarketRegime.BULL):
@@ -444,6 +479,7 @@ class TradingEngine:
             try:
                 signal = await self._evaluate_strategy(symbol, now)
                 self._signals.append(signal)
+                self._journal.log_event(TradeEvent.from_signal(signal))
 
                 # 고점 갱신 (보유 중인 종목)
                 cfg = self.settings.trading
@@ -462,7 +498,7 @@ class TradingEngine:
                                 "[%s] 트레일링 스탑: 고점=%.0f, 현재가=%d, 하락=%.1f%%",
                                 symbol, peak, signal.current_price, drop_pct,
                             )
-                            await self._execute_sell(symbol, now)
+                            await self._execute_sell(symbol, now, reason="trailing_stop")
                             continue
 
                 # SMA 크로스오버: 리스크 체크 (stop-loss / max-holding)
@@ -476,7 +512,7 @@ class TradingEngine:
                                 "[%s] 손절 매도: 매수가=%.0f, 현재가=%d, 손실=%.1f%%",
                                 symbol, entry_price, signal.current_price, loss_pct,
                             )
-                            await self._execute_sell(symbol, now)
+                            await self._execute_sell(symbol, now, reason="stop_loss")
                             continue
                     # max-holding
                     if cfg.max_holding_days > 0 and symbol in self._buy_timestamps:
@@ -486,7 +522,7 @@ class TradingEngine:
                                 "[%s] 보유기간 초과 매도: %d일 보유 (한도 %d일)",
                                 symbol, days_held, cfg.max_holding_days,
                             )
-                            await self._execute_sell(symbol, now)
+                            await self._execute_sell(symbol, now, reason="max_holding")
                             continue
 
                 # 매매 실행 (데이트레이딩 제한 적용)
@@ -508,7 +544,7 @@ class TradingEngine:
                             symbol, signal.current_price, now
                         )
                 elif signal.signal == SignalType.SELL:
-                    await self._execute_sell(symbol, now)
+                    await self._execute_sell(symbol, now, reason="signal")
 
             except Exception:
                 logger.exception("[%s] 처리 중 오류", symbol)
@@ -562,8 +598,13 @@ class TradingEngine:
                 message=result.get("message", ""),
                 success=result.get("success", False),
                 timestamp=now,
+                reason="signal",
             )
             self._orders.append(order_result)
+            self._journal.log_event(TradeEvent.from_order(
+                symbol, "buy", quantity, result,
+                "signal", current_price, timestamp=now,
+            ))
 
             # 매수 성공 시 일일 거래 카운터 증가 + 매수 정보 기록
             if order_result.success:
@@ -574,13 +615,16 @@ class TradingEngine:
                 self._buy_timestamps[symbol] = now
                 self._peak_prices[symbol] = float(current_price)
 
-    async def _execute_sell(self, symbol: str, now: datetime) -> None:
+    async def _execute_sell(
+        self, symbol: str, now: datetime, reason: str = "signal"
+    ) -> None:
         """보유 종목 전량 매도 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
         async with self._get_order_lock(symbol):
             positions, _ = await self.order.get_balance()
             for pos in positions:
                 if pos.symbol == symbol and pos.quantity > 0:
                     result = await self.order.sell(symbol, pos.quantity)
+                    entry_price = self._entry_prices.get(symbol, 0.0)
 
                     order_result = OrderResult(
                         symbol=symbol,
@@ -590,8 +634,13 @@ class TradingEngine:
                         message=result.get("message", ""),
                         success=result.get("success", False),
                         timestamp=now,
+                        reason=reason,
                     )
                     self._orders.append(order_result)
+                    self._journal.log_event(TradeEvent.from_order(
+                        symbol, "sell", pos.quantity, result,
+                        reason, pos.current_price, entry_price, timestamp=now,
+                    ))
                     # 매도 시 매수 정보 삭제
                     self._entry_prices.pop(symbol, None)
                     self._buy_timestamps.pop(symbol, None)
