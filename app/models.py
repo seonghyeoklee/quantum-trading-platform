@@ -101,6 +101,19 @@ class BacktestRequest(BaseModel):
     order_amount: int = 500_000
     use_advanced_strategy: bool = False
 
+    # 전략 선택: "sma_crossover" (기본) 또는 "bollinger"
+    strategy_type: str = "sma_crossover"
+
+    # 리스크 관리 (SMA 크로스오버 전략용)
+    stop_loss_pct: float = 0.0       # 0=비활성
+    max_holding_days: int = 0        # 0=비활성
+
+    # 볼린저밴드 파라미터
+    bollinger_period: int = 20
+    bollinger_num_std: float = 2.0
+    bollinger_max_holding_days: int = 5
+    bollinger_max_daily_trades: int = 5
+
 
 class EngineStatus(str, Enum):
     STOPPED = "STOPPED"
@@ -116,3 +129,4 @@ class TradingStatus(BaseModel):
     recent_orders: list[OrderResult] = []
     started_at: datetime | None = None
     loop_count: int = 0
+    current_regime: str | None = None  # 현재 시장 국면 (auto_regime 활성 시)

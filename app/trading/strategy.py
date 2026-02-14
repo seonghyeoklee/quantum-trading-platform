@@ -20,6 +20,7 @@ class BollingerResult(NamedTuple):
     upper_band: float
     middle_band: float
     lower_band: float
+    volume_confirmed: bool = True
 
 
 def compute_sma(prices: list[float], period: int) -> list[float | None]:
@@ -38,9 +39,14 @@ def evaluate_signal(
     chart: list[ChartData],
     short_period: int = 5,
     long_period: int = 20,
+    volume_ma_period: int | None = None,
 ) -> tuple[SignalType, float, float]:
     """
     이동평균 크로스오버 시그널 판단.
+
+    volume_ma_period가 설정되면 BUY 시그널에 거래량 SMA 필터 적용:
+    현재 거래량 > 거래량 SMA 이면 확인, 아니면 HOLD로 차단.
+    SELL에는 미적용 (매도 차단하면 안 됨).
 
     Returns:
         (signal, short_ma_today, long_ma_today)
@@ -61,15 +67,28 @@ def evaluate_signal(
     if any(v is None for v in [today_short, today_long, yesterday_short, yesterday_long]):
         return SignalType.HOLD, 0.0, 0.0
 
+    signal = SignalType.HOLD
+
     # 골든크로스: 전일 SMA5 <= SMA20 → 오늘 SMA5 > SMA20
     if yesterday_short <= yesterday_long and today_short > today_long:
-        return SignalType.BUY, today_short, today_long
+        signal = SignalType.BUY
 
     # 데드크로스: 전일 SMA5 >= SMA20 → 오늘 SMA5 < SMA20
-    if yesterday_short >= yesterday_long and today_short < today_long:
-        return SignalType.SELL, today_short, today_long
+    elif yesterday_short >= yesterday_long and today_short < today_long:
+        signal = SignalType.SELL
 
-    return SignalType.HOLD, today_short, today_long
+    # 거래량 필터 (BUY 시그널에만 적용)
+    if volume_ma_period is not None and signal == SignalType.BUY:
+        volumes = [float(c.volume) for c in chart]
+        vol_sma = compute_sma(volumes, volume_ma_period)
+        current_vol_sma = vol_sma[-1] if vol_sma else None
+        if current_vol_sma is not None and current_vol_sma > 0:
+            if volumes[-1] <= current_vol_sma:
+                signal = SignalType.HOLD
+        else:
+            signal = SignalType.HOLD
+
+    return signal, today_short, today_long
 
 
 def compute_rsi(prices: list[float], period: int = 14) -> list[float | None]:
@@ -227,12 +246,16 @@ def evaluate_bollinger_signal(
     chart: list[ChartData],
     period: int = 20,
     num_std: float = 2.0,
+    volume_ma_period: int | None = None,
 ) -> BollingerResult:
     """볼린저밴드 반전 시그널 판단.
 
     - BUY: 전봉 종가 ≤ 하단밴드 AND 현봉 종가 > 하단밴드 (하단 반등)
     - SELL: 현봉 종가 ≥ 상단밴드 (상단 도달 = 익절)
     - HOLD: 그 외
+
+    volume_ma_period가 설정되면 매수 시그널에 거래량 SMA 필터 적용:
+    현재 거래량 > 거래량 SMA 이면 확인, 아니면 HOLD로 차단.
     """
     if len(chart) < period + 1:
         return BollingerResult(
@@ -277,9 +300,23 @@ def evaluate_bollinger_signal(
     elif current_close >= upper:
         signal = SignalType.SELL
 
+    # 거래량 필터 (매수 시그널에만 적용)
+    volume_confirmed = True
+    if volume_ma_period is not None and signal == SignalType.BUY:
+        volumes = [float(c.volume) for c in chart]
+        vol_sma = compute_sma(volumes, volume_ma_period)
+        current_vol_sma = vol_sma[-1] if vol_sma else None
+        if current_vol_sma is not None and current_vol_sma > 0:
+            volume_confirmed = volumes[-1] > current_vol_sma
+        else:
+            volume_confirmed = False
+        if not volume_confirmed:
+            signal = SignalType.HOLD
+
     return BollingerResult(
         signal=signal,
         upper_band=upper,
         middle_band=middle,
         lower_band=lower,
+        volume_confirmed=volume_confirmed,
     )

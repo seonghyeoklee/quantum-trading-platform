@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.config import KISConfig, Settings, StrategyType, TradingConfig
+from app.config import KISConfig, Settings, StrategyConfig, StrategyType, TradingConfig
 from app.models import AccountSummary, ChartData, EngineStatus, Position, SignalType, StockPrice
 from app.trading.engine import TradingEngine
 
@@ -643,6 +643,103 @@ class TestMinuteMode:
         engine.order.buy.assert_called_once_with("005930", 18)
 
 
+class TestRiskManagement:
+    """SMA 크로스오버 전략: 손절 + 최대 보유기간 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_stop_loss_triggers_sell(self):
+        """매수가 대비 7% 하락 → 강제 매도 + 매수 정보 삭제"""
+        settings = _make_settings()
+        settings.trading.stop_loss_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 매수 정보 사전 설정 (매수가 100,000)
+        engine._entry_prices["005930"] = 100_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 10, 10, 0, 0)
+
+        # HOLD 차트 (시그널 없음 — 손절만 발동)
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=93000,  # 7% 하락
+            change=-7000, change_rate=-7.0, volume=5000,
+            high=94000, low=92000, opening=93500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=100000, current_price=93000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "SL01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        # 매도 주문 확인
+        engine.order.sell.assert_called_once_with("005930", 10)
+        assert len(engine._orders) == 1
+        assert engine._orders[0].side == "sell"
+        # 매수 정보 삭제 확인
+        assert "005930" not in engine._entry_prices
+        assert "005930" not in engine._buy_timestamps
+
+    @pytest.mark.asyncio
+    async def test_max_holding_triggers_sell(self):
+        """23일 보유 → 강제 매도"""
+        settings = _make_settings()
+        settings.trading.max_holding_days = 20
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 매수 정보: 23일 전 매수
+        engine._entry_prices["005930"] = 70_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 1, 20, 10, 0, 0)
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=72000,
+            change=0, change_rate=0.0, volume=5000,
+            high=72500, low=71500, opening=72000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=70000, current_price=72000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "MH01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        # 매도 주문 확인
+        engine.order.sell.assert_called_once_with("005930", 10)
+        assert len(engine._orders) == 1
+        assert engine._orders[0].side == "sell"
+        # 매수 정보 삭제 확인
+        assert "005930" not in engine._entry_prices
+        assert "005930" not in engine._buy_timestamps
+
+
 class TestDayTrading:
     """데이트레이딩 (볼린저밴드 + 장 마감 청산 + 거래 제한) 테스트"""
 
@@ -686,6 +783,7 @@ class TestDayTrading:
         """15:00 이후 매수 시그널 무시"""
         settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
         settings.trading.active_trading_windows = []  # 전 구간 활성 (no_new_buy 단독 테스트)
+        settings.trading.bollinger_volume_filter = False  # 거래량 필터 비활성 (엔진 제약 테스트용)
         engine = TradingEngine(settings)
         engine._watch_symbols = ["005930"]
         engine._status = EngineStatus.RUNNING
@@ -720,6 +818,7 @@ class TestDayTrading:
     async def test_daily_trade_limit(self):
         """종목당 5회 초과 매수 시 스킵"""
         settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
+        settings.trading.bollinger_volume_filter = False  # 거래량 필터 비활성 (엔진 제약 테스트용)
         engine = TradingEngine(settings)
         engine._watch_symbols = ["005930"]
         engine._status = EngineStatus.RUNNING
@@ -960,3 +1059,277 @@ class TestDayTrading:
 
         assert engine.order.sell.call_count == 2
         assert len(engine._orders) == 2
+
+
+class TestUpdateStrategy:
+    """런타임 전략 전환 테스트"""
+
+    def test_strategy_change_applies(self):
+        """전략 변경 후 settings.trading에 반영"""
+        settings = _make_settings(strategy_type=StrategyType.SMA_CROSSOVER)
+        engine = TradingEngine(settings)
+
+        config = StrategyConfig(
+            strategy_type=StrategyType.BOLLINGER,
+            short_ma_period=15,
+            long_ma_period=50,
+            use_advanced_strategy=False,
+            bollinger_period=25,
+            bollinger_num_std=2.5,
+        )
+        engine.update_strategy(config)
+
+        assert engine.settings.trading.strategy_type == StrategyType.BOLLINGER
+        assert engine.settings.trading.short_ma_period == 15
+        assert engine.settings.trading.long_ma_period == 50
+        assert engine.settings.trading.use_advanced_strategy is False
+        assert engine.settings.trading.bollinger_period == 25
+        assert engine.settings.trading.bollinger_num_std == 2.5
+
+    def test_strategy_type_change_clears_entry_prices(self):
+        """전략 타입 변경 시 매수 추적 정보 초기화"""
+        settings = _make_settings(strategy_type=StrategyType.SMA_CROSSOVER)
+        engine = TradingEngine(settings)
+
+        # 가짜 매수 정보 설정
+        engine._entry_prices["005930"] = 50000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 14, 10, 0)
+
+        config = StrategyConfig(strategy_type=StrategyType.BOLLINGER)
+        engine.update_strategy(config)
+
+        assert engine._entry_prices == {}
+        assert engine._buy_timestamps == {}
+
+    def test_same_strategy_type_keeps_entry_prices(self):
+        """동일 전략 타입 변경 시 매수 정보 유지"""
+        settings = _make_settings(strategy_type=StrategyType.SMA_CROSSOVER)
+        engine = TradingEngine(settings)
+
+        engine._entry_prices["005930"] = 50000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 14, 10, 0)
+
+        # 같은 타입이지만 파라미터만 변경
+        config = StrategyConfig(
+            strategy_type=StrategyType.SMA_CROSSOVER,
+            short_ma_period=15,
+        )
+        engine.update_strategy(config)
+
+        assert "005930" in engine._entry_prices
+        assert engine.settings.trading.short_ma_period == 15
+
+    def test_get_strategy_config(self):
+        """get_strategy_config가 현재 설정을 정확히 반환"""
+        settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
+        engine = TradingEngine(settings)
+
+        config = engine.get_strategy_config()
+        assert config.strategy_type == StrategyType.BOLLINGER
+        assert config.short_ma_period == settings.trading.short_ma_period
+        assert config.use_minute_chart == settings.trading.use_minute_chart
+
+    def test_get_strategy_config_includes_auto_regime(self):
+        """get_strategy_config에 auto_regime 포함"""
+        settings = _make_settings()
+        settings.trading.auto_regime = True
+        engine = TradingEngine(settings)
+
+        config = engine.get_strategy_config()
+        assert config.auto_regime is True
+
+
+class TestAutoRegime:
+    """자동 국면 감지 + 전략 전환 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_regime_detection_switches_strategy(self):
+        """강세장 감지 → SMA_CROSSOVER 전략으로 전환"""
+        settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
+        settings.trading.auto_regime = True
+        engine = TradingEngine(settings)
+
+        # 130일 상승 차트 (강세장)
+        closes_up = [float(500 + i * 2) for i in range(130)]
+        chart = _make_chart([int(c) for c in closes_up])
+
+        engine.market.get_daily_chart = AsyncMock(return_value=chart)
+
+        now = datetime(2026, 2, 12, 9, 5, 0)
+        await engine._check_and_switch_regime(now)
+
+        # 강세장 → SMA_CROSSOVER
+        assert engine._current_regime is not None
+        assert engine.settings.trading.strategy_type == StrategyType.SMA_CROSSOVER
+
+    @pytest.mark.asyncio
+    async def test_regime_checked_once_per_day(self):
+        """하루 1회만 국면 감지 실행"""
+        settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
+        settings.trading.auto_regime = True
+        settings.trading.active_trading_windows = []
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 130일 상승 차트 (강세장 → SMA_CROSSOVER 전환)
+        closes_up = [float(500 + i * 2) for i in range(130)]
+        daily_chart = _make_chart([int(c) for c in closes_up])
+
+        # 일반 차트 (HOLD 시그널)
+        flat_chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=70000,
+            change=0, change_rate=0.0, volume=5000,
+            high=70500, low=69500, opening=70000,
+        )
+
+        engine.market.get_daily_chart = AsyncMock(side_effect=[
+            daily_chart,  # 첫 번째: 국면 감지용
+        ])
+        # 전략 전환 후 use_minute_chart=True → get_minute_chart 사용
+        engine.market.get_minute_chart = AsyncMock(return_value=flat_chart)
+        engine.market.get_current_price = AsyncMock(return_value=price)
+        engine.order.buy = AsyncMock()
+        engine.order.sell = AsyncMock()
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            await engine._tick()  # 첫 번째 tick: 국면 감지 + 전략 평가
+            await engine._tick()  # 두 번째 tick: 국면 감지 스킵 (같은 날짜)
+
+        # get_daily_chart: 국면감지 1회만 (같은 날 두 번째 tick에서는 스킵)
+        assert engine.market.get_daily_chart.call_count == 1
+        # 전략 평가: get_minute_chart 2회 (전환 후 분봉 모드)
+        assert engine.market.get_minute_chart.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_auto_regime_disabled_no_switch(self):
+        """auto_regime=False면 전략 전환 안 함"""
+        settings = _make_settings(strategy_type=StrategyType.BOLLINGER)
+        settings.trading.auto_regime = False
+        settings.trading.active_trading_windows = []
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        flat_chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=70000,
+            change=0, change_rate=0.0, volume=5000,
+            high=70500, low=69500, opening=70000,
+        )
+
+        # 볼린저 전략은 항상 분봉 사용
+        engine.market.get_minute_chart = AsyncMock(return_value=flat_chart)
+        engine.market.get_daily_chart = AsyncMock()
+        engine.market.get_current_price = AsyncMock(return_value=price)
+        engine.order.buy = AsyncMock()
+        engine.order.sell = AsyncMock()
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            await engine._tick()
+
+        # auto_regime=False → 전략 변경 없음
+        assert engine.settings.trading.strategy_type == StrategyType.BOLLINGER
+        # 국면 감지 호출 없음 (get_daily_chart 미호출)
+        engine.market.get_daily_chart.assert_not_called()
+        # 볼린저 전략 평가용 get_minute_chart 1회
+        assert engine.market.get_minute_chart.call_count == 1
+
+
+class TestTrailingStopEngine:
+    """트레일링 스탑 엔진 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_trailing_stop_sell(self):
+        """고점 추적 후 하락 시 트레일링 스탑 매도"""
+        settings = _make_settings()
+        settings.trading.trailing_stop_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 매수 정보 + 고점 설정
+        engine._entry_prices["005930"] = 100_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 10, 10, 0, 0)
+        engine._peak_prices["005930"] = 110_000.0  # 고점 11만원
+
+        # 현재가 10만원 → 고점 대비 9.1% 하락 (> 5%)
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=100000,
+            change=-10000, change_rate=-9.1, volume=5000,
+            high=101000, low=99000, opening=100500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=100000, current_price=100000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "TS01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        # 매도 호출 확인
+        engine.order.sell.assert_called_once_with("005930", 10)
+        assert "005930" not in engine._peak_prices
+        assert "005930" not in engine._entry_prices
+
+    @pytest.mark.asyncio
+    async def test_peak_price_updated_on_buy(self):
+        """매수 성공 시 고점 가격 초기화"""
+        settings = _make_settings()
+        settings.trading.trailing_stop_pct = 5.0
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 72000, now)
+
+        assert engine._peak_prices["005930"] == 72000.0
+
+
+class TestCapitalRatioEngine:
+    """자본 활용 비율 엔진 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_capital_ratio_buy(self):
+        """capital_ratio로 예수금 기반 주문 금액 계산"""
+        settings = _make_settings()
+        settings.trading.capital_ratio = 0.3
+        settings.trading.min_quantity = 1
+        settings.trading.max_quantity = 100
+        engine = TradingEngine(settings)
+
+        # 예수금 10,000,000 → 0.3 = 3,000,000 → 3,000,000 // 50,000 = 60주
+        summary = AccountSummary(deposit=10_000_000)
+        engine.order.get_balance = AsyncMock(return_value=([], summary))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 50_000, now)
+
+        # 3,000,000 // 50,000 = 60주
+        engine.order.buy.assert_called_once_with("005930", 60)

@@ -109,6 +109,22 @@ class TestEvaluateSignal:
         assert signal == SignalType.BUY
         assert short_ma > long_ma
 
+    def test_volume_filter_blocks_low_volume(self):
+        """골든크로스 + 거래량 부족 → BUY → HOLD"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 24 + [100]  # 마지막 날 거래량 매우 낮음
+        chart = _make_chart(closes, volumes)
+        signal, _, _ = evaluate_signal(chart, 5, 20, volume_ma_period=20)
+        assert signal == SignalType.HOLD
+
+    def test_volume_filter_none_keeps_original(self):
+        """volume_ma_period 미설정 시 기존 동작 유지"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 24 + [100]  # 거래량 낮아도 필터 없으면 BUY
+        chart = _make_chart(closes, volumes)
+        signal, _, _ = evaluate_signal(chart, 5, 20)
+        assert signal == SignalType.BUY
+
 
 class TestComputeRSI:
     def test_rising_prices_high_rsi(self):
@@ -421,3 +437,23 @@ class TestBollingerSignal:
         assert result.middle_band > 0
         assert result.lower_band > 0
         assert result.upper_band > result.middle_band > result.lower_band
+
+    def test_bollinger_buy_blocked_by_low_volume(self):
+        """하단 반등 + 거래량 부족 → HOLD"""
+        closes = [100] * 20 + [60, 95]  # 하단 반등 → BUY 조건
+        # 과거 거래량 높고 현재 거래량 낮음 → 거래량 미확인
+        volumes = [5000] * 21 + [100]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_bollinger_signal(chart, period=20, volume_ma_period=20)
+        assert result.volume_confirmed is False
+        assert result.signal == SignalType.HOLD
+
+    def test_bollinger_buy_confirmed_by_volume(self):
+        """하단 반등 + 거래량 확인 → BUY"""
+        closes = [100] * 20 + [60, 95]  # 하단 반등 → BUY 조건
+        # 현재 거래량이 SMA보다 높음 → 거래량 확인
+        volumes = [1000] * 21 + [5000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_bollinger_signal(chart, period=20, volume_ma_period=20)
+        assert result.volume_confirmed is True
+        assert result.signal == SignalType.BUY

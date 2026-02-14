@@ -6,9 +6,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from app.config import load_settings
+from app.config import StrategyConfig, load_settings
 from app.models import BacktestRequest
-from app.trading.backtest import fetch_chart_from_yfinance, run_backtest, to_yfinance_ticker
+from app.trading.backtest import (
+    fetch_chart_from_yfinance,
+    run_backtest,
+    run_bollinger_backtest,
+    to_yfinance_ticker,
+)
 from app.trading.engine import TradingEngine
 
 router = APIRouter()
@@ -80,6 +85,24 @@ async def get_positions(engine: TradingEngine = Depends(get_engine)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@router.get("/trading/strategy")
+async def get_strategy(engine: TradingEngine = Depends(get_engine)):
+    """현재 전략 설정 조회"""
+    return engine.get_strategy_config().model_dump()
+
+
+@router.post("/trading/strategy")
+async def update_strategy(
+    config: StrategyConfig, engine: TradingEngine = Depends(get_engine)
+):
+    """전략 + 파라미터 변경 (재시작 불필요)"""
+    engine.update_strategy(config)
+    return {
+        "message": "전략 설정 변경 완료",
+        "strategy": engine.get_strategy_config().model_dump(),
+    }
+
+
 @router.post("/backtest")
 async def run_backtest_api(req: BacktestRequest):
     """과거 데이터 기반 전략 백테스트"""
@@ -100,18 +123,31 @@ async def run_backtest_api(req: BacktestRequest):
     if not chart:
         raise HTTPException(status_code=404, detail="조회된 데이터가 없습니다.")
 
-    result = run_backtest(
-        chart=chart,
-        initial_capital=req.initial_capital,
-        order_amount=req.order_amount,
-        short_period=settings.trading.short_ma_period,
-        long_period=settings.trading.long_ma_period,
-        use_advanced=req.use_advanced_strategy,
-        rsi_period=settings.trading.rsi_period,
-        rsi_overbought=settings.trading.rsi_overbought,
-        rsi_oversold=settings.trading.rsi_oversold,
-        volume_ma_period=settings.trading.volume_ma_period,
-    )
+    if req.strategy_type == "bollinger":
+        result = run_bollinger_backtest(
+            chart=chart,
+            initial_capital=req.initial_capital,
+            order_amount=req.order_amount,
+            period=req.bollinger_period,
+            num_std=req.bollinger_num_std,
+            max_holding_days=req.bollinger_max_holding_days,
+            max_daily_trades=req.bollinger_max_daily_trades,
+        )
+    else:
+        result = run_backtest(
+            chart=chart,
+            initial_capital=req.initial_capital,
+            order_amount=req.order_amount,
+            short_period=settings.trading.short_ma_period,
+            long_period=settings.trading.long_ma_period,
+            use_advanced=req.use_advanced_strategy,
+            rsi_period=settings.trading.rsi_period,
+            rsi_overbought=settings.trading.rsi_overbought,
+            rsi_oversold=settings.trading.rsi_oversold,
+            volume_ma_period=settings.trading.volume_ma_period,
+            stop_loss_pct=req.stop_loss_pct,
+            max_holding_days=req.max_holding_days,
+        )
 
     return {
         "symbol": req.symbol,
@@ -124,7 +160,7 @@ async def run_backtest_api(req: BacktestRequest):
         "max_drawdown_pct": result.max_drawdown_pct,
         "sharpe_ratio": result.sharpe_ratio,
         "trades": [
-            {"date": t.date, "side": t.side, "price": t.price, "quantity": t.quantity}
+            {"date": t.date, "side": t.side, "price": t.price, "quantity": t.quantity, "reason": t.reason}
             for t in result.trades
         ],
     }
