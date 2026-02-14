@@ -1,10 +1,12 @@
-"""이동평균 크로스오버 전략 단위 테스트"""
+"""매매 전략 단위 테스트"""
 
 from app.models import ChartData, SignalType
 from app.trading.strategy import (
+    compute_bollinger_bands,
     compute_obv,
     compute_rsi,
     compute_sma,
+    evaluate_bollinger_signal,
     evaluate_signal,
     evaluate_signal_with_filters,
 )
@@ -323,3 +325,99 @@ class TestOBVFilter:
         assert result.raw_signal == SignalType.BUY
         assert result.obv_confirmed is False
         assert result.signal == SignalType.HOLD
+
+
+class TestComputeBollingerBands:
+    def test_basic_bands(self):
+        """20개 데이터로 볼린저밴드 계산"""
+        prices = [float(100 + i) for i in range(25)]  # 100~124
+        bands = compute_bollinger_bands(prices, period=20, num_std=2.0)
+        assert len(bands) == 25
+        # 처음 19개는 None
+        for i in range(19):
+            assert bands[i] == (None, None, None)
+        # 20번째부터 유효
+        upper, middle, lower = bands[19]
+        assert upper is not None
+        assert middle is not None
+        assert lower is not None
+        assert upper > middle > lower
+
+    def test_insufficient_data(self):
+        """데이터 부족 시 모두 None"""
+        prices = [100.0] * 10
+        bands = compute_bollinger_bands(prices, period=20)
+        assert all(b == (None, None, None) for b in bands)
+
+    def test_wider_bands_with_volatility(self):
+        """변동성 클수록 밴드 폭 넓음"""
+        # 저변동성: 일정 가격
+        flat_prices = [100.0] * 25
+        flat_bands = compute_bollinger_bands(flat_prices, period=20)
+        flat_upper, _, flat_lower = flat_bands[-1]
+
+        # 고변동성: 큰 폭 등락
+        volatile_prices = [100.0 + (10 if i % 2 == 0 else -10) for i in range(25)]
+        vol_bands = compute_bollinger_bands(volatile_prices, period=20)
+        vol_upper, _, vol_lower = vol_bands[-1]
+
+        # 저변동성은 밴드 폭 0 (표준편차 0)
+        assert flat_upper == flat_lower  # std=0이면 upper==lower==middle
+        # 고변동성은 밴드 폭 > 0
+        assert vol_upper > vol_lower
+
+    def test_custom_num_std(self):
+        """표준편차 배수 변경"""
+        prices = [float(100 + i) for i in range(25)]
+        bands_2std = compute_bollinger_bands(prices, period=20, num_std=2.0)
+        bands_1std = compute_bollinger_bands(prices, period=20, num_std=1.0)
+        # 2std 밴드가 1std보다 넓어야 함
+        u2, m2, l2 = bands_2std[-1]
+        u1, m1, l1 = bands_1std[-1]
+        assert m2 == m1  # 중심선 동일
+        assert u2 > u1  # 2std 상단 > 1std 상단
+        assert l2 < l1  # 2std 하단 < 1std 하단
+
+
+class TestBollingerSignal:
+    def test_buy_on_lower_band_bounce(self):
+        """하단밴드 반등 → BUY"""
+        # 안정 구간 20봉 + 급락(하단 이탈) + 반등
+        closes = [100] * 20 + [60, 95]  # 전봉: 60(하단 아래), 현봉: 95(하단 위)
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.BUY
+
+    def test_sell_on_upper_band_touch(self):
+        """상단밴드 도달 → SELL"""
+        # 안정 구간 20봉 + 전봉 소폭 상승(밴드 내) + 현봉 급등(상단 이탈)
+        closes = [100] * 20 + [110, 140]  # prev=110(밴드 내), curr=140(상단 이상)
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.SELL
+
+    def test_hold_in_middle(self):
+        """밴드 중간 → HOLD"""
+        # 등락 있는 데이터 → 밴드 폭 있음, 현봉은 중간 위치
+        closes = [95, 105] * 10 + [100, 100]  # 22봉, 마지막 2봉 100
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.HOLD
+
+    def test_insufficient_data_hold(self):
+        """데이터 부족 → HOLD"""
+        closes = [100] * 15
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.HOLD
+        assert result.upper_band == 0.0
+
+    def test_result_contains_band_values(self):
+        """결과에 밴드 값 포함"""
+        closes = [float(100 + i) for i in range(25)]
+        chart = _make_chart([int(c) for c in closes])
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.upper_band > 0
+        assert result.middle_band > 0
+        assert result.lower_band > 0
+        assert result.upper_band > result.middle_band > result.lower_band

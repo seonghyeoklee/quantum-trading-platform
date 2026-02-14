@@ -1,8 +1,14 @@
 import os
+from enum import Enum
 from pathlib import Path
 
 import yaml
 from pydantic_settings import BaseSettings
+
+
+class StrategyType(str, Enum):
+    SMA_CROSSOVER = "sma_crossover"  # 기존 SMA 크로스오버
+    BOLLINGER = "bollinger"  # 볼린저밴드 반전
 
 
 class KISConfig(BaseSettings):
@@ -64,7 +70,27 @@ class TradingConfig(BaseSettings):
     min_quantity: int = 1                  # 최소 주문수량
     max_quantity: int = 50                 # 최대 주문수량
 
-    # 복합 전략 (RSI + 거래량 + OBV 필터)
+    # 전략 선택
+    strategy_type: StrategyType = StrategyType.BOLLINGER
+
+    # 볼린저밴드 파라미터
+    bollinger_period: int = 20  # SMA 기간 (20분)
+    bollinger_num_std: float = 2.0  # 표준편차 배수
+
+    # 단타 제한
+    max_daily_trades: int = 5  # 종목당 하루 최대 매수 횟수
+
+    # 장 마감 청산
+    force_close_minute: int = 1510  # 15:10 이후 강제 매도 (HHMM)
+    no_new_buy_minute: int = 1500  # 15:00 이후 신규 매수 금지
+
+    # 활성 매매 시간대 (HHMM 튜플 리스트). 빈 리스트면 전 구간 매매.
+    active_trading_windows: list[tuple[int, int]] = [
+        (930, 1100),   # 오전 골든타임
+        (1400, 1500),  # 오후 골든타임
+    ]
+
+    # 복합 전략 (RSI + 거래량 + OBV 필터) — SMA_CROSSOVER 전략용
     use_advanced_strategy: bool = True
     rsi_period: int = 14
     rsi_overbought: float = 70.0

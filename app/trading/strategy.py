@@ -1,4 +1,4 @@
-"""이동평균 크로스오버 전략 - 순수 함수 구현"""
+"""매매 전략 - SMA 크로스오버 + 볼린저밴드 반전"""
 
 from typing import NamedTuple
 
@@ -13,6 +13,13 @@ class StrategyResult(NamedTuple):
     rsi: float | None
     volume_confirmed: bool
     obv_confirmed: bool
+
+
+class BollingerResult(NamedTuple):
+    signal: SignalType
+    upper_band: float
+    middle_band: float
+    lower_band: float
 
 
 def compute_sma(prices: list[float], period: int) -> list[float | None]:
@@ -215,4 +222,83 @@ def evaluate_signal_with_filters(
         rsi=current_rsi,
         volume_confirmed=volume_confirmed,
         obv_confirmed=obv_confirmed,
+    )
+
+
+def compute_bollinger_bands(
+    prices: list[float], period: int = 20, num_std: float = 2.0
+) -> list[tuple[float | None, float | None, float | None]]:
+    """볼린저밴드 계산. (upper, middle, lower) 튜플 리스트 반환."""
+    sma = compute_sma(prices, period)
+    result: list[tuple[float | None, float | None, float | None]] = []
+    for i in range(len(prices)):
+        if sma[i] is None:
+            result.append((None, None, None))
+        else:
+            window = prices[i - period + 1 : i + 1]
+            mean = sma[i]
+            std = (sum((x - mean) ** 2 for x in window) / period) ** 0.5
+            result.append((mean + num_std * std, mean, mean - num_std * std))
+    return result
+
+
+def evaluate_bollinger_signal(
+    chart: list[ChartData],
+    period: int = 20,
+    num_std: float = 2.0,
+) -> BollingerResult:
+    """볼린저밴드 반전 시그널 판단.
+
+    - BUY: 전봉 종가 ≤ 하단밴드 AND 현봉 종가 > 하단밴드 (하단 반등)
+    - SELL: 현봉 종가 ≥ 상단밴드 (상단 도달 = 익절)
+    - HOLD: 그 외
+    """
+    if len(chart) < period + 1:
+        return BollingerResult(
+            signal=SignalType.HOLD,
+            upper_band=0.0,
+            middle_band=0.0,
+            lower_band=0.0,
+        )
+
+    closes = [float(c.close) for c in chart]
+    bands = compute_bollinger_bands(closes, period, num_std)
+
+    upper, middle, lower = bands[-1]
+    prev_upper, prev_middle, prev_lower = bands[-2]
+
+    if any(v is None for v in [upper, middle, lower, prev_lower]):
+        return BollingerResult(
+            signal=SignalType.HOLD,
+            upper_band=0.0,
+            middle_band=0.0,
+            lower_band=0.0,
+        )
+
+    current_close = closes[-1]
+    prev_close = closes[-2]
+
+    signal = SignalType.HOLD
+
+    # 밴드 폭이 0이면 (표준편차 0 = 무변동) 시그널 없음
+    if upper <= lower:
+        return BollingerResult(
+            signal=SignalType.HOLD,
+            upper_band=upper,
+            middle_band=middle,
+            lower_band=lower,
+        )
+
+    # BUY: 전봉 종가 ≤ 하단밴드 AND 현봉 종가 > 하단밴드 (반등 확인)
+    if prev_close <= prev_lower and current_close > lower:
+        signal = SignalType.BUY
+    # SELL: 현봉 종가 ≥ 상단밴드 (상단 도달)
+    elif current_close >= upper:
+        signal = SignalType.SELL
+
+    return BollingerResult(
+        signal=signal,
+        upper_band=upper,
+        middle_band=middle,
+        lower_band=lower,
     )

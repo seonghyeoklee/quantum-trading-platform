@@ -40,14 +40,19 @@ class TradingSignal(BaseModel):
 
     symbol: str
     signal: SignalType
-    short_ma: float  # 단기 이동평균
-    long_ma: float  # 장기 이동평균
+    short_ma: float = 0.0  # 단기 이동평균
+    long_ma: float = 0.0  # 장기 이동평균
     current_price: int
     timestamp: datetime
     rsi: float | None = None
     volume_confirmed: bool | None = None
     obv_confirmed: bool | None = None
     raw_signal: SignalType | None = None  # 필터 적용 전 원시 시그널
+
+    # 볼린저밴드 필드 (선택적)
+    upper_band: float | None = None
+    middle_band: float | None = None
+    lower_band: float | None = None
 
 
 class OrderResult(BaseModel):
