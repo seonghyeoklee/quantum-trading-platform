@@ -48,12 +48,8 @@ class TradingConfig(BaseSettings):
         "010120",  # LS일렉트릭
     ]
 
-    # 매매 금액 (종목당)
+    # 매매 금액 (백테스트용 종목당 주문금액)
     order_amount: int = 1_800_000
-
-    # 손절/익절 비율 (미사용 - MVP에서는 전략 시그널로만 매매)
-    stop_loss_pct: float = -3.0
-    take_profit_pct: float = 5.0
 
     # 전략 파라미터 (백테스트 최적화 결과 — 일봉용)
     short_ma_period: int = 10

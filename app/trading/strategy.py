@@ -85,24 +85,25 @@ def compute_rsi(prices: list[float], period: int = 14) -> list[float | None]:
     gains = [max(d, 0.0) for d in deltas]
     losses = [max(-d, 0.0) for d in deltas]
 
+    avg_gain = 0.0
+    avg_loss = 0.0
+
     for i in range(len(deltas)):
         if i < period - 1:
             result.append(None)
         elif i == period - 1:
             # 첫 RSI: 단순 평균
-            avg_gain = sum(gains[: period]) / period
-            avg_loss = sum(losses[: period]) / period
+            avg_gain = sum(gains[:period]) / period
+            avg_loss = sum(losses[:period]) / period
             if avg_loss == 0:
                 result.append(100.0)
             else:
                 rs = avg_gain / avg_loss
                 result.append(100.0 - 100.0 / (1.0 + rs))
         else:
-            # Wilder's smoothing
-            prev_avg_gain = _extract_avg_gain(gains, losses, period, i)
-            prev_avg_loss = _extract_avg_loss(gains, losses, period, i)
-            avg_gain = (prev_avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (prev_avg_loss * (period - 1) + losses[i]) / period
+            # Wilder's smoothing (반복)
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
             if avg_loss == 0:
                 result.append(100.0)
             else:
@@ -110,26 +111,6 @@ def compute_rsi(prices: list[float], period: int = 14) -> list[float | None]:
                 result.append(100.0 - 100.0 / (1.0 + rs))
 
     return result
-
-
-def _extract_avg_gain(
-    gains: list[float], losses: list[float], period: int, up_to: int
-) -> float:
-    """up_to 이전까지의 Wilder's smoothed avg_gain 재귀 계산."""
-    if up_to == period - 1:
-        return sum(gains[:period]) / period
-    prev = _extract_avg_gain(gains, losses, period, up_to - 1)
-    return (prev * (period - 1) + gains[up_to - 1]) / period
-
-
-def _extract_avg_loss(
-    gains: list[float], losses: list[float], period: int, up_to: int
-) -> float:
-    """up_to 이전까지의 Wilder's smoothed avg_loss 재귀 계산."""
-    if up_to == period - 1:
-        return sum(losses[:period]) / period
-    prev = _extract_avg_loss(gains, losses, period, up_to - 1)
-    return (prev * (period - 1) + losses[up_to - 1]) / period
 
 
 def compute_obv(closes: list[float], volumes: list[float]) -> list[float]:
@@ -265,7 +246,7 @@ def evaluate_bollinger_signal(
     bands = compute_bollinger_bands(closes, period, num_std)
 
     upper, middle, lower = bands[-1]
-    prev_upper, prev_middle, prev_lower = bands[-2]
+    _, _, prev_lower = bands[-2]
 
     if any(v is None for v in [upper, middle, lower, prev_lower]):
         return BollingerResult(

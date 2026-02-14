@@ -176,6 +176,92 @@ class TradingEngine:
         if closed > 0:
             logger.info("장 마감 강제 청산 완료: %d종목", closed)
 
+    async def _evaluate_strategy(
+        self, symbol: str, now: datetime
+    ) -> TradingSignal:
+        """전략 평가: 차트 조회 → 시그널 생성 → 로그"""
+        cfg = self.settings.trading
+        strategy_type = cfg.strategy_type
+
+        if strategy_type == StrategyType.BOLLINGER:
+            chart = await self.market.get_minute_chart(
+                symbol, minutes=cfg.minute_chart_lookback
+            )
+            price_info = await self.market.get_current_price(symbol)
+            result = evaluate_bollinger_signal(
+                chart, period=cfg.bollinger_period, num_std=cfg.bollinger_num_std
+            )
+            logger.info(
+                "[%s] %s | 현재가=%d, BB(%.0f/%.0f/%.0f)",
+                symbol, result.signal.value, price_info.current_price,
+                result.upper_band, result.middle_band, result.lower_band,
+            )
+            return TradingSignal(
+                symbol=symbol,
+                signal=result.signal,
+                current_price=price_info.current_price,
+                timestamp=now,
+                upper_band=result.upper_band,
+                middle_band=result.middle_band,
+                lower_band=result.lower_band,
+            )
+
+        # SMA 크로스오버 전략
+        if cfg.use_minute_chart:
+            chart = await self.market.get_minute_chart(
+                symbol, minutes=cfg.minute_chart_lookback
+            )
+            short_period = cfg.minute_short_period
+            long_period = cfg.minute_long_period
+        else:
+            short_period = cfg.short_ma_period
+            long_period = cfg.long_ma_period
+            chart = await self.market.get_daily_chart(
+                symbol, days=long_period + 10
+            )
+        price_info = await self.market.get_current_price(symbol)
+
+        if cfg.use_advanced_strategy:
+            result = evaluate_signal_with_filters(
+                chart, short_period, long_period,
+                rsi_period=cfg.rsi_period,
+                rsi_overbought=cfg.rsi_overbought,
+                rsi_oversold=cfg.rsi_oversold,
+                volume_ma_period=cfg.volume_ma_period,
+                obv_ma_period=cfg.obv_ma_period,
+            )
+            signal = TradingSignal(
+                symbol=symbol,
+                signal=result.signal,
+                short_ma=result.short_ma,
+                long_ma=result.long_ma,
+                current_price=price_info.current_price,
+                timestamp=now,
+                rsi=result.rsi,
+                volume_confirmed=result.volume_confirmed,
+                obv_confirmed=result.obv_confirmed,
+                raw_signal=result.raw_signal,
+            )
+        else:
+            signal_type, short_ma, long_ma = evaluate_signal(
+                chart, short_period, long_period
+            )
+            signal = TradingSignal(
+                symbol=symbol,
+                signal=signal_type,
+                short_ma=short_ma,
+                long_ma=long_ma,
+                current_price=price_info.current_price,
+                timestamp=now,
+            )
+
+        logger.info(
+            "[%s] %s | 현재가=%d, SMA%d=%.0f, SMA%d=%.0f",
+            symbol, signal.signal.value, price_info.current_price,
+            short_period, signal.short_ma, long_period, signal.long_ma,
+        )
+        return signal
+
     async def _tick(self) -> None:
         """한 사이클 실행: 시세 조회 → 전략 판단 → 주문"""
         now = datetime.now()
@@ -206,122 +292,15 @@ class TradingEngine:
         fail_count = 0
         for symbol in self._watch_symbols:
             try:
-                strategy_type = self.settings.trading.strategy_type
-
-                if strategy_type == StrategyType.BOLLINGER:
-                    # 볼린저밴드 전략: 항상 분봉 사용
-                    chart = await self.market.get_minute_chart(
-                        symbol,
-                        minutes=self.settings.trading.minute_chart_lookback,
-                    )
-                    price_info = await self.market.get_current_price(symbol)
-
-                    result = evaluate_bollinger_signal(
-                        chart,
-                        period=self.settings.trading.bollinger_period,
-                        num_std=self.settings.trading.bollinger_num_std,
-                    )
-                    signal_type = result.signal
-                    signal = TradingSignal(
-                        symbol=symbol,
-                        signal=signal_type,
-                        current_price=price_info.current_price,
-                        timestamp=now,
-                        upper_band=result.upper_band,
-                        middle_band=result.middle_band,
-                        lower_band=result.lower_band,
-                    )
-
-                    logger.info(
-                        "[%s] %s | 현재가=%d, BB(%.0f/%.0f/%.0f)",
-                        symbol,
-                        signal_type.value,
-                        price_info.current_price,
-                        result.upper_band,
-                        result.middle_band,
-                        result.lower_band,
-                    )
-
-                else:
-                    # SMA 크로스오버 전략 (기존 로직)
-                    if self.settings.trading.use_minute_chart:
-                        chart = await self.market.get_minute_chart(
-                            symbol,
-                            minutes=self.settings.trading.minute_chart_lookback,
-                        )
-                        short_period = self.settings.trading.minute_short_period
-                        long_period = self.settings.trading.minute_long_period
-                    else:
-                        short_period = self.settings.trading.short_ma_period
-                        long_period = self.settings.trading.long_ma_period
-                        chart = await self.market.get_daily_chart(
-                            symbol, days=long_period + 10
-                        )
-                    price_info = await self.market.get_current_price(symbol)
-
-                    if self.settings.trading.use_advanced_strategy:
-                        result = evaluate_signal_with_filters(
-                            chart,
-                            short_period,
-                            long_period,
-                            rsi_period=self.settings.trading.rsi_period,
-                            rsi_overbought=self.settings.trading.rsi_overbought,
-                            rsi_oversold=self.settings.trading.rsi_oversold,
-                            volume_ma_period=self.settings.trading.volume_ma_period,
-                            obv_ma_period=self.settings.trading.obv_ma_period,
-                        )
-                        signal_type = result.signal
-                        short_ma = result.short_ma
-                        long_ma = result.long_ma
-
-                        signal = TradingSignal(
-                            symbol=symbol,
-                            signal=signal_type,
-                            short_ma=short_ma,
-                            long_ma=long_ma,
-                            current_price=price_info.current_price,
-                            timestamp=now,
-                            rsi=result.rsi,
-                            volume_confirmed=result.volume_confirmed,
-                            obv_confirmed=result.obv_confirmed,
-                            raw_signal=result.raw_signal,
-                        )
-                    else:
-                        signal_type, short_ma, long_ma = evaluate_signal(
-                            chart, short_period, long_period
-                        )
-
-                        signal = TradingSignal(
-                            symbol=symbol,
-                            signal=signal_type,
-                            short_ma=short_ma,
-                            long_ma=long_ma,
-                            current_price=price_info.current_price,
-                            timestamp=now,
-                        )
-
-                    logger.info(
-                        "[%s] %s | 현재가=%d, SMA%d=%.0f, SMA%d=%.0f",
-                        symbol,
-                        signal_type.value,
-                        price_info.current_price,
-                        short_period,
-                        short_ma,
-                        long_period,
-                        long_ma,
-                    )
-
+                signal = await self._evaluate_strategy(symbol, now)
                 self._signals.append(signal)
 
                 # 매매 실행 (데이트레이딩 제한 적용)
-                if signal_type == SignalType.BUY:
-                    # 15:00 이후 신규 매수 금지
+                if signal.signal == SignalType.BUY:
                     if current_hhmm >= self.settings.trading.no_new_buy_minute:
                         logger.info(
                             "[%s] %02d:%02d — 신규 매수 금지 시간",
-                            symbol,
-                            now.hour,
-                            now.minute,
+                            symbol, now.hour, now.minute,
                         )
                     elif not self._can_buy(symbol):
                         logger.info(
@@ -332,9 +311,9 @@ class TradingEngine:
                         )
                     else:
                         await self._execute_buy(
-                            symbol, price_info.current_price, now
+                            symbol, signal.current_price, now
                         )
-                elif signal_type == SignalType.SELL:
+                elif signal.signal == SignalType.SELL:
                     await self._execute_sell(symbol, now)
 
             except Exception:
