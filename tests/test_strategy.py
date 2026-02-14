@@ -1,11 +1,21 @@
 """이동평균 크로스오버 전략 단위 테스트"""
 
 from app.models import ChartData, SignalType
-from app.trading.strategy import compute_sma, evaluate_signal
+from app.trading.strategy import (
+    compute_obv,
+    compute_rsi,
+    compute_sma,
+    evaluate_signal,
+    evaluate_signal_with_filters,
+)
 
 
-def _make_chart(closes: list[int]) -> list[ChartData]:
+def _make_chart(
+    closes: list[int], volumes: list[int] | None = None
+) -> list[ChartData]:
     """테스트용 차트 데이터 생성"""
+    if volumes is None:
+        volumes = [1000] * len(closes)
     return [
         ChartData(
             date=f"2025{(i // 28 + 1):02d}{(i % 28 + 1):02d}",
@@ -13,7 +23,7 @@ def _make_chart(closes: list[int]) -> list[ChartData]:
             high=c + 100,
             low=c - 100,
             close=c,
-            volume=1000,
+            volume=volumes[i],
         )
         for i, c in enumerate(closes)
     ]
@@ -96,3 +106,220 @@ class TestEvaluateSignal:
         signal, short_ma, long_ma = evaluate_signal(chart, 3, 10)
         assert signal == SignalType.BUY
         assert short_ma > long_ma
+
+
+class TestComputeRSI:
+    def test_rising_prices_high_rsi(self):
+        """연속 상승 → 높은 RSI"""
+        prices = [float(100 + i) for i in range(20)]  # 100→119
+        rsi = compute_rsi(prices, 14)
+        assert rsi[-1] is not None
+        assert rsi[-1] > 70
+
+    def test_falling_prices_low_rsi(self):
+        """연속 하락 → 낮은 RSI"""
+        prices = [float(200 - i) for i in range(20)]  # 200→181
+        rsi = compute_rsi(prices, 14)
+        assert rsi[-1] is not None
+        assert rsi[-1] < 30
+
+    def test_flat_prices_mid_rsi(self):
+        """횡보 → RSI 약 50"""
+        # 상승/하락 교대 → gain/loss 균등
+        prices = [100.0]
+        for i in range(19):
+            prices.append(prices[-1] + (5 if i % 2 == 0 else -5))
+        rsi = compute_rsi(prices, 14)
+        assert rsi[-1] is not None
+        assert 40 < rsi[-1] < 60
+
+    def test_insufficient_data_returns_none(self):
+        """데이터 부족 → None"""
+        prices = [100.0, 101.0, 102.0]
+        rsi = compute_rsi(prices, 14)
+        assert all(v is None for v in rsi)
+
+    def test_rsi_bounds(self):
+        """RSI는 항상 0~100 범위"""
+        prices = [float(100 + i * 2) for i in range(30)]
+        rsi = compute_rsi(prices, 14)
+        for v in rsi:
+            if v is not None:
+                assert 0 <= v <= 100
+
+
+class TestVolumeConfirmation:
+    def test_volume_above_sma_confirmed(self):
+        """거래량 > 20일 SMA → 확인됨"""
+        # 골든크로스 + 높은 거래량
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [1000] * 24 + [5000]  # 마지막 날 거래량 급증
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.volume_confirmed is True
+
+    def test_volume_below_sma_not_confirmed(self):
+        """거래량 < 20일 SMA → 미확인"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 24 + [100]  # 마지막 날 거래량 급감
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.volume_confirmed is False
+
+
+class TestCompositeStrategy:
+    def _golden_cross_data(
+        self, volumes: list[int] | None = None
+    ) -> list[ChartData]:
+        """골든크로스가 발생하는 차트 데이터"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        if volumes is None:
+            volumes = [5000] * 24 + [10000]
+        return _make_chart(closes, volumes)
+
+    def _dead_cross_data(
+        self, volumes: list[int] | None = None
+    ) -> list[ChartData]:
+        """데드크로스가 발생하는 차트 데이터"""
+        closes = [100] * 20 + [105, 106, 107, 108, 50]
+        if volumes is None:
+            volumes = [5000] * 24 + [10000]
+        return _make_chart(closes, volumes)
+
+    def test_buy_passes_all_filters(self):
+        """골든크로스 + RSI OK + 거래량 확인 → BUY"""
+        chart = self._golden_cross_data()
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.raw_signal == SignalType.BUY
+        # RSI와 거래량 모두 통과하면 BUY 유지
+        if result.rsi is not None and result.rsi <= 70 and result.volume_confirmed:
+            assert result.signal == SignalType.BUY
+
+    def test_buy_blocked_by_rsi_overbought(self):
+        """골든크로스 + RSI 과매수 → HOLD"""
+        # 연속 상승으로 RSI 높이기
+        closes = [50] * 6 + [50 + i * 3 for i in range(19)] + [200]
+        volumes = [5000] * 25 + [10000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_overbought=70.0
+        )
+        if result.raw_signal == SignalType.BUY and result.rsi is not None and result.rsi > 70:
+            assert result.signal == SignalType.HOLD
+
+    def test_sell_blocked_by_rsi_oversold(self):
+        """데드크로스 + RSI 과매도 → HOLD"""
+        # 연속 하락으로 RSI 낮추기
+        closes = [200] * 6 + [200 - i * 3 for i in range(19)] + [10]
+        volumes = [5000] * 25 + [10000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_oversold=30.0
+        )
+        if result.raw_signal == SignalType.SELL and result.rsi is not None and result.rsi < 30:
+            assert result.signal == SignalType.HOLD
+
+    def test_buy_blocked_by_low_volume(self):
+        """골든크로스 + 거래량 미확인 → HOLD"""
+        # 거래량이 SMA보다 낮음
+        volumes = [5000] * 24 + [100]
+        chart = self._golden_cross_data(volumes=volumes)
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.raw_signal == SignalType.BUY
+        assert result.volume_confirmed is False
+        assert result.signal == SignalType.HOLD
+
+    def test_hold_signal_unchanged(self):
+        """HOLD 시그널 → 필터 무관하게 HOLD 유지"""
+        closes = [100] * 25  # 횡보 → HOLD
+        volumes = [5000] * 25
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.raw_signal == SignalType.HOLD
+        assert result.signal == SignalType.HOLD
+
+    def test_result_contains_all_fields(self):
+        """StrategyResult에 모든 필드가 포함되는지 확인"""
+        chart = self._golden_cross_data()
+        result = evaluate_signal_with_filters(chart, 5, 20)
+        assert result.signal is not None
+        assert result.raw_signal is not None
+        assert isinstance(result.short_ma, float)
+        assert isinstance(result.long_ma, float)
+        assert isinstance(result.volume_confirmed, bool)
+        assert isinstance(result.obv_confirmed, bool)
+
+
+class TestComputeOBV:
+    def test_rising_prices_positive_obv(self):
+        """연속 상승 → OBV 증가"""
+        closes = [100.0, 101.0, 102.0, 103.0, 104.0]
+        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0]
+        obv = compute_obv(closes, volumes)
+        assert len(obv) == 5
+        assert obv[0] == 0.0
+        # 매일 상승이므로 OBV = 0, +1000, +2000, +3000, +4000
+        assert obv[1] == 1000.0
+        assert obv[2] == 2000.0
+        assert obv[3] == 3000.0
+        assert obv[4] == 4000.0
+
+    def test_falling_prices_negative_obv(self):
+        """연속 하락 → OBV 감소"""
+        closes = [104.0, 103.0, 102.0, 101.0, 100.0]
+        volumes = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0]
+        obv = compute_obv(closes, volumes)
+        assert obv[4] == -4000.0
+
+    def test_flat_prices_unchanged_obv(self):
+        """횡보 → OBV 불변"""
+        closes = [100.0, 100.0, 100.0]
+        volumes = [1000.0, 2000.0, 3000.0]
+        obv = compute_obv(closes, volumes)
+        assert obv == [0.0, 0.0, 0.0]
+
+    def test_mixed_prices(self):
+        """상승/하락 혼합"""
+        closes = [100.0, 105.0, 103.0, 108.0]
+        volumes = [500.0, 1000.0, 800.0, 1200.0]
+        obv = compute_obv(closes, volumes)
+        assert obv[0] == 0.0
+        assert obv[1] == 1000.0   # 상승 → +1000
+        assert obv[2] == 200.0    # 하락 → 1000-800
+        assert obv[3] == 1400.0   # 상승 → 200+1200
+
+    def test_empty_input(self):
+        """빈 입력"""
+        assert compute_obv([], []) == []
+
+
+class TestOBVFilter:
+    def test_buy_confirmed_by_obv(self):
+        """골든크로스 + OBV 상승추세 → BUY 유지"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        # 하락 시 극소 거래량, 상승 시 대량 → OBV 급반등
+        volumes = [5000] * 20 + [200, 200, 200, 200, 50000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20,
+            rsi_overbought=95.0,  # RSI 필터 완화하여 OBV 테스트에 집중
+            obv_ma_period=5,
+        )
+        assert result.raw_signal == SignalType.BUY
+        assert result.obv_confirmed is True
+        assert result.signal == SignalType.BUY
+
+    def test_buy_blocked_by_obv_downtrend(self):
+        """골든크로스 + OBV 하락추세 → HOLD"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        # 하락 시 대량 거래, 상승 시 소량 → OBV 하락 지속
+        volumes = [5000] * 20 + [20000, 20000, 20000, 20000, 10000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20,
+            rsi_overbought=95.0,
+            obv_ma_period=5,
+        )
+        assert result.raw_signal == SignalType.BUY
+        assert result.obv_confirmed is False
+        assert result.signal == SignalType.HOLD

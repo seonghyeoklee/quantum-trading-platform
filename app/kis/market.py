@@ -1,4 +1,4 @@
-"""KIS API 시세 조회 - 현재가, 일봉 차트"""
+"""KIS API 시세 조회 - 현재가, 일봉/분봉 차트"""
 
 import logging
 from datetime import datetime, timedelta
@@ -102,3 +102,72 @@ class KISMarketClient:
         # 날짜 오름차순 정렬
         chart.sort(key=lambda c: c.date)
         return chart
+
+    async def get_minute_chart(
+        self, symbol: str, minutes: int = 120
+    ) -> list[ChartData]:
+        """분봉(1분) 차트 조회. 최대 30건씩 반복 호출로 minutes분 데이터 수집."""
+        await self.auth.get_token()
+
+        url = f"{self.base_url}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+        chart: list[ChartData] = []
+        query_time = datetime.now().strftime("%H%M%S")
+        max_calls = (minutes // 30) + 1
+
+        for _ in range(max_calls):
+            headers = self.auth.get_base_headers()
+            headers["tr_id"] = "FHKST03010200"
+
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_HOUR_1": query_time,
+                "FID_PW_DATA_INCU_YN": "Y",
+            }
+
+            data = await self._client.get(url, headers=headers, params=params)
+
+            if data.get("rt_cd") != "0":
+                raise RuntimeError(
+                    f"KIS API 오류: {data.get('msg_cd')} - {data.get('msg1')}"
+                )
+
+            items = data.get("output2", [])
+            if not items:
+                break
+
+            for item in items:
+                hour = item.get("stck_cntg_hour", "")
+                if not hour:
+                    continue
+                chart.append(
+                    ChartData(
+                        date=hour,
+                        open=int(item.get("stck_oprc", 0)),
+                        high=int(item.get("stck_hgpr", 0)),
+                        low=int(item.get("stck_lwpr", 0)),
+                        close=int(item.get("stck_prpr", 0)),
+                        volume=int(item.get("cntg_vol", 0)),
+                    )
+                )
+
+            if len(items) < 30:
+                break
+
+            # 마지막 봉의 시간을 다음 조회 시작점으로
+            query_time = items[-1].get("stck_cntg_hour", "")
+            if not query_time:
+                break
+
+            if len(chart) >= minutes:
+                break
+
+        # 시간 오름차순 정렬 + 중복 제거
+        seen: set[str] = set()
+        unique: list[ChartData] = []
+        for c in chart:
+            if c.date not in seen:
+                seen.add(c.date)
+                unique.append(c)
+        unique.sort(key=lambda c: c.date)
+        return unique

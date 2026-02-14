@@ -1,0 +1,27 @@
+{
+  "symbols": [
+    {"code": "005930", "name": "삼성전자", "sector": "반도체/IT"},
+    {"code": "000660", "name": "SK하이닉스", "sector": "반도체"},
+    {"code": "005380", "name": "현대차", "sector": "자동차"},
+    {"code": "035420", "name": "NAVER", "sector": "인터넷/플랫폼"},
+    {"code": "005490", "name": "POSCO홀딩스", "sector": "철강/소재"},
+    {"code": "105560", "name": "KB금융", "sector": "금융"},
+    {"code": "009540", "name": "HD한국조선해양", "sector": "조선"},
+    {"code": "034020", "name": "두산에너빌리티", "sector": "전력기기/에너지"},
+    {"code": "298040", "name": "효성중공업", "sector": "전력기기/중전기"},
+    {"code": "064350", "name": "현대로템", "sector": "방산/철도"},
+    {"code": "010120", "name": "LS일렉트릭", "sector": "전력기기/전기"}
+  ],
+  "start_date": "20230101",
+  "end_date": "20260101",
+  "initial_capital": 10000000,
+  "order_amount": 1800000,
+  "short_period": 10,
+  "long_period": 42,
+  "use_advanced": true,
+  "rsi_period": 14,
+  "rsi_overbought": 72.0,
+  "rsi_oversold": 28.0,
+  "volume_ma_period": 15,
+  "obv_ma_period": 22
+}

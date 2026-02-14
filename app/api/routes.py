@@ -1,8 +1,14 @@
 """API 엔드포인트"""
 
+import asyncio
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from app.config import load_settings
+from app.models import BacktestRequest
+from app.trading.backtest import fetch_chart_from_yfinance, run_backtest, to_yfinance_ticker
 from app.trading.engine import TradingEngine
 
 router = APIRouter()
@@ -74,3 +80,51 @@ async def get_positions(engine: TradingEngine = Depends(get_engine)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@router.post("/backtest")
+async def run_backtest_api(req: BacktestRequest):
+    """과거 데이터 기반 전략 백테스트"""
+    settings = load_settings()
+
+    end_date = req.end_date or datetime.now().strftime("%Y%m%d")
+    ticker = to_yfinance_ticker(req.symbol)
+
+    try:
+        chart = await asyncio.to_thread(
+            fetch_chart_from_yfinance, ticker, req.start_date, end_date
+        )
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"yfinance 데이터 조회 실패: {e}")
+
+    if not chart:
+        raise HTTPException(status_code=404, detail="조회된 데이터가 없습니다.")
+
+    result = run_backtest(
+        chart=chart,
+        initial_capital=req.initial_capital,
+        order_amount=req.order_amount,
+        short_period=settings.trading.short_ma_period,
+        long_period=settings.trading.long_ma_period,
+        use_advanced=req.use_advanced_strategy,
+        rsi_period=settings.trading.rsi_period,
+        rsi_overbought=settings.trading.rsi_overbought,
+        rsi_oversold=settings.trading.rsi_oversold,
+        volume_ma_period=settings.trading.volume_ma_period,
+    )
+
+    return {
+        "symbol": req.symbol,
+        "period": f"{req.start_date} ~ {end_date}",
+        "data_points": len(chart),
+        "total_return_pct": result.total_return_pct,
+        "buy_and_hold_pct": result.buy_and_hold_pct,
+        "trade_count": result.trade_count,
+        "win_rate": result.win_rate,
+        "max_drawdown_pct": result.max_drawdown_pct,
+        "sharpe_ratio": result.sharpe_ratio,
+        "trades": [
+            {"date": t.date, "side": t.side, "price": t.price, "quantity": t.quantity}
+            for t in result.trades
+        ],
+    }

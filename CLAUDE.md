@@ -4,7 +4,7 @@
 
 **Quantum Trading Platform** — 국내주식 모의투자 자동매매 시스템 (MVP)
 
-Python + FastAPI 기반. KIS Open API 모의투자 환경에서 이동평균 크로스오버 전략으로 자동매매.
+Python + FastAPI 기반. KIS Open API 모의투자 환경에서 분봉/일봉 SMA 크로스오버 + RSI/거래량/OBV 필터 전략으로 자동매매.
 
 ## Technology Stack
 
@@ -26,19 +26,25 @@ quantum-trading-platform/
 │   ├── kis/                   # KIS API 클라이언트
 │   │   ├── client.py          # HTTP 클라이언트 (재시도, rate limit, keep-alive 비활성화)
 │   │   ├── auth.py            # 토큰 발급/관리 (파일 캐싱: ~/.cache/kis/token.json)
-│   │   ├── market.py          # 현재가/차트 조회
+│   │   ├── market.py          # 현재가/일봉/분봉 차트 조회
 │   │   └── order.py           # 매수/매도 주문, 잔고 조회 (OPSQ2000 재시도)
 │   ├── trading/               # 자동매매 핵심
-│   │   ├── engine.py          # 자동매매 루프 (시작/중지/상태/부분실패 감지)
-│   │   ├── strategy.py        # 이동평균 크로스오버 전략
+│   │   ├── engine.py          # 자동매매 루프 (분봉/일봉, 동적수량, 부분실패 감지)
+│   │   ├── strategy.py        # SMA 크로스오버 + RSI/거래량/OBV 복합 전략
+│   │   ├── backtest.py        # 백테스트 엔진 (yfinance 기반)
 │   │   └── calendar.py        # 매매일/장시간 판단
 │   └── api/
-│       └── routes.py          # API 엔드포인트 (app.state 의존성 주입)
+│       └── routes.py          # API 엔드포인트 (매매 + 백테스트)
+├── scripts/                   # 백테스트 최적화 스크립트
+│   ├── optimize.sh            # 파라미터 탐색 실행
+│   ├── run_backtest.py        # 단일 백테스트 실행
+│   └── generate_report.py     # 최적화 결과 리포트
 ├── tests/
-│   ├── test_strategy.py       # 전략 로직 단위 테스트 (9개)
-│   ├── test_engine.py         # 엔진 로직 + E2E 테스트 (14개)
+│   ├── test_strategy.py       # 전략 로직 단위 테스트 (29개)
+│   ├── test_engine.py         # 엔진 로직 + E2E 테스트 (19개)
 │   ├── test_calendar.py       # 매매일/장시간 단위 테스트 (14개)
-│   └── test_kis_client.py     # KIS API 통합 테스트 (5개)
+│   ├── test_backtest.py       # 백테스트 단위 테스트
+│   └── test_kis_client.py     # KIS API 통합 테스트 (6개)
 ├── kis-mcp/                   # KIS MCP Server (API 스펙 검색용)
 ├── Dockerfile
 ├── docker-compose.yml
@@ -86,6 +92,7 @@ docker compose down           # 종료
 | POST | `/trading/stop` | 자동매매 중지 |
 | GET | `/trading/status` | 엔진 상태/시그널/주문 이력 |
 | GET | `/trading/positions` | 보유 포지션 + 계좌 요약 |
+| POST | `/backtest` | 과거 데이터 백테스트 (yfinance) |
 
 ## KIS API Configuration
 
@@ -112,11 +119,25 @@ my_htsid: "HTS_ID"
 
 ## Trading Strategy
 
-**이동평균 크로스오버 (SMA Crossover)**
-- 단기: SMA(5), 장기: SMA(20)
-- 골든크로스 (전일 SMA5 ≤ SMA20 → 오늘 SMA5 > SMA20) → **매수**
-- 데드크로스 (전일 SMA5 ≥ SMA20 → 오늘 SMA5 < SMA20) → **매도**
-- 장 시간: 09:00 ~ 15:20, 주기: 1분
+**분봉 기반 당일매매 (기본 모드)**
+- `use_minute_chart: true` — 1분봉 데이터로 장중 시그널 생성
+- 단기: SMA(5분), 장기: SMA(20분), 조회범위: 120분
+- 골든크로스 → **매수**, 데드크로스 → **매도**
+- 장 시간: 09:00 ~ 15:20, 주기: 60초
+
+**일봉 모드 (백테스트/장기매매)**
+- `use_minute_chart: false` — 일봉 데이터 기반
+- 단기: SMA(10), 장기: SMA(40) (백테스트 최적화 결과)
+
+**복합 전략 필터 (RSI + 거래량 + OBV)**
+- `use_advanced_strategy: true` — 크로스오버 시그널에 추가 필터 적용
+- RSI 과매수(70)/과매도(30) 영역에서 역방향 시그널 차단
+- 거래량 SMA(15) 대비 확인, OBV SMA(20) 추세 확인
+
+**동적 주문수량**
+- `target_order_amount` (기본 100만원) / 현재가로 수량 계산
+- `min_quantity`(1) ~ `max_quantity`(50) 범위 제한
+- 효성중공업 240만원 → 1주, 두산에너빌리티 2만원 → 50주, 삼성전자 5.5만원 → 18주
 
 ## Error Handling
 
@@ -132,6 +153,7 @@ my_htsid: "HTS_ID"
 |------|-------|----------|
 | 현재가 조회 | `FHKST01010100` | `/uapi/domestic-stock/v1/quotations/inquire-price` |
 | 일봉 차트 | `FHKST03010100` | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` |
+| 분봉 차트 | `FHKST03010200` | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` |
 | 현금 매수 | `VTTC0802U` | `/uapi/domestic-stock/v1/trading/order-cash` |
 | 현금 매도 | `VTTC0801U` | `/uapi/domestic-stock/v1/trading/order-cash` |
 | 잔고 조회 | `VTTC8434R` | `/uapi/domestic-stock/v1/trading/inquire-balance` |

@@ -17,7 +17,7 @@ from app.models import (
     TradingStatus,
 )
 from app.trading.calendar import is_market_open, is_trading_day
-from app.trading.strategy import evaluate_signal
+from app.trading.strategy import evaluate_signal, evaluate_signal_with_filters
 
 logger = logging.getLogger(__name__)
 
@@ -141,32 +141,67 @@ class TradingEngine:
                 logger.debug("장 시간 외: %s", now.strftime("%H:%M:%S"))
             return
 
-        short_period = self.settings.trading.short_ma_period
-        long_period = self.settings.trading.long_ma_period
-        order_amount = self.settings.trading.order_amount
-
         fail_count = 0
         for symbol in self._watch_symbols:
             try:
-                # 매 tick마다 직접 API 호출 (캐시 없음 — 항상 최신 데이터)
-                chart = await self.market.get_daily_chart(
-                    symbol, days=long_period + 10
-                )
+                # 분봉/일봉 모드에 따라 차트 소스 및 이동평균 기간 선택
+                if self.settings.trading.use_minute_chart:
+                    chart = await self.market.get_minute_chart(
+                        symbol,
+                        minutes=self.settings.trading.minute_chart_lookback,
+                    )
+                    short_period = self.settings.trading.minute_short_period
+                    long_period = self.settings.trading.minute_long_period
+                else:
+                    short_period = self.settings.trading.short_ma_period
+                    long_period = self.settings.trading.long_ma_period
+                    chart = await self.market.get_daily_chart(
+                        symbol, days=long_period + 10
+                    )
                 price_info = await self.market.get_current_price(symbol)
 
                 # 전략 실행
-                signal_type, short_ma, long_ma = evaluate_signal(
-                    chart, short_period, long_period
-                )
+                if self.settings.trading.use_advanced_strategy:
+                    result = evaluate_signal_with_filters(
+                        chart,
+                        short_period,
+                        long_period,
+                        rsi_period=self.settings.trading.rsi_period,
+                        rsi_overbought=self.settings.trading.rsi_overbought,
+                        rsi_oversold=self.settings.trading.rsi_oversold,
+                        volume_ma_period=self.settings.trading.volume_ma_period,
+                        obv_ma_period=self.settings.trading.obv_ma_period,
+                    )
+                    signal_type = result.signal
+                    short_ma = result.short_ma
+                    long_ma = result.long_ma
 
-                signal = TradingSignal(
-                    symbol=symbol,
-                    signal=signal_type,
-                    short_ma=short_ma,
-                    long_ma=long_ma,
-                    current_price=price_info.current_price,
-                    timestamp=now,
-                )
+                    signal = TradingSignal(
+                        symbol=symbol,
+                        signal=signal_type,
+                        short_ma=short_ma,
+                        long_ma=long_ma,
+                        current_price=price_info.current_price,
+                        timestamp=now,
+                        rsi=result.rsi,
+                        volume_confirmed=result.volume_confirmed,
+                        obv_confirmed=result.obv_confirmed,
+                        raw_signal=result.raw_signal,
+                    )
+                else:
+                    signal_type, short_ma, long_ma = evaluate_signal(
+                        chart, short_period, long_period
+                    )
+
+                    signal = TradingSignal(
+                        symbol=symbol,
+                        signal=signal_type,
+                        short_ma=short_ma,
+                        long_ma=long_ma,
+                        current_price=price_info.current_price,
+                        timestamp=now,
+                    )
+
                 self._signals.append(signal)
 
                 logger.info(
@@ -183,7 +218,7 @@ class TradingEngine:
                 # 매매 실행
                 if signal_type == SignalType.BUY:
                     await self._execute_buy(
-                        symbol, price_info.current_price, order_amount, now
+                        symbol, price_info.current_price, now
                     )
                 elif signal_type == SignalType.SELL:
                     await self._execute_sell(symbol, now)
@@ -205,9 +240,9 @@ class TradingEngine:
         return self._order_locks[symbol]
 
     async def _execute_buy(
-        self, symbol: str, current_price: int, order_amount: int, now: datetime
+        self, symbol: str, current_price: int, now: datetime
     ) -> None:
-        """매수 주문 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
+        """매수 주문 (잔고 확인 → 동적 수량 계산 → 주문을 Lock으로 원자적 실행)"""
         async with self._get_order_lock(symbol):
             positions, _ = await self.order.get_balance()
             for pos in positions:
@@ -220,13 +255,11 @@ class TradingEngine:
             if current_price <= 0:
                 return
 
-            quantity = order_amount // current_price
-            if quantity <= 0:
-                logger.warning(
-                    "[%s] 매수 수량 0 (금액=%d, 가격=%d)",
-                    symbol, order_amount, current_price,
-                )
-                return
+            # 동적 수량 계산: 목표금액 / 현재가, min~max 범위 내
+            target = self.settings.trading.target_order_amount
+            min_qty = self.settings.trading.min_quantity
+            max_qty = self.settings.trading.max_quantity
+            quantity = max(min_qty, min(target // current_price, max_qty))
 
             result = await self.order.buy(symbol, quantity)
 

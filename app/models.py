@@ -19,9 +19,9 @@ class StockPrice(BaseModel):
 
 
 class ChartData(BaseModel):
-    """OHLCV 일봉 데이터"""
+    """OHLCV 차트 데이터 (일봉: YYYYMMDD, 분봉: HHMMSS)"""
 
-    date: str  # YYYYMMDD
+    date: str  # 일봉: YYYYMMDD, 분봉: HHMMSS
     open: int
     high: int
     low: int
@@ -44,6 +44,10 @@ class TradingSignal(BaseModel):
     long_ma: float  # 장기 이동평균
     current_price: int
     timestamp: datetime
+    rsi: float | None = None
+    volume_confirmed: bool | None = None
+    obv_confirmed: bool | None = None
+    raw_signal: SignalType | None = None  # 필터 적용 전 원시 시그널
 
 
 class OrderResult(BaseModel):
@@ -80,6 +84,17 @@ class AccountSummary(BaseModel):
     purchase_total: int = 0  # 매입금액합계
     eval_profit_loss: int = 0  # 평가손익합계
     eval_profit_loss_rate: float = 0.0  # 자산증감율
+
+
+class BacktestRequest(BaseModel):
+    """백테스트 요청"""
+
+    symbol: str = "005930"
+    start_date: str = "20240101"  # YYYYMMDD
+    end_date: str = ""  # 빈 문자열이면 오늘
+    initial_capital: int = 10_000_000
+    order_amount: int = 500_000
+    use_advanced_strategy: bool = False
 
 
 class EngineStatus(str, Enum):

@@ -71,6 +71,18 @@ class TestKISMarket:
 
 
 @pytest.mark.skipif(_skip, reason=skip_reason)
+class TestKISMinuteChart:
+    async def test_minute_chart(self, market: KISMarketClient):
+        """분봉 조회 → ChartData 리스트 반환"""
+        chart = await market.get_minute_chart("005930", minutes=30)
+        assert len(chart) > 0
+        assert chart[0].close > 0
+        # 시간 오름차순
+        times = [c.date for c in chart]
+        assert times == sorted(times)
+
+
+@pytest.mark.skipif(_skip, reason=skip_reason)
 class TestKISOrder:
     async def test_get_balance(self, order: KISOrderClient):
         positions, summary = await order.get_balance()

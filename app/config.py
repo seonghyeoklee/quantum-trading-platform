@@ -27,19 +27,50 @@ class KISConfig(BaseSettings):
 class TradingConfig(BaseSettings):
     """매매 설정"""
 
-    # 감시 종목 (기본: 삼성전자, SK하이닉스)
-    watch_symbols: list[str] = ["005930", "000660"]
+    # 감시 종목 (백테스트 최적화 기반 포트폴리오)
+    watch_symbols: list[str] = [
+        "005930",  # 삼성전자
+        "000660",  # SK하이닉스
+        "005380",  # 현대차
+        "035420",  # NAVER
+        "005490",  # POSCO홀딩스
+        "105560",  # KB금융
+        "009540",  # HD한국조선해양
+        "034020",  # 두산에너빌리티
+        "298040",  # 효성중공업
+        "064350",  # 현대로템
+        "010120",  # LS일렉트릭
+    ]
 
     # 매매 금액 (종목당)
-    order_amount: int = 500_000
+    order_amount: int = 1_800_000
 
     # 손절/익절 비율 (미사용 - MVP에서는 전략 시그널로만 매매)
     stop_loss_pct: float = -3.0
     take_profit_pct: float = 5.0
 
-    # 전략 파라미터
-    short_ma_period: int = 5
-    long_ma_period: int = 20
+    # 전략 파라미터 (백테스트 최적화 결과 — 일봉용)
+    short_ma_period: int = 10
+    long_ma_period: int = 40
+
+    # 분봉 전략 파라미터
+    use_minute_chart: bool = True          # 분봉 모드 활성화
+    minute_short_period: int = 5           # 5분 SMA
+    minute_long_period: int = 20           # 20분 SMA
+    minute_chart_lookback: int = 120       # 분봉 조회 범위 (분)
+
+    # 동적 주문수량
+    target_order_amount: int = 1_000_000   # 목표 주문금액
+    min_quantity: int = 1                  # 최소 주문수량
+    max_quantity: int = 50                 # 최대 주문수량
+
+    # 복합 전략 (RSI + 거래량 + OBV 필터)
+    use_advanced_strategy: bool = True
+    rsi_period: int = 14
+    rsi_overbought: float = 70.0
+    rsi_oversold: float = 30.0
+    volume_ma_period: int = 15
+    obv_ma_period: int = 20
 
     # 매매 주기 (초)
     trading_interval: int = 60

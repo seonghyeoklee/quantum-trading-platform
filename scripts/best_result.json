@@ -1,0 +1,473 @@
+{
+  "period": "20230101 ~ 20260101",
+  "stock_count": 11,
+  "params": {
+    "short_period": 10,
+    "long_period": 40,
+    "use_advanced": true,
+    "rsi_period": 14,
+    "rsi_overbought": 70.0,
+    "rsi_oversold": 30.0,
+    "volume_ma_period": 15,
+    "obv_ma_period": 20,
+    "order_amount": 1800000
+  },
+  "portfolio_summary": {
+    "avg_return_pct": 37.41,
+    "avg_buy_and_hold_pct": 486.47,
+    "total_trades": 49,
+    "avg_win_rate": 64.39,
+    "worst_mdd_pct": 16.47,
+    "avg_sharpe": 0.7531
+  },
+  "stocks": [
+    {
+      "code": "005930",
+      "name": "삼성전자",
+      "sector": "반도체/IT",
+      "data_points": 730,
+      "total_return_pct": 22.39,
+      "buy_and_hold_pct": 130.18,
+      "trade_count": 9,
+      "win_rate": 75.0,
+      "max_drawdown_pct": 4.21,
+      "sharpe_ratio": 1.4587,
+      "trades": [
+        {
+          "date": "20230330",
+          "side": "buy",
+          "price": 59661,
+          "qty": 30
+        },
+        {
+          "date": "20230726",
+          "side": "sell",
+          "price": 66220,
+          "qty": 30
+        },
+        {
+          "date": "20240201",
+          "side": "buy",
+          "price": 70522,
+          "qty": 25
+        },
+        {
+          "date": "20240802",
+          "side": "sell",
+          "price": 76960,
+          "qty": 25
+        },
+        {
+          "date": "20250108",
+          "side": "buy",
+          "price": 56090,
+          "qty": 32
+        },
+        {
+          "date": "20250122",
+          "side": "sell",
+          "price": 53154,
+          "qty": 32
+        },
+        {
+          "date": "20250214",
+          "side": "buy",
+          "price": 54818,
+          "qty": 32
+        },
+        {
+          "date": "20250410",
+          "side": "sell",
+          "price": 55537,
+          "qty": 32
+        },
+        {
+          "date": "20250604",
+          "side": "buy",
+          "price": 56916,
+          "qty": 31
+        }
+      ]
+    },
+    {
+      "code": "000660",
+      "name": "SK하이닉스",
+      "sector": "반도체",
+      "data_points": 730,
+      "total_return_pct": 46.6,
+      "buy_and_hold_pct": 782.42,
+      "trade_count": 3,
+      "win_rate": 100.0,
+      "max_drawdown_pct": 11.1,
+      "sharpe_ratio": 1.3123,
+      "trades": [
+        {
+          "date": "20230831",
+          "side": "buy",
+          "price": 119425,
+          "qty": 15
+        },
+        {
+          "date": "20250305",
+          "side": "sell",
+          "price": 192336,
+          "qty": 15
+        },
+        {
+          "date": "20250514",
+          "side": "buy",
+          "price": 205185,
+          "qty": 8
+        }
+      ]
+    },
+    {
+      "code": "005380",
+      "name": "현대차",
+      "sector": "자동차",
+      "data_points": 730,
+      "total_return_pct": 7.42,
+      "buy_and_hold_pct": 116.83,
+      "trade_count": 7,
+      "win_rate": 33.33,
+      "max_drawdown_pct": 6.04,
+      "sharpe_ratio": 0.513,
+      "trades": [
+        {
+          "date": "20230630",
+          "side": "buy",
+          "price": 181172,
+          "qty": 9
+        },
+        {
+          "date": "20230728",
+          "side": "sell",
+          "price": 172661,
+          "qty": 9
+        },
+        {
+          "date": "20240201",
+          "side": "buy",
+          "price": 183918,
+          "qty": 9
+        },
+        {
+          "date": "20240402",
+          "side": "sell",
+          "price": 203296,
+          "qty": 9
+        },
+        {
+          "date": "20240424",
+          "side": "buy",
+          "price": 233329,
+          "qty": 7
+        },
+        {
+          "date": "20250131",
+          "side": "sell",
+          "price": 193175,
+          "qty": 7
+        },
+        {
+          "date": "20250609",
+          "side": "buy",
+          "price": 193683,
+          "qty": 9
+        }
+      ]
+    },
+    {
+      "code": "035420",
+      "name": "NAVER",
+      "sector": "인터넷/플랫폼",
+      "data_points": 730,
+      "total_return_pct": 1.84,
+      "buy_and_hold_pct": 36.57,
+      "trade_count": 3,
+      "win_rate": 0.0,
+      "max_drawdown_pct": 6.2,
+      "sharpe_ratio": 0.1368,
+      "trades": [
+        {
+          "date": "20230511",
+          "side": "buy",
+          "price": 208731,
+          "qty": 8
+        },
+        {
+          "date": "20230619",
+          "side": "sell",
+          "price": 196464,
+          "qty": 8
+        },
+        {
+          "date": "20230718",
+          "side": "buy",
+          "price": 207217,
+          "qty": 8
+        }
+      ]
+    },
+    {
+      "code": "005490",
+      "name": "POSCO홀딩스",
+      "sector": "철강/소재",
+      "data_points": 730,
+      "total_return_pct": 3.62,
+      "buy_and_hold_pct": 21.4,
+      "trade_count": 5,
+      "win_rate": 50.0,
+      "max_drawdown_pct": 6.51,
+      "sharpe_ratio": 0.3243,
+      "trades": [
+        {
+          "date": "20230614",
+          "side": "buy",
+          "price": 364277,
+          "qty": 4
+        },
+        {
+          "date": "20230912",
+          "side": "sell",
+          "price": 511315,
+          "qty": 4
+        },
+        {
+          "date": "20240712",
+          "side": "buy",
+          "price": 375741,
+          "qty": 4
+        },
+        {
+          "date": "20241022",
+          "side": "sell",
+          "price": 319838,
+          "qty": 4
+        },
+        {
+          "date": "20251023",
+          "side": "buy",
+          "price": 305455,
+          "qty": 5
+        }
+      ]
+    },
+    {
+      "code": "105560",
+      "name": "KB금융",
+      "sector": "금융",
+      "data_points": 730,
+      "total_return_pct": 1.98,
+      "buy_and_hold_pct": 195.67,
+      "trade_count": 3,
+      "win_rate": 100.0,
+      "max_drawdown_pct": 3.54,
+      "sharpe_ratio": 0.2969,
+      "trades": [
+        {
+          "date": "20230424",
+          "side": "buy",
+          "price": 44061,
+          "qty": 40
+        },
+        {
+          "date": "20231030",
+          "side": "sell",
+          "price": 46667,
+          "qty": 40
+        },
+        {
+          "date": "20250912",
+          "side": "buy",
+          "price": 118476,
+          "qty": 15
+        }
+      ]
+    },
+    {
+      "code": "006400",
+      "name": "삼성SDI",
+      "sector": "2차전지",
+      "data_points": 730,
+      "total_return_pct": -13.63,
+      "buy_and_hold_pct": -54.96,
+      "trade_count": 6,
+      "win_rate": 0.0,
+      "max_drawdown_pct": 15.36,
+      "sharpe_ratio": -1.1575,
+      "trades": [
+        {
+          "date": "20230608",
+          "side": "buy",
+          "price": 724529,
+          "qty": 2
+        },
+        {
+          "date": "20240110",
+          "side": "sell",
+          "price": 414852,
+          "qty": 2
+        },
+        {
+          "date": "20240308",
+          "side": "buy",
+          "price": 424315,
+          "qty": 4
+        },
+        {
+          "date": "20240521",
+          "side": "sell",
+          "price": 409872,
+          "qty": 4
+        },
+        {
+          "date": "20240903",
+          "side": "buy",
+          "price": 369532,
+          "qty": 4
+        },
+        {
+          "date": "20250910",
+          "side": "sell",
+          "price": 198100,
+          "qty": 4
+        }
+      ]
+    },
+    {
+      "code": "034020",
+      "name": "두산에너빌리티",
+      "sector": "전력기기/에너지",
+      "data_points": 730,
+      "total_return_pct": 48.33,
+      "buy_and_hold_pct": 393.77,
+      "trade_count": 3,
+      "win_rate": 100.0,
+      "max_drawdown_pct": 12.35,
+      "sharpe_ratio": 1.0333,
+      "trades": [
+        {
+          "date": "20230303",
+          "side": "buy",
+          "price": 16720,
+          "qty": 107
+        },
+        {
+          "date": "20241206",
+          "side": "sell",
+          "price": 18080,
+          "qty": 107
+        },
+        {
+          "date": "20250116",
+          "side": "buy",
+          "price": 20800,
+          "qty": 86
+        }
+      ]
+    },
+    {
+      "code": "298040",
+      "name": "효성중공업",
+      "sector": "전력기기/중전기",
+      "data_points": 730,
+      "total_return_pct": 162.84,
+      "buy_and_hold_pct": 2365.97,
+      "trade_count": 3,
+      "win_rate": 100.0,
+      "max_drawdown_pct": 16.47,
+      "sharpe_ratio": 1.7629,
+      "trades": [
+        {
+          "date": "20230302",
+          "side": "buy",
+          "price": 75819,
+          "qty": 23
+        },
+        {
+          "date": "20231214",
+          "side": "sell",
+          "price": 158637,
+          "qty": 23
+        },
+        {
+          "date": "20240123",
+          "side": "buy",
+          "price": 183316,
+          "qty": 9
+        }
+      ]
+    },
+    {
+      "code": "064350",
+      "name": "현대로템",
+      "sector": "방산/철도",
+      "data_points": 730,
+      "total_return_pct": 94.99,
+      "buy_and_hold_pct": 578.63,
+      "trade_count": 4,
+      "win_rate": 50.0,
+      "max_drawdown_pct": 11.57,
+      "sharpe_ratio": 1.4606,
+      "trades": [
+        {
+          "date": "20230405",
+          "side": "buy",
+          "price": 27241,
+          "qty": 66
+        },
+        {
+          "date": "20240117",
+          "side": "sell",
+          "price": 25451,
+          "qty": 66
+        },
+        {
+          "date": "20240126",
+          "side": "buy",
+          "price": 28445,
+          "qty": 63
+        },
+        {
+          "date": "20250811",
+          "side": "sell",
+          "price": 181100,
+          "qty": 63
+        }
+      ]
+    },
+    {
+      "code": "010120",
+      "name": "LS일렉트릭",
+      "sector": "전력기기/전기",
+      "data_points": 730,
+      "total_return_pct": 35.11,
+      "buy_and_hold_pct": 784.72,
+      "trade_count": 3,
+      "win_rate": 100.0,
+      "max_drawdown_pct": 5.93,
+      "sharpe_ratio": 1.1428,
+      "trades": [
+        {
+          "date": "20230306",
+          "side": "buy",
+          "price": 48408,
+          "qty": 37
+        },
+        {
+          "date": "20230904",
+          "side": "sell",
+          "price": 89361,
+          "qty": 37
+        },
+        {
+          "date": "20250502",
+          "side": "buy",
+          "price": 210500,
+          "qty": 8
+        }
+      ]
+    }
+  ]
+}

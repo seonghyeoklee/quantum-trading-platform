@@ -12,7 +12,7 @@ from app.trading.engine import TradingEngine
 _EMPTY_SUMMARY = AccountSummary()
 
 
-def _make_settings() -> Settings:
+def _make_settings(use_advanced: bool = False) -> Settings:
     return Settings(
         kis=KISConfig(
             app_key="test",
@@ -24,17 +24,26 @@ def _make_settings() -> Settings:
             order_amount=500_000,
             short_ma_period=5,
             long_ma_period=20,
+            use_advanced_strategy=use_advanced,
+            use_minute_chart=False,  # 기존 테스트는 일봉 모드
+            target_order_amount=500_000,
+            min_quantity=1,
+            max_quantity=50,
             trading_interval=1,
             max_consecutive_errors=3,
         ),
     )
 
 
-def _make_chart(closes: list[int]) -> list[ChartData]:
+def _make_chart(
+    closes: list[int], volumes: list[int] | None = None
+) -> list[ChartData]:
+    if volumes is None:
+        volumes = [1000] * len(closes)
     return [
         ChartData(
             date=f"2026{(i // 28 + 1):02d}{(i % 28 + 1):02d}",
-            open=c, high=c + 100, low=c - 100, close=c, volume=1000,
+            open=c, high=c + 100, low=c - 100, close=c, volume=volumes[i],
         )
         for i, c in enumerate(closes)
     ]
@@ -110,7 +119,7 @@ class TestBuy:
         engine.order.buy = AsyncMock()
         now = datetime(2026, 2, 12, 10, 0, 0)
 
-        await engine._execute_buy("005930", 72000, 500_000, now)
+        await engine._execute_buy("005930", 72000, now)
 
         # 매수 주문이 호출되지 않아야 함
         engine.order.buy.assert_not_called()
@@ -127,24 +136,26 @@ class TestBuy:
         })
 
         now = datetime(2026, 2, 12, 10, 0, 0)
-        await engine._execute_buy("005930", 72000, 500_000, now)
+        await engine._execute_buy("005930", 72000, now)
 
         engine.order.buy.assert_called_once_with("005930", 6)  # 500000 // 72000 = 6
 
     @pytest.mark.asyncio
-    async def test_buy_zero_quantity_skip(self):
-        """매수 수량이 0이면 스킵"""
+    async def test_buy_expensive_stock_min_quantity(self):
+        """고가 주식도 최소 min_quantity 매수"""
         settings = _make_settings()
         engine = TradingEngine(settings)
 
         engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
-        engine.order.buy = AsyncMock()
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0003", "message": "ok",
+        })
 
         now = datetime(2026, 2, 12, 10, 0, 0)
-        # 주문금액 500_000 / 가격 1_000_000 = 0주
-        await engine._execute_buy("005930", 1_000_000, 500_000, now)
+        # target=500_000 / 가격=1_000_000 = 0 → min_quantity=1
+        await engine._execute_buy("005930", 1_000_000, now)
 
-        engine.order.buy.assert_not_called()
+        engine.order.buy.assert_called_once_with("005930", 1)
 
 
 class TestSell:
@@ -408,3 +419,218 @@ class TestTickE2E:
         # 주문 없음
         engine.order.buy.assert_not_called()
         engine.order.sell.assert_not_called()
+
+
+class TestAdvancedStrategy:
+    """복합 전략 (RSI + 거래량 필터) E2E 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_advanced_strategy_buy(self):
+        """복합 전략: 골든크로스 + RSI OK + 거래량 확인 → 매수"""
+        settings = _make_settings()
+        settings.trading.use_advanced_strategy = True
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 골든크로스 차트 + 높은 거래량
+        closes = [100] * 20 + [200]
+        volumes = [1000] * 20 + [5000]
+        chart = _make_chart(closes, volumes)
+        price = StockPrice(
+            symbol="005930", current_price=72000,
+            change=1000, change_rate=1.4, volume=5000,
+            high=73000, low=71000, opening=71500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+            engine.order.buy = AsyncMock(return_value={
+                "success": True, "order_no": "0001", "message": "ok",
+            })
+
+            await engine._tick()
+
+        # 시그널에 rsi, volume_confirmed, raw_signal 필드 포함
+        assert len(engine._signals) == 1
+        sig = engine._signals[0]
+        assert sig.raw_signal == SignalType.BUY
+        assert sig.rsi is not None
+        assert sig.volume_confirmed is not None
+        # 골든크로스 + 거래량 높음 → 매수 실행
+        if sig.signal == SignalType.BUY:
+            engine.order.buy.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_advanced_strategy_filtered_by_low_volume(self):
+        """복합 전략: 골든크로스 + 거래량 미확인 → HOLD (매수 안 함)"""
+        settings = _make_settings()
+        settings.trading.use_advanced_strategy = True
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 골든크로스 차트 + 낮은 거래량
+        closes = [100] * 20 + [200]
+        volumes = [5000] * 20 + [100]  # 마지막 날 거래량 매우 낮음
+        chart = _make_chart(closes, volumes)
+        price = StockPrice(
+            symbol="005930", current_price=72000,
+            change=1000, change_rate=1.4, volume=100,
+            high=73000, low=71000, opening=71500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.buy = AsyncMock()
+            engine.order.sell = AsyncMock()
+
+            await engine._tick()
+
+        # raw_signal은 BUY지만 거래량 미확인으로 HOLD
+        sig = engine._signals[0]
+        assert sig.raw_signal == SignalType.BUY
+        assert sig.volume_confirmed is False
+        assert sig.signal == SignalType.HOLD
+
+        # 매수 주문 없음
+        engine.order.buy.assert_not_called()
+
+
+class TestMinuteMode:
+    """분봉 모드 및 동적 주문수량 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_minute_mode_uses_minute_chart(self):
+        """분봉 모드 → get_minute_chart() 호출 확인"""
+        settings = _make_settings()
+        settings.trading.use_minute_chart = True
+        settings.trading.minute_short_period = 5
+        settings.trading.minute_long_period = 20
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=70000,
+            change=0, change_rate=0.0, volume=5000,
+            high=70500, low=69500, opening=70000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_minute_chart = AsyncMock(return_value=chart)
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.buy = AsyncMock()
+            engine.order.sell = AsyncMock()
+
+            await engine._tick()
+
+        # 분봉 모드 → get_minute_chart 호출, get_daily_chart 미호출
+        engine.market.get_minute_chart.assert_called_once()
+        engine.market.get_daily_chart.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_daily_mode_uses_daily_chart(self):
+        """일봉 모드 → get_daily_chart() 호출 확인"""
+        settings = _make_settings()
+        settings.trading.use_minute_chart = False
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=70000,
+            change=0, change_rate=0.0, volume=5000,
+            high=70500, low=69500, opening=70000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_minute_chart = AsyncMock(return_value=chart)
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.buy = AsyncMock()
+            engine.order.sell = AsyncMock()
+
+            await engine._tick()
+
+        # 일봉 모드 → get_daily_chart 호출, get_minute_chart 미호출
+        engine.market.get_daily_chart.assert_called_once()
+        engine.market.get_minute_chart.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_dynamic_quantity_expensive_stock(self):
+        """240만원 주식 → 1주 매수 (min_quantity 적용)"""
+        settings = _make_settings()
+        settings.trading.target_order_amount = 1_000_000
+        settings.trading.min_quantity = 1
+        settings.trading.max_quantity = 50
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("298040", 2_400_000, now)
+
+        # 1_000_000 // 2_400_000 = 0 → min_quantity = 1
+        engine.order.buy.assert_called_once_with("298040", 1)
+
+    @pytest.mark.asyncio
+    async def test_dynamic_quantity_cheap_stock(self):
+        """2만원 주식 → max_quantity 제한 적용"""
+        settings = _make_settings()
+        settings.trading.target_order_amount = 1_000_000
+        settings.trading.min_quantity = 1
+        settings.trading.max_quantity = 50
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("034020", 20_000, now)
+
+        # 1_000_000 // 20_000 = 50 → max_quantity = 50
+        engine.order.buy.assert_called_once_with("034020", 50)
+
+    @pytest.mark.asyncio
+    async def test_dynamic_quantity_mid_stock(self):
+        """5.5만원 주식 → target_amount 기반 계산"""
+        settings = _make_settings()
+        settings.trading.target_order_amount = 1_000_000
+        settings.trading.min_quantity = 1
+        settings.trading.max_quantity = 50
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 55_000, now)
+
+        # 1_000_000 // 55_000 = 18
+        engine.order.buy.assert_called_once_with("005930", 18)
