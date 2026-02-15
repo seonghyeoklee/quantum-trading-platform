@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.config import StrategyConfig, load_settings
+from app.dashboard import build_dashboard_html
 from app.models import BacktestRequest, MarketType, detect_market_type
 from typing import Literal
 from app.trading.backtest import (
@@ -38,6 +39,12 @@ class StartRequest(BaseModel):
 
 
 # --- 엔드포인트 ---
+
+
+@router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    """실시간 트레이딩 대시보드"""
+    return build_dashboard_html()
 
 
 @router.get("/health")
