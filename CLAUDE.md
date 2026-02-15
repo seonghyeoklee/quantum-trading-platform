@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-**Quantum Trading Platform** — 국내주식 모의투자 자동매매 시스템 (MVP)
+**Quantum Trading Platform** — 국내/해외(미국)주식 모의투자 자동매매 시스템 (MVP)
 
-Python + FastAPI 기반. KIS Open API 모의투자 환경에서 분봉/일봉 SMA 크로스오버 + RSI/거래량/OBV 필터 전략으로 자동매매.
+Python + FastAPI 기반. KIS Open API 모의투자 환경에서 분봉/일봉 SMA 크로스오버 + RSI/거래량/OBV 필터 전략으로 자동매매. 국내(KRX) + 미국(NASDAQ/NYSE/AMEX) 동시 지원.
 
 ## Technology Stack
 
@@ -26,15 +26,17 @@ quantum-trading-platform/
 │   ├── kis/                   # KIS API 클라이언트
 │   │   ├── client.py          # HTTP 클라이언트 (재시도, rate limit, keep-alive 비활성화)
 │   │   ├── auth.py            # 토큰 발급/관리 (파일 캐싱: ~/.cache/kis/token.json)
-│   │   ├── market.py          # 현재가/일봉/분봉 차트 조회
-│   │   └── order.py           # 매수/매도 주문, 잔고 조회 (OPSQ2000 재시도)
+│   │   ├── market.py          # 국내주식 현재가/일봉/분봉 차트 조회
+│   │   ├── order.py           # 국내주식 매수/매도 주문, 잔고 조회 (OPSQ2000 재시도)
+│   │   ├── overseas_market.py # 해외주식(미국) 현재가/일봉/분봉 차트 조회
+│   │   └── overseas_order.py  # 해외주식(미국) 매수/매도 주문, 잔고 조회
 │   ├── trading/               # 자동매매 핵심
-│   │   ├── engine.py          # 자동매매 루프 (분봉/일봉, 동적수량, 런타임 전략 전환)
+│   │   ├── engine.py          # 자동매매 루프 (분봉/일봉, 동적수량, 런타임 전략 전환, 국내/해외 라우팅)
 │   │   ├── strategy.py        # SMA 크로스오버 + RSI/거래량/OBV 복합 전략
 │   │   ├── regime.py          # 시장 국면 판별 (SMA 정배열/역배열 기반)
 │   │   ├── journal.py         # 일일 매매 저널 (JSONL 로깅 + HTML 리포트)
 │   │   ├── backtest.py        # 백테스트 엔진 (yfinance, 국면별 분할 백테스트)
-│   │   └── calendar.py        # 매매일/장시간 판단
+│   │   └── calendar.py        # 매매일/장시간 판단 (국내 KRX + 미국 NYSE/NASDAQ)
 │   └── api/
 │       └── routes.py          # API 엔드포인트 (매매 + 전략 전환 + 백테스트 + 저널)
 ├── scripts/                   # 분석 + 백테스트 스크립트
@@ -46,11 +48,14 @@ quantum-trading-platform/
 │   └── run_backtest.py        # 단일 백테스트 실행
 ├── tests/
 │   ├── test_strategy.py       # 전략 로직 단위 테스트 (29개)
-│   ├── test_engine.py         # 엔진 로직 + E2E 테스트 (23개)
+│   ├── test_engine.py         # 엔진 로직 + E2E 테스트 (66개, US 라우팅 + market 파라미터 포함)
 │   ├── test_journal.py        # 매매 저널 단위 테스트 (12개)
 │   ├── test_regime.py         # 국면 판별 단위 테스트 (19개)
 │   ├── test_calendar.py       # 매매일/장시간 단위 테스트 (14개)
-│   ├── test_backtest.py       # 백테스트 단위 테스트 (32개)
+│   ├── test_backtest.py       # 백테스트 단위 테스트 (37개, US 티커 변환 포함)
+│   ├── test_overseas_market.py # 해외주식 시세 클라이언트 테스트 (13개)
+│   ├── test_overseas_order.py # 해외주식 주문 클라이언트 테스트 (12개)
+│   ├── test_us_calendar.py    # 미국 장 캘린더 테스트 (20개)
 │   └── test_kis_client.py     # KIS API 통합 테스트 (6개)
 ├── kis-mcp/                   # KIS MCP Server (API 스펙 검색용)
 ├── Dockerfile
@@ -107,17 +112,63 @@ docker compose down           # 종료
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | 헬스체크 |
-| GET | `/market/price/{symbol}` | 종목 현재가 |
-| POST | `/trading/start` | 자동매매 시작 (body: `{"symbols": ["005930"]}`) |
+| GET | `/market/price/{symbol}` | 종목 현재가 (국내: 6자리 숫자, 미국: 영문 티커) |
+| POST | `/trading/start` | 자동매매 시작 (body: `StartRequest` — 아래 참조) |
 | POST | `/trading/stop` | 자동매매 중지 |
-| GET | `/trading/status` | 엔진 상태/시그널/주문 이력 |
-| GET | `/trading/positions` | 보유 포지션 + 계좌 요약 |
+| GET | `/trading/status` | 엔진 상태/시그널/주문 이력 (`active_market` 포함) |
+| GET | `/trading/positions` | 보유 포지션 + 계좌 요약 (국내/해외 분리) |
 | GET | `/trading/strategy` | 현재 전략 설정 조회 |
 | POST | `/trading/strategy` | 전략 + 파라미터 런타임 변경 (body: `StrategyConfig`) |
 | GET | `/trading/journal` | 저널 날짜 목록 |
 | GET | `/trading/journal/{date}` | 특정 날짜 이벤트 조회 |
 | GET | `/trading/journal/{date}/report` | 일일 리포트 HTML |
 | POST | `/backtest` | 과거 데이터 백테스트 (yfinance) |
+
+### `/trading/start` 요청 형식
+
+```json
+{
+  "symbols": ["005930", "AAPL"],   // 감시 종목 (생략 시 설정 기본값)
+  "market": "domestic"             // "domestic" | "us" | null(전체)
+}
+```
+
+**`market` 파라미터 동작:**
+
+| market | symbols 지정 | 동작 |
+|--------|-------------|------|
+| `null` (생략) | 없음 | `watch_symbols + us_watch_symbols` 전체 |
+| `null` (생략) | 있음 | 지정된 종목 그대로 사용 |
+| `"domestic"` | 없음 | `watch_symbols`만 (국내 설정 종목) |
+| `"us"` | 없음 | `us_watch_symbols`만 (미국 설정 종목) |
+| `"domestic"` | 있음 | 지정 종목 중 국내만 필터링 |
+| `"us"` | 있음 | 지정 종목 중 미국만 필터링 |
+
+**시장별 시작 예시:**
+
+```bash
+# 국내만 (한국 장시간: 09:00~15:30 KST)
+curl -X POST http://localhost:8000/trading/start \
+  -H "Content-Type: application/json" \
+  -d '{"market": "domestic"}'
+
+# 미국만 (미국 장시간: 23:30~06:00 KST, EST 기준)
+curl -X POST http://localhost:8000/trading/start \
+  -H "Content-Type: application/json" \
+  -d '{"market": "us"}'
+
+# 종목 직접 선택
+curl -X POST http://localhost:8000/trading/start \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["AAPL", "TSLA", "NVDA"], "market": "us"}'
+
+# 국내 + 미국 동시 (24시간 운영)
+curl -X POST http://localhost:8000/trading/start
+```
+
+- `market` 지정 시 해당 시장의 장 시간만 체크 (다른 시장은 무시)
+- `market: "us"` → 시작 시 `us_order.get_balance()`로 연결 검증
+- `GET /trading/status` 응답에 `active_market` 필드로 현재 모드 확인 가능
 
 ## KIS API Configuration
 
@@ -359,6 +410,8 @@ curl http://localhost:8000/trading/journal/2026-02-14/report
 
 ## KIS API TR_ID 참조 (모의투자)
 
+### 국내주식
+
 | 기능 | TR_ID | API Path |
 |------|-------|----------|
 | 현재가 조회 | `FHKST01010100` | `/uapi/domestic-stock/v1/quotations/inquire-price` |
@@ -367,6 +420,25 @@ curl http://localhost:8000/trading/journal/2026-02-14/report
 | 현금 매수 | `VTTC0802U` | `/uapi/domestic-stock/v1/trading/order-cash` |
 | 현금 매도 | `VTTC0801U` | `/uapi/domestic-stock/v1/trading/order-cash` |
 | 잔고 조회 | `VTTC8434R` | `/uapi/domestic-stock/v1/trading/inquire-balance` |
+
+### 해외주식 (미국 모의투자)
+
+| 기능 | TR_ID | API Path |
+|------|-------|----------|
+| 현재가 조회 | `HHDFS00000300` | `/uapi/overseas-price/v1/quotations/price` |
+| 일봉 차트 | `HHDFS76240000` | `/uapi/overseas-price/v1/quotations/dailyprice` |
+| 분봉 차트 | `HHDFS76950200` | `/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice` |
+| 매수 주문 | `VTTT1002U` | `/uapi/overseas-stock/v1/trading/order` |
+| 매도 주문 | `VTTT1006U` | `/uapi/overseas-stock/v1/trading/order` |
+| 잔고 조회 | `VTTS3012R` | `/uapi/overseas-stock/v1/trading/inquire-balance` |
+
+### 거래소 코드 매핑
+
+| 거래소 | 시세 API (EXCD) | 주문 API (OVRS_EXCG_CD) |
+|--------|----------------|------------------------|
+| NASDAQ | NAS | NASD |
+| NYSE | NYS | NYSE |
+| AMEX | AMS | AMEX |
 
 ### KIS API 필수 헤더
 
@@ -422,5 +494,5 @@ KIS Open API 코드 어시스턴트를 Claude Code에서 사용하려면 프로�
 
 ---
 
-*Last Updated: 2026-02-14*
-*Status: MVP - 국내주식 모의투자 자동매매 + 시장 국면 기반 전략 선택 + 매매 저널*
+*Last Updated: 2026-02-15*
+*Status: MVP - 국내/해외(미국)주식 모의투자 자동매매 + 시장 국면 기반 전략 선택 + 매매 저널*

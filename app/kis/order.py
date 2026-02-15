@@ -143,9 +143,9 @@ class KISOrderClient:
                     name=item.get("prdt_name", ""),
                     quantity=qty,
                     avg_price=float(item.get("pchs_avg_pric", 0)),
-                    current_price=int(item.get("prpr", 0)),
-                    eval_amount=int(item.get("evlu_amt", 0)),
-                    profit_loss=int(item.get("evlu_pfls_amt", 0)),
+                    current_price=float(item.get("prpr", 0)),
+                    eval_amount=float(item.get("evlu_amt", 0)),
+                    profit_loss=float(item.get("evlu_pfls_amt", 0)),
                     profit_loss_rate=float(item.get("evlu_pfls_rt", 0)),
                 )
             )
@@ -155,11 +155,11 @@ class KISOrderClient:
         if output2:
             o2 = output2[0]
             summary = AccountSummary(
-                deposit=int(o2.get("dnca_tot_amt", 0)),
-                total_eval=int(o2.get("tot_evlu_amt", 0)),
-                net_asset=int(o2.get("nass_amt", 0)),
-                purchase_total=int(o2.get("pchs_amt_smtl_amt", 0)),
-                eval_profit_loss=int(o2.get("evlu_pfls_smtl_amt", 0)),
+                deposit=float(o2.get("dnca_tot_amt", 0)),
+                total_eval=float(o2.get("tot_evlu_amt", 0)),
+                net_asset=float(o2.get("nass_amt", 0)),
+                purchase_total=float(o2.get("pchs_amt_smtl_amt", 0)),
+                eval_profit_loss=float(o2.get("evlu_pfls_smtl_amt", 0)),
                 eval_profit_loss_rate=float(o2.get("asst_icdc_erng_rt", 0)),
             )
 

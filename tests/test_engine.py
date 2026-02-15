@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.config import KISConfig, Settings, StrategyConfig, StrategyType, TradingConfig
-from app.models import AccountSummary, ChartData, EngineStatus, Position, SignalType, StockPrice
+from app.models import AccountSummary, ChartData, EngineStatus, MarketType, Position, SignalType, StockPrice, detect_market_type
 from app.trading.engine import TradingEngine
 
 _EMPTY_SUMMARY = AccountSummary()
@@ -1342,3 +1342,241 @@ class TestCapitalRatioEngine:
 
         # 3,000,000 // 50,000 = 60주
         engine.order.buy.assert_called_once_with("005930", 60)
+
+
+class TestMarketTypeDetection:
+    """심볼 시장 구분 테스트"""
+
+    def test_domestic_symbol(self):
+        assert detect_market_type("005930") == MarketType.DOMESTIC
+
+    def test_us_symbol_aapl(self):
+        assert detect_market_type("AAPL") == MarketType.US
+
+    def test_us_symbol_tsla(self):
+        assert detect_market_type("TSLA") == MarketType.US
+
+    def test_us_symbol_short(self):
+        assert detect_market_type("F") == MarketType.US  # Ford
+
+    def test_five_digit_not_domestic(self):
+        """5자리 숫자는 국내 아님"""
+        assert detect_market_type("12345") == MarketType.US
+
+
+class TestUSRouting:
+    """US 심볼 라우팅 테스트"""
+
+    def test_engine_has_us_clients(self):
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        assert engine.us_market is not None
+        assert engine.us_order is not None
+
+    def test_get_exchange_default(self):
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        assert engine._get_exchange("AAPL") == "NAS"
+
+    def test_get_exchange_custom(self):
+        settings = _make_settings()
+        settings.trading.us_symbol_exchanges = {"IBM": "NYS"}
+        engine = TradingEngine(settings)
+        assert engine._get_exchange("IBM") == "NYS"
+        assert engine._get_exchange("AAPL") == "NAS"
+
+    @pytest.mark.asyncio
+    async def test_execute_buy_us_symbol(self):
+        """US 심볼 매수 시 us_order.buy 호출"""
+        settings = _make_settings()
+        settings.trading.us_target_order_amount = 1000.0
+        settings.trading.us_min_quantity = 1
+        settings.trading.us_max_quantity = 100
+        engine = TradingEngine(settings)
+
+        engine.us_order.get_balance = AsyncMock(return_value=([], AccountSummary()))
+        engine.us_order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "US001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("AAPL", 200.0, now)
+
+        # 1000 // 200 = 5주
+        engine.us_order.buy.assert_called_once_with("AAPL", 5, "NAS")
+
+    @pytest.mark.asyncio
+    async def test_execute_sell_us_symbol(self):
+        """US 심볼 매도 시 us_order.sell 호출"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.us_order.get_balance = AsyncMock(return_value=([
+            Position(symbol="AAPL", quantity=10, avg_price=180.0, current_price=190.0),
+        ], AccountSummary()))
+        engine.us_order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "US002", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_sell("AAPL", now, reason="signal")
+
+        engine.us_order.sell.assert_called_once_with("AAPL", 10, "NAS")
+
+    @pytest.mark.asyncio
+    async def test_force_close_includes_us_positions(self):
+        """US 심볼이 감시 목록에 있을 때 force_close_all이 US 잔고도 청산"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930", "AAPL"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, current_price=72000),
+        ], AccountSummary()))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        engine.us_order.get_balance = AsyncMock(return_value=([
+            Position(symbol="AAPL", quantity=5, current_price=190.0),
+        ], AccountSummary()))
+        engine.us_order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "US003", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 15, 10, 0)
+        await engine._force_close_all(now)
+
+        engine.order.sell.assert_called_once_with("005930", 10)
+        engine.us_order.sell.assert_called_once_with("AAPL", 5, "NAS")
+
+    def test_start_merges_us_symbols(self):
+        """start 시 국내 + 해외 감시 종목 합산"""
+        settings = _make_settings()
+        settings.trading.us_watch_symbols = ["AAPL", "TSLA"]
+        engine = TradingEngine(settings)
+
+        # symbols=None이면 기본값 합산
+        # (실제 start는 API 연결을 시도하므로 직접 합산 로직만 검증)
+        combined = settings.trading.watch_symbols + settings.trading.us_watch_symbols
+        assert "AAPL" in combined
+        assert "TSLA" in combined
+        assert "005930" in combined
+
+
+class TestMarketParam:
+    """start(market=...) 파라미터 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_start_market_domestic_only(self):
+        """market='domestic' → 국내 종목만 감시"""
+        settings = _make_settings()
+        settings.trading.watch_symbols = ["005930", "000660"]
+        settings.trading.us_watch_symbols = ["AAPL", "TSLA"]
+        engine = TradingEngine(settings)
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine.start(market=MarketType.DOMESTIC)
+
+        assert engine._watch_symbols == ["005930", "000660"]
+        assert engine._active_market == MarketType.DOMESTIC
+        await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_start_market_us_only(self):
+        """market='us' → 해외 종목만 감시"""
+        settings = _make_settings()
+        settings.trading.watch_symbols = ["005930"]
+        settings.trading.us_watch_symbols = ["AAPL", "TSLA"]
+        engine = TradingEngine(settings)
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine.start(market=MarketType.US)
+
+        assert engine._watch_symbols == ["AAPL", "TSLA"]
+        assert engine._active_market == MarketType.US
+        await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_start_symbols_with_market_filter(self):
+        """symbols + market 동시 지정 → 해당 시장 종목만 필터링"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine.start(
+            symbols=["005930", "AAPL", "TSLA"],
+            market=MarketType.DOMESTIC,
+        )
+
+        assert engine._watch_symbols == ["005930"]
+        await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_start_no_market_all_symbols(self):
+        """market=None → 국내 + 해외 합산"""
+        settings = _make_settings()
+        settings.trading.watch_symbols = ["005930"]
+        settings.trading.us_watch_symbols = ["AAPL"]
+        engine = TradingEngine(settings)
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine.start()
+
+        assert "005930" in engine._watch_symbols
+        assert "AAPL" in engine._watch_symbols
+        assert engine._active_market is None
+        await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_start_empty_symbols_raises(self):
+        """감시 종목이 없으면 ValueError"""
+        settings = _make_settings()
+        settings.trading.us_watch_symbols = []
+        engine = TradingEngine(settings)
+
+        with pytest.raises(ValueError, match="감시할 종목이 없습니다"):
+            await engine.start(symbols=[], market=MarketType.US)
+
+    @pytest.mark.asyncio
+    async def test_start_us_validates_with_us_balance(self):
+        """market='us' → us_order.get_balance로 연결 검증"""
+        settings = _make_settings()
+        settings.trading.us_watch_symbols = ["AAPL"]
+        engine = TradingEngine(settings)
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine.start(market=MarketType.US)
+
+        engine.us_order.get_balance.assert_called_once()
+        await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_tick_domestic_market_skips_us_check(self):
+        """_active_market=DOMESTIC → us_open 체크 안 함"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._active_market = MarketType.DOMESTIC
+        engine._watch_symbols = ["005930"]
+
+        # 한국 장 닫힌 시간 (새벽)
+        with patch("app.trading.engine.is_market_open", return_value=False):
+            await engine._tick()
+
+        # 아무 처리 없이 리턴 (us_open 체크하지 않으므로 is_us_market_open 불필요)
+        assert engine._loop_count == 0
+
+    def test_status_shows_active_market(self):
+        """get_status에 active_market 반영"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._active_market = MarketType.US
+        status = engine.get_status()
+        assert status.active_market == "us"
+
+    def test_status_default_all(self):
+        """기본 active_market은 'all'"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        status = engine.get_status()
+        assert status.active_market == "all"

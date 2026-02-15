@@ -9,16 +9,20 @@ from app.kis.auth import KISAuth
 from app.kis.client import KISClient
 from app.kis.market import KISMarketClient
 from app.kis.order import KISOrderClient
+from app.kis.overseas_market import KISOverseasMarketClient
+from app.kis.overseas_order import KISOverseasOrderClient
 from app.models import (
     EngineStatus,
     EventType,
+    MarketType,
     OrderResult,
     SignalType,
     TradeEvent,
     TradingSignal,
     TradingStatus,
+    detect_market_type,
 )
-from app.trading.calendar import is_market_open, is_trading_day
+from app.trading.calendar import is_market_open, is_trading_day, is_us_market_open
 from app.trading.journal import TradingJournal
 from app.trading.regime import MarketRegime, REGIME_KR, detect_current_regime
 from app.trading.strategy import (
@@ -43,6 +47,8 @@ class TradingEngine:
         self.auth = KISAuth(settings.kis, self._client)
         self.market = KISMarketClient(self.auth)
         self.order = KISOrderClient(self.auth)
+        self.us_market = KISOverseasMarketClient(self.auth)
+        self.us_order = KISOverseasOrderClient(self.auth)
 
         self._status = EngineStatus.STOPPED
         self._task: asyncio.Task | None = None
@@ -67,6 +73,9 @@ class TradingEngine:
         self._buy_timestamps: dict[str, datetime] = {}  # 종목별 매수 시각
         self._peak_prices: dict[str, float] = {}        # 종목별 고점 (트레일링 스탑용)
 
+        # 활성 시장 (None=전체, DOMESTIC/US 개별)
+        self._active_market: MarketType | None = None
+
         # 자동 국면 감지
         self._current_regime: MarketRegime | None = None
         self._regime_checked_date: date | None = None
@@ -78,6 +87,10 @@ class TradingEngine:
     def journal(self) -> TradingJournal:
         return self._journal
 
+    def _get_exchange(self, symbol: str) -> str | None:
+        """US 심볼의 거래소 코드 반환 (설정 또는 기본 NAS)"""
+        return self.settings.trading.us_symbol_exchanges.get(symbol, "NAS")
+
     def get_status(self) -> TradingStatus:
         return TradingStatus(
             status=self._status,
@@ -87,6 +100,7 @@ class TradingEngine:
             started_at=self._started_at,
             loop_count=self._loop_count,
             current_regime=self._current_regime.value if self._current_regime else None,
+            active_market=self._active_market.value if self._active_market else "all",
         )
 
     def get_strategy_config(self) -> StrategyConfig:
@@ -164,7 +178,11 @@ class TradingEngine:
             f"{old_type.value} -> {config.strategy_type.value}",
         ))
 
-    async def start(self, symbols: list[str] | None = None) -> None:
+    async def start(
+        self,
+        symbols: list[str] | None = None,
+        market: MarketType | None = None,
+    ) -> None:
         if self._status == EngineStatus.RUNNING:
             logger.warning("엔진이 이미 실행 중입니다.")
             return
@@ -174,12 +192,38 @@ class TradingEngine:
             self._client = KISClient(timeout=self.settings.kis.timeout)
             self.auth._client = self._client
 
-        self._watch_symbols = symbols or self.settings.trading.watch_symbols
+        # 종목 결정: symbols 명시 > market 기반 설정 > 전체 합산
+        if symbols is not None:
+            self._watch_symbols = symbols
+        elif market == MarketType.DOMESTIC:
+            self._watch_symbols = list(self.settings.trading.watch_symbols)
+        elif market == MarketType.US:
+            self._watch_symbols = list(self.settings.trading.us_watch_symbols)
+        else:
+            self._watch_symbols = (
+                self.settings.trading.watch_symbols
+                + self.settings.trading.us_watch_symbols
+            )
+
+        # market 필터: 명시된 경우 해당 시장 종목만 남김
+        if symbols is not None and market is not None:
+            self._watch_symbols = [
+                s for s in self._watch_symbols
+                if detect_market_type(s) == market
+            ]
+
+        if not self._watch_symbols:
+            raise ValueError("감시할 종목이 없습니다.")
+
+        self._active_market = market  # None이면 양쪽 모두
         self._consecutive_errors = 0
 
-        # 시작 시 잔고 조회로 연결 상태 확인 (실패 시 시작 차단 + 리소스 정리)
+        # 시작 시 연결 상태 확인 (실패 시 시작 차단 + 리소스 정리)
         try:
-            await self.order.get_balance()  # 연결 검증 (반환값 무시)
+            if market == MarketType.US:
+                await self.us_order.get_balance()
+            else:
+                await self.order.get_balance()
         except Exception:
             await self._client.close()
             raise
@@ -262,13 +306,32 @@ class TradingEngine:
             return True  # 빈 리스트면 전 구간 매매
         return any(start <= hhmm < end for start, end in windows)
 
-    async def _force_close_all(self, now: datetime) -> None:
-        """보유 중인 모든 포지션 강제 매도 (장 마감 전)"""
-        positions, _ = await self.order.get_balance()
+    async def _force_close_all(
+        self, now: datetime, market: MarketType | None = None
+    ) -> None:
+        """보유 중인 포지션 강제 매도 (장 마감 전). market 지정 시 해당 시장만."""
+        all_positions: list = []
+        if market is None or market == MarketType.DOMESTIC:
+            dom_pos, _ = await self.order.get_balance()
+            all_positions.extend(dom_pos)
+        if market is None or market == MarketType.US:
+            # 감시 종목에 US 심볼이 있을 때만 해외 잔고 조회
+            has_us = any(
+                detect_market_type(s) == MarketType.US for s in self._watch_symbols
+            )
+            if has_us:
+                us_pos, _ = await self.us_order.get_balance()
+                all_positions.extend(us_pos)
+
         closed = 0
-        for pos in positions:
+        for pos in all_positions:
             if pos.quantity > 0:
-                result = await self.order.sell(pos.symbol, pos.quantity)
+                pos_mkt = detect_market_type(pos.symbol)
+                if pos_mkt == MarketType.US:
+                    exchange = self._get_exchange(pos.symbol)
+                    result = await self.us_order.sell(pos.symbol, pos.quantity, exchange)
+                else:
+                    result = await self.order.sell(pos.symbol, pos.quantity)
                 entry_price = self._entry_prices.get(pos.symbol, 0.0)
                 order_result = OrderResult(
                     symbol=pos.symbol,
@@ -299,12 +362,24 @@ class TradingEngine:
         """전략 평가: 차트 조회 → 시그널 생성 → 로그"""
         cfg = self.settings.trading
         strategy_type = cfg.strategy_type
+        mkt = detect_market_type(symbol)
+
+        # 시장별 클라이언트 선택
+        if mkt == MarketType.US:
+            exchange = self._get_exchange(symbol)
+            market_client = self.us_market
+            _get_price = lambda: market_client.get_current_price(symbol, exchange)
+            _get_minute = lambda mins: market_client.get_minute_chart(symbol, exchange, mins)
+            _get_daily = lambda days: market_client.get_daily_chart(symbol, exchange, days)
+        else:
+            market_client = self.market
+            _get_price = lambda: market_client.get_current_price(symbol)
+            _get_minute = lambda mins: market_client.get_minute_chart(symbol, mins)
+            _get_daily = lambda days: market_client.get_daily_chart(symbol, days)
 
         if strategy_type == StrategyType.BOLLINGER:
-            chart = await self.market.get_minute_chart(
-                symbol, minutes=cfg.minute_chart_lookback
-            )
-            price_info = await self.market.get_current_price(symbol)
+            chart = await _get_minute(cfg.minute_chart_lookback)
+            price_info = await _get_price()
             vol_period = cfg.bollinger_volume_ma_period if cfg.bollinger_volume_filter else None
             result = evaluate_bollinger_signal(
                 chart,
@@ -313,7 +388,7 @@ class TradingEngine:
                 volume_ma_period=vol_period,
             )
             logger.info(
-                "[%s] %s | 현재가=%d, BB(%.0f/%.0f/%.0f), vol_ok=%s",
+                "[%s] %s | 현재가=%.0f, BB(%.0f/%.0f/%.0f), vol_ok=%s",
                 symbol, result.signal.value, price_info.current_price,
                 result.upper_band, result.middle_band, result.lower_band,
                 result.volume_confirmed,
@@ -331,18 +406,14 @@ class TradingEngine:
 
         # SMA 크로스오버 전략
         if cfg.use_minute_chart:
-            chart = await self.market.get_minute_chart(
-                symbol, minutes=cfg.minute_chart_lookback
-            )
+            chart = await _get_minute(cfg.minute_chart_lookback)
             short_period = cfg.minute_short_period
             long_period = cfg.minute_long_period
         else:
             short_period = cfg.short_ma_period
             long_period = cfg.long_ma_period
-            chart = await self.market.get_daily_chart(
-                symbol, days=long_period + 10
-            )
-        price_info = await self.market.get_current_price(symbol)
+            chart = await _get_daily(long_period + 10)
+        price_info = await _get_price()
 
         if cfg.use_advanced_strategy:
             result = evaluate_signal_with_filters(
@@ -379,7 +450,7 @@ class TradingEngine:
             )
 
         logger.info(
-            "[%s] %s | 현재가=%d, SMA%d=%.0f, SMA%d=%.0f",
+            "[%s] %s | 현재가=%.0f, SMA%d=%.0f, SMA%d=%.0f",
             symbol, signal.signal.value, price_info.current_price,
             short_period, signal.short_ma, long_period, signal.long_ma,
         )
@@ -445,37 +516,46 @@ class TradingEngine:
         """한 사이클 실행: 시세 조회 → 전략 판단 → 주문"""
         now = datetime.now()
 
-        # 매매일/장시간 체크
-        if not is_market_open(now):
-            if not is_trading_day(now.date()):
-                logger.debug("매매일 아님: %s", now.strftime("%Y-%m-%d (%a)"))
-            else:
-                logger.debug("장 시간 외: %s", now.strftime("%H:%M:%S"))
+        # 활성 시장만 체크 (_active_market 기반)
+        am = self._active_market
+        kr_open = is_market_open(now) if am in (None, MarketType.DOMESTIC) else False
+        us_open = is_us_market_open(now) if am in (None, MarketType.US) else False
+
+        if not kr_open and not us_open:
+            logger.debug("어느 시장도 열려있지 않음: %s", now.strftime("%H:%M:%S"))
             return
 
         # 일일 카운터 초기화
         self._reset_daily_counter_if_needed(now.date())
 
-        # 자동 국면 감지 (하루 1회)
+        # 자동 국면 감지 (하루 1회, 국내 장 시간에만)
         cfg = self.settings.trading
-        if cfg.auto_regime and self._regime_checked_date != now.date():
+        if kr_open and cfg.auto_regime and self._regime_checked_date != now.date():
             await self._check_and_switch_regime(now)
             self._regime_checked_date = now.date()
 
         current_hhmm = now.hour * 100 + now.minute
 
-        # 장 마감 청산: force_close_minute 이후 보유 포지션 전량 매도
-        if current_hhmm >= self.settings.trading.force_close_minute:
-            await self._force_close_all(now)
-            return
-
-        # 활성 매매 시간대 체크
-        if not self._is_active_window(current_hhmm):
-            logger.debug("비활성 시간대: %02d:%02d", now.hour, now.minute)
-            return
+        # 국내 장 마감 청산: force_close_minute 이후 국내 보유 포지션 전량 매도
+        if kr_open and current_hhmm >= self.settings.trading.force_close_minute:
+            await self._force_close_all(now, market=MarketType.DOMESTIC)
+            kr_open = False  # 이번 tick에서 국내 종목 더 이상 처리 안 함
 
         fail_count = 0
         for symbol in self._watch_symbols:
+            mkt = detect_market_type(symbol)
+
+            # 해당 시장이 열려있지 않으면 스킵
+            if mkt == MarketType.DOMESTIC and not kr_open:
+                continue
+            if mkt == MarketType.US and not us_open:
+                continue
+
+            # 국내 종목: 활성 매매 시간대 체크 (시세 조회 자체를 스킵)
+            if mkt == MarketType.DOMESTIC and not self._is_active_window(current_hhmm):
+                logger.debug("[%s] 비활성 시간대: %02d:%02d", symbol, now.hour, now.minute)
+                continue
+
             try:
                 signal = await self._evaluate_strategy(symbol, now)
                 self._signals.append(signal)
@@ -495,7 +575,7 @@ class TradingEngine:
                         drop_pct = (peak - signal.current_price) / peak * 100
                         if drop_pct >= cfg.trailing_stop_pct:
                             logger.info(
-                                "[%s] 트레일링 스탑: 고점=%.0f, 현재가=%d, 하락=%.1f%%",
+                                "[%s] 트레일링 스탑: 고점=%.0f, 현재가=%.0f, 하락=%.1f%%",
                                 symbol, peak, signal.current_price, drop_pct,
                             )
                             await self._execute_sell(symbol, now, reason="trailing_stop")
@@ -509,7 +589,7 @@ class TradingEngine:
                         loss_pct = (entry_price - signal.current_price) / entry_price * 100
                         if loss_pct >= cfg.stop_loss_pct:
                             logger.info(
-                                "[%s] 손절 매도: 매수가=%.0f, 현재가=%d, 손실=%.1f%%",
+                                "[%s] 손절 매도: 매수가=%.0f, 현재가=%.0f, 손실=%.1f%%",
                                 symbol, entry_price, signal.current_price, loss_pct,
                             )
                             await self._execute_sell(symbol, now, reason="stop_loss")
@@ -525,24 +605,24 @@ class TradingEngine:
                             await self._execute_sell(symbol, now, reason="max_holding")
                             continue
 
-                # 매매 실행 (데이트레이딩 제한 적용)
+                # 매매 실행 (데이트레이딩 제한은 국내 종목에만 적용)
                 if signal.signal == SignalType.BUY:
-                    if current_hhmm >= self.settings.trading.no_new_buy_minute:
-                        logger.info(
-                            "[%s] %02d:%02d — 신규 매수 금지 시간",
-                            symbol, now.hour, now.minute,
-                        )
-                    elif not self._can_buy(symbol):
-                        logger.info(
-                            "[%s] 일일 매수 한도 초과 (%d/%d)",
-                            symbol,
-                            self._daily_trade_count.get(symbol, 0),
-                            self.settings.trading.max_daily_trades,
-                        )
-                    else:
-                        await self._execute_buy(
-                            symbol, signal.current_price, now
-                        )
+                    if mkt == MarketType.DOMESTIC:
+                        if current_hhmm >= self.settings.trading.no_new_buy_minute:
+                            logger.info(
+                                "[%s] %02d:%02d — 신규 매수 금지 시간",
+                                symbol, now.hour, now.minute,
+                            )
+                            continue
+                        if not self._can_buy(symbol):
+                            logger.info(
+                                "[%s] 일일 매수 한도 초과 (%d/%d)",
+                                symbol,
+                                self._daily_trade_count.get(symbol, 0),
+                                self.settings.trading.max_daily_trades,
+                            )
+                            continue
+                    await self._execute_buy(symbol, signal.current_price, now)
                 elif signal.signal == SignalType.SELL:
                     await self._execute_sell(symbol, now, reason="signal")
 
@@ -563,11 +643,18 @@ class TradingEngine:
         return self._order_locks[symbol]
 
     async def _execute_buy(
-        self, symbol: str, current_price: int, now: datetime
+        self, symbol: str, current_price: float, now: datetime
     ) -> None:
         """매수 주문 (잔고 확인 → 동적 수량 계산 → 주문을 Lock으로 원자적 실행)"""
+        mkt = detect_market_type(symbol)
+
         async with self._get_order_lock(symbol):
-            positions, summary = await self.order.get_balance()
+            # 시장별 잔고 조회
+            if mkt == MarketType.US:
+                positions, summary = await self.us_order.get_balance()
+            else:
+                positions, summary = await self.order.get_balance()
+
             for pos in positions:
                 if pos.symbol == symbol and pos.quantity > 0:
                     logger.info(
@@ -578,17 +665,27 @@ class TradingEngine:
             if current_price <= 0:
                 return
 
-            # 동적 수량 계산
+            # 동적 수량 계산 (국내/해외 분리)
             cfg = self.settings.trading
-            if cfg.capital_ratio > 0:
-                target = int(summary.deposit * cfg.capital_ratio)
+            if mkt == MarketType.US:
+                target = cfg.us_target_order_amount
+                min_qty = cfg.us_min_quantity
+                max_qty = cfg.us_max_quantity
             else:
-                target = cfg.target_order_amount
-            min_qty = cfg.min_quantity
-            max_qty = cfg.max_quantity
-            quantity = max(min_qty, min(target // current_price, max_qty))
+                if cfg.capital_ratio > 0:
+                    target = int(summary.deposit * cfg.capital_ratio)
+                else:
+                    target = cfg.target_order_amount
+                min_qty = cfg.min_quantity
+                max_qty = cfg.max_quantity
+            quantity = max(min_qty, min(int(target // current_price), max_qty))
 
-            result = await self.order.buy(symbol, quantity)
+            # 시장별 주문 실행
+            if mkt == MarketType.US:
+                exchange = self._get_exchange(symbol)
+                result = await self.us_order.buy(symbol, quantity, exchange)
+            else:
+                result = await self.order.buy(symbol, quantity)
 
             order_result = OrderResult(
                 symbol=symbol,
@@ -619,11 +716,21 @@ class TradingEngine:
         self, symbol: str, now: datetime, reason: str = "signal"
     ) -> None:
         """보유 종목 전량 매도 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
+        mkt = detect_market_type(symbol)
+
         async with self._get_order_lock(symbol):
-            positions, _ = await self.order.get_balance()
+            if mkt == MarketType.US:
+                positions, _ = await self.us_order.get_balance()
+            else:
+                positions, _ = await self.order.get_balance()
+
             for pos in positions:
                 if pos.symbol == symbol and pos.quantity > 0:
-                    result = await self.order.sell(symbol, pos.quantity)
+                    if mkt == MarketType.US:
+                        exchange = self._get_exchange(symbol)
+                        result = await self.us_order.sell(symbol, pos.quantity, exchange)
+                    else:
+                        result = await self.order.sell(symbol, pos.quantity)
                     entry_price = self._entry_prices.get(symbol, 0.0)
 
                     order_result = OrderResult(

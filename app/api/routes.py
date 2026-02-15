@@ -8,7 +8,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.config import StrategyConfig, load_settings
-from app.models import BacktestRequest
+from app.models import BacktestRequest, MarketType, detect_market_type
+from typing import Literal
 from app.trading.backtest import (
     fetch_chart_from_yfinance,
     run_backtest,
@@ -33,6 +34,7 @@ def get_engine(request: Request) -> TradingEngine:
 
 class StartRequest(BaseModel):
     symbols: list[str] | None = None
+    market: Literal["domestic", "us"] | None = None  # None이면 symbols 기반 자동 판단
 
 
 # --- 엔드포인트 ---
@@ -46,7 +48,11 @@ async def health():
 @router.get("/market/price/{symbol}")
 async def get_price(symbol: str, engine: TradingEngine = Depends(get_engine)):
     try:
-        price = await engine.market.get_current_price(symbol)
+        if detect_market_type(symbol) == MarketType.US:
+            exchange = engine.settings.trading.us_symbol_exchanges.get(symbol, "NAS")
+            price = await engine.us_market.get_current_price(symbol, exchange)
+        else:
+            price = await engine.market.get_current_price(symbol)
         return price.model_dump()
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -57,9 +63,17 @@ async def start_trading(req: StartRequest, engine: TradingEngine = Depends(get_e
     status = engine.get_status()
     if status.status.value == "RUNNING":
         raise HTTPException(status_code=409, detail="이미 실행 중입니다.")
-    await engine.start(req.symbols)
+    market = MarketType(req.market) if req.market else None
+    try:
+        await engine.start(req.symbols, market=market)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     status = engine.get_status()
-    return {"message": "자동매매 시작", "symbols": status.watch_symbols}
+    return {
+        "message": "자동매매 시작",
+        "market": req.market or "all",
+        "symbols": status.watch_symbols,
+    }
 
 
 @router.post("/trading/stop")
@@ -78,10 +92,22 @@ async def trading_status(engine: TradingEngine = Depends(get_engine)):
 async def get_positions(engine: TradingEngine = Depends(get_engine)):
     try:
         positions, summary = await engine.order.get_balance()
-        return {
-            "positions": [p.model_dump() for p in positions],
-            "summary": summary.model_dump(),
+        result = {
+            "domestic": {
+                "positions": [p.model_dump() for p in positions],
+                "summary": summary.model_dump(),
+            },
         }
+        # 해외 잔고도 조회 시도
+        try:
+            us_positions, us_summary = await engine.us_order.get_balance()
+            result["us"] = {
+                "positions": [p.model_dump() for p in us_positions],
+                "summary": us_summary.model_dump(),
+            }
+        except Exception:
+            result["us"] = {"positions": [], "summary": {}}
+        return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

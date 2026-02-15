@@ -7,6 +7,7 @@ from app.trading.backtest import (
     run_backtest,
     run_bollinger_backtest,
     run_regime_segmented_backtest,
+    to_yfinance_ticker,
     _calc_max_drawdown,
     _calc_sharpe_ratio,
 )
@@ -842,3 +843,23 @@ class TestCapitalRatio:
             # 500_000 // close = expected qty
             expected_qty = 500_000 // buy_trades[0].price
             assert buy_trades[0].quantity == expected_qty
+
+
+class TestYfinanceTicker:
+    """to_yfinance_ticker 변환 테스트"""
+
+    def test_domestic_symbol(self):
+        assert to_yfinance_ticker("005930") == "005930.KS"
+
+    def test_us_symbol_aapl(self):
+        assert to_yfinance_ticker("AAPL") == "AAPL"
+
+    def test_us_symbol_tsla(self):
+        assert to_yfinance_ticker("TSLA") == "TSLA"
+
+    def test_us_symbol_single_char(self):
+        assert to_yfinance_ticker("F") == "F"
+
+    def test_five_digit_number(self):
+        """5자리 숫자는 국내가 아님"""
+        assert to_yfinance_ticker("12345") == "12345"

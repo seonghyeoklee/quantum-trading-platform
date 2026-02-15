@@ -175,7 +175,7 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
             <td>{o.symbol}</td>
             <td><span class="{side_class}">{side_label}</span></td>
             <td>{o.quantity}</td>
-            <td>{o.current_price:,}</td>
+            <td>{o.current_price:,.0f}</td>
             <td>{reason_badge}</td>
             <td class="{status_class}">{status_icon}</td>
             <td>{pnl_str}</td>
@@ -197,7 +197,7 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
             <td>{ts}</td>
             <td>{s.symbol}</td>
             <td><span class="{sig_class}">{s.signal}</span></td>
-            <td>{s.current_price:,}</td>
+            <td>{s.current_price:,.0f}</td>
             <td>{s.short_ma:.0f}</td>
             <td>{s.long_ma:.0f}</td>
             <td>{rsi_str}</td>

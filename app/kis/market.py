@@ -45,13 +45,13 @@ class KISMarketClient:
         return StockPrice(
             symbol=symbol,
             name=output.get("hts_kor_isnm", ""),
-            current_price=int(output.get("stck_prpr", 0)),
-            change=int(output.get("prdy_vrss", 0)),
+            current_price=float(output.get("stck_prpr", 0)),
+            change=float(output.get("prdy_vrss", 0)),
             change_rate=float(output.get("prdy_ctrt", 0)),
             volume=int(output.get("acml_vol", 0)),
-            high=int(output.get("stck_hgpr", 0)),
-            low=int(output.get("stck_lwpr", 0)),
-            opening=int(output.get("stck_oprc", 0)),
+            high=float(output.get("stck_hgpr", 0)),
+            low=float(output.get("stck_lwpr", 0)),
+            opening=float(output.get("stck_oprc", 0)),
         )
 
     async def get_daily_chart(
@@ -91,10 +91,10 @@ class KISMarketClient:
             chart.append(
                 ChartData(
                     date=date,
-                    open=int(item.get("stck_oprc", 0)),
-                    high=int(item.get("stck_hgpr", 0)),
-                    low=int(item.get("stck_lwpr", 0)),
-                    close=int(item.get("stck_clpr", 0)),
+                    open=float(item.get("stck_oprc", 0)),
+                    high=float(item.get("stck_hgpr", 0)),
+                    low=float(item.get("stck_lwpr", 0)),
+                    close=float(item.get("stck_clpr", 0)),
                     volume=int(item.get("acml_vol", 0)),
                 )
             )
@@ -143,10 +143,10 @@ class KISMarketClient:
                 chart.append(
                     ChartData(
                         date=hour,
-                        open=int(item.get("stck_oprc", 0)),
-                        high=int(item.get("stck_hgpr", 0)),
-                        low=int(item.get("stck_lwpr", 0)),
-                        close=int(item.get("stck_prpr", 0)),
+                        open=float(item.get("stck_oprc", 0)),
+                        high=float(item.get("stck_hgpr", 0)),
+                        low=float(item.get("stck_lwpr", 0)),
+                        close=float(item.get("stck_prpr", 0)),
                         volume=int(item.get("cntg_vol", 0)),
                     )
                 )

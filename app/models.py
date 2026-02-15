@@ -6,6 +6,20 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class MarketType(str, Enum):
+    """시장 구분"""
+
+    DOMESTIC = "domestic"
+    US = "us"
+
+
+def detect_market_type(symbol: str) -> MarketType:
+    """심볼로 시장 구분: 6자리 숫자 → 국내, 영문 → 미국"""
+    if symbol.isdigit() and len(symbol) == 6:
+        return MarketType.DOMESTIC
+    return MarketType.US
+
+
 class EventType(str, Enum):
     """저널 이벤트 타입"""
 
@@ -23,23 +37,23 @@ class StockPrice(BaseModel):
 
     symbol: str
     name: str = ""
-    current_price: int = 0
-    change: int = 0  # 전일 대비
+    current_price: float = 0.0
+    change: float = 0.0  # 전일 대비
     change_rate: float = 0.0  # 등락률 (%)
     volume: int = 0  # 누적 거래량
-    high: int = 0  # 고가
-    low: int = 0  # 저가
-    opening: int = 0  # 시가
+    high: float = 0.0  # 고가
+    low: float = 0.0  # 저가
+    opening: float = 0.0  # 시가
 
 
 class ChartData(BaseModel):
     """OHLCV 차트 데이터 (일봉: YYYYMMDD, 분봉: HHMMSS)"""
 
     date: str  # 일봉: YYYYMMDD, 분봉: HHMMSS
-    open: int
-    high: int
-    low: int
-    close: int
+    open: float
+    high: float
+    low: float
+    close: float
     volume: int
 
 
@@ -56,7 +70,7 @@ class TradingSignal(BaseModel):
     signal: SignalType
     short_ma: float = 0.0  # 단기 이동평균
     long_ma: float = 0.0  # 장기 이동평균
-    current_price: int
+    current_price: float
     timestamp: datetime
     rsi: float | None = None
     volume_confirmed: bool | None = None
@@ -89,20 +103,20 @@ class Position(BaseModel):
     name: str = ""
     quantity: int = 0
     avg_price: float = 0.0
-    current_price: int = 0
-    eval_amount: int = 0  # 평가금액
-    profit_loss: int = 0  # 평가손익
+    current_price: float = 0.0
+    eval_amount: float = 0.0  # 평가금액
+    profit_loss: float = 0.0  # 평가손익
     profit_loss_rate: float = 0.0  # 수익률 (%)
 
 
 class AccountSummary(BaseModel):
     """계좌 요약"""
 
-    deposit: int = 0  # 예수금총금액
-    total_eval: int = 0  # 총평가금액
-    net_asset: int = 0  # 순자산금액
-    purchase_total: int = 0  # 매입금액합계
-    eval_profit_loss: int = 0  # 평가손익합계
+    deposit: float = 0.0  # 예수금총금액
+    total_eval: float = 0.0  # 총평가금액
+    net_asset: float = 0.0  # 순자산금액
+    purchase_total: float = 0.0  # 매입금액합계
+    eval_profit_loss: float = 0.0  # 평가손익합계
     eval_profit_loss_rate: float = 0.0  # 자산증감율
 
 
@@ -145,6 +159,7 @@ class TradingStatus(BaseModel):
     started_at: datetime | None = None
     loop_count: int = 0
     current_regime: str | None = None  # 현재 시장 국면 (auto_regime 활성 시)
+    active_market: str = "all"  # "domestic" / "us" / "all"
 
 
 class TradeEvent(BaseModel):
@@ -155,7 +170,7 @@ class TradeEvent(BaseModel):
     symbol: str = ""
     # 시그널 필드
     signal: str = ""
-    current_price: int = 0
+    current_price: float = 0.0
     short_ma: float = 0.0
     long_ma: float = 0.0
     rsi: float | None = None
@@ -199,7 +214,7 @@ class TradeEvent(BaseModel):
         quantity: int,
         result: dict,
         reason: str,
-        current_price: int,
+        current_price: float,
         entry_price: float = 0.0,
         *,
         event_type: EventType = EventType.ORDER,

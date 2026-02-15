@@ -10,8 +10,14 @@ from app.trading.strategy import compute_bollinger_bands, compute_obv, compute_r
 
 
 def to_yfinance_ticker(symbol: str) -> str:
-    """KIS 종목코드 → yfinance 티커 ("005930" → "005930.KS")"""
-    return f"{symbol}.KS"
+    """종목코드 → yfinance 티커.
+
+    국내: "005930" → "005930.KS"
+    미국: "AAPL" → "AAPL" (yfinance 기본 지원)
+    """
+    if symbol.isdigit() and len(symbol) == 6:
+        return f"{symbol}.KS"
+    return symbol
 
 
 def fetch_chart_from_yfinance(ticker: str, start: str, end: str) -> list[ChartData]:
@@ -61,7 +67,7 @@ def fetch_chart_from_yfinance(ticker: str, start: str, end: str) -> list[ChartDa
 class Trade:
     date: str
     side: str  # "buy" / "sell"
-    price: int
+    price: float
     quantity: int
     reason: str = ""  # "signal" / "stop_loss" / "max_holding"
 

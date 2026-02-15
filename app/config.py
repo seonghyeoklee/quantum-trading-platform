@@ -157,6 +157,14 @@ class TradingConfig(BaseSettings):
     # 연속 에러 허용 횟수 (초과 시 엔진 정지)
     max_consecutive_errors: int = 5
 
+    # --- 해외주식(US) 설정 ---
+    us_watch_symbols: list[str] = []  # ["AAPL", "TSLA", "NVDA"]
+    us_target_order_amount: float = 1000.0  # USD 기준
+    us_min_quantity: int = 1
+    us_max_quantity: int = 100
+    # 심볼별 거래소 코드 (기본: NAS). 예: {"IBM": "NYS", "F": "AMS"}
+    us_symbol_exchanges: dict[str, str] = {}
+
 
 class Settings(BaseSettings):
     kis: KISConfig = KISConfig()
