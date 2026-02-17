@@ -62,11 +62,19 @@ class KISOverseasMarketClient:
         data = await self._client.get(url, headers=headers, params=params)
 
         if data.get("rt_cd") != "0":
+            logger.error(
+                "KIS 해외 현재가 조회 실패: %s (rt_cd=%s, msg_cd=%s, msg1=%s)",
+                symbol, data.get("rt_cd"), data.get("msg_cd"), data.get("msg1"),
+            )
             raise RuntimeError(
                 f"KIS 해외시세 오류: {data.get('msg_cd')} - {data.get('msg1')}"
             )
 
-        output = data.get("output", {})
+        output = data.get("output")
+        if not output:
+            raise RuntimeError(
+                f"KIS 해외 현재가 응답에 output 필드 없음: {symbol} (rt_cd={data.get('rt_cd')})"
+            )
         return StockPrice(
             symbol=symbol,
             name=output.get("rsym", ""),
@@ -109,6 +117,10 @@ class KISOverseasMarketClient:
             data = await self._client.get(url, headers=headers, params=params)
 
             if data.get("rt_cd") != "0":
+                logger.error(
+                    "KIS 해외 일봉 조회 실패: %s (rt_cd=%s, msg_cd=%s, msg1=%s)",
+                    symbol, data.get("rt_cd"), data.get("msg_cd"), data.get("msg1"),
+                )
                 raise RuntimeError(
                     f"KIS 해외일봉 오류: {data.get('msg_cd')} - {data.get('msg1')}"
                 )
@@ -181,6 +193,10 @@ class KISOverseasMarketClient:
             data = await self._client.get(url, headers=headers, params=params)
 
             if data.get("rt_cd") != "0":
+                logger.error(
+                    "KIS 해외 분봉 조회 실패: %s (rt_cd=%s, msg_cd=%s, msg1=%s)",
+                    symbol, data.get("rt_cd"), data.get("msg_cd"), data.get("msg1"),
+                )
                 raise RuntimeError(
                     f"KIS 해외분봉 오류: {data.get('msg_cd')} - {data.get('msg1')}"
                 )

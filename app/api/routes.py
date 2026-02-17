@@ -1,11 +1,14 @@
 """API 엔드포인트"""
 
 import asyncio
+import logging
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from app.config import StrategyConfig, load_settings
 from app.dashboard import build_dashboard_html
@@ -49,7 +52,9 @@ async def dashboard():
 
 @router.get("/health")
 async def health():
-    return {"status": "ok"}
+    from importlib.metadata import version
+
+    return {"status": "ok", "version": version("quantum-trading-platform")}
 
 
 @router.get("/market/price/{symbol}")
@@ -112,8 +117,9 @@ async def get_positions(engine: TradingEngine = Depends(get_engine)):
                 "positions": [p.model_dump() for p in us_positions],
                 "summary": us_summary.model_dump(),
             }
-        except Exception:
-            result["us"] = {"positions": [], "summary": {}}
+        except Exception as us_err:
+            logger.error("해외 잔고 조회 실패: %s", us_err)
+            result["us"] = {"positions": [], "summary": {}, "error": str(us_err)}
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
