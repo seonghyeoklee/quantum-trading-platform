@@ -142,7 +142,7 @@ class TradingConfig(BaseSettings):
     trailing_stop_pct: float = 0.0
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.0
+    capital_ratio: float = 0.10  # 예수금의 10%씩 종목당 투자
 
     # 자동 국면 전환
     auto_regime: bool = False
@@ -158,12 +158,12 @@ class TradingConfig(BaseSettings):
     max_consecutive_errors: int = 5
 
     # --- 해외주식(US) 설정 ---
-    us_watch_symbols: list[str] = []  # ["AAPL", "TSLA", "NVDA"]
+    us_watch_symbols: list[str] = ["AAPL", "NVDA", "MSFT", "GOOGL", "META", "TSLA"]
     us_target_order_amount: float = 1000.0  # USD 기준
     us_min_quantity: int = 1
     us_max_quantity: int = 100
     # 심볼별 거래소 코드 (기본: NAS). 예: {"IBM": "NYS", "F": "AMS"}
-    us_symbol_exchanges: dict[str, str] = {}
+    us_symbol_exchanges: dict[str, str] = {"GOOGL": "NAS", "META": "NAS"}
 
 
 class Settings(BaseSettings):
