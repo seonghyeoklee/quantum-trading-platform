@@ -1678,3 +1678,229 @@ class TestMarketParam:
         engine = TradingEngine(settings)
         status = engine.get_status()
         assert status.active_market == "all"
+
+
+class TestEdgeCasePriceZero:
+    """현재가=0 엣지케이스 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_execute_buy_skips_when_price_zero(self):
+        """_execute_buy: current_price=0 → 주문 없이 즉시 리턴"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock()
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 0, now)
+
+        engine.order.buy.assert_not_called()
+        assert len(engine._orders) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_buy_skips_when_price_negative(self):
+        """_execute_buy: current_price<0 → 주문 없이 즉시 리턴"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock()
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", -100, now)
+
+        engine.order.buy.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_trailing_stop_safe_when_peak_zero(self):
+        """peak_prices=0 → division by zero 없이 트레일링 스탑 스킵"""
+        settings = _make_settings()
+        settings.trading.trailing_stop_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        engine._entry_prices["005930"] = 50_000.0
+        engine._peak_prices["005930"] = 0.0  # 비정상 고점
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=50000,
+            change=0, change_rate=0, volume=5000,
+            high=50000, low=50000, opening=50000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.sell = AsyncMock()
+            engine.order.buy = AsyncMock()
+            engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+            await engine._tick()  # ZeroDivisionError 없이 정상 종료
+
+        # peak=0 → trailing stop 조건 불충족 → 매도 안 됨
+        engine.order.sell.assert_not_called()
+
+
+class TestEdgeCaseDepositZero:
+    """예수금=0 엣지케이스 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_deposit_zero_with_capital_ratio_buys_min_quantity(self):
+        """deposit=0 + capital_ratio>0 → target=0 → min_quantity 매수"""
+        settings = _make_settings()
+        settings.trading.capital_ratio = 0.3
+        settings.trading.min_quantity = 1
+        settings.trading.max_quantity = 100
+        engine = TradingEngine(settings)
+
+        summary = AccountSummary(deposit=0)
+        engine.order.get_balance = AsyncMock(return_value=([], summary))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 50_000, now)
+
+        # int(0 * 0.3) // 50_000 = 0 → clamped to min_quantity=1
+        engine.order.buy.assert_called_once_with("005930", 1)
+
+    @pytest.mark.asyncio
+    async def test_deposit_zero_no_capital_ratio_uses_target(self):
+        """deposit=0 + capital_ratio=0 → target_order_amount 사용"""
+        settings = _make_settings()
+        settings.trading.capital_ratio = 0.0  # 비활성
+        settings.trading.target_order_amount = 500_000
+        engine = TradingEngine(settings)
+
+        summary = AccountSummary(deposit=0)
+        engine.order.get_balance = AsyncMock(return_value=([], summary))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 50_000, now)
+
+        # 500_000 // 50_000 = 10주
+        engine.order.buy.assert_called_once_with("005930", 10)
+
+
+class TestEdgeCaseConcurrentAccess:
+    """_entry_prices 동시 접근 시나리오 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_buy_sell_same_symbol(self):
+        """동일 종목 매수/매도 동시 호출 → Lock으로 순차 실행"""
+        import asyncio
+
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        call_order: list[str] = []
+
+        async def mock_buy_balance():
+            call_order.append("buy_balance")
+            await asyncio.sleep(0.05)
+            return ([], _EMPTY_SUMMARY)
+
+        async def mock_sell_balance():
+            call_order.append("sell_balance")
+            await asyncio.sleep(0.05)
+            return ([
+                Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+            ], _EMPTY_SUMMARY)
+
+        # 매수 시에는 빈 잔고, 매도 시에는 보유 잔고 반환
+        balance_count = 0
+
+        async def mock_balance():
+            nonlocal balance_count
+            balance_count += 1
+            if balance_count == 1:
+                return await mock_sell_balance()  # 첫 호출: 매도용
+            return await mock_buy_balance()  # 두 번째: 매수용
+
+        engine.order.get_balance = AsyncMock(side_effect=mock_balance)
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0002", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+
+        # 동일 종목에 대한 매수/매도를 동시 실행
+        await asyncio.gather(
+            engine._execute_sell("005930", now, reason="signal"),
+            engine._execute_buy("005930", 72000, now),
+        )
+
+        # Lock으로 인해 순차 실행 — 잔고 조회가 정확히 2회
+        assert engine.order.get_balance.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_entry_prices_cleared_on_sell(self):
+        """매도 성공 후 _entry_prices에서 종목 삭제 확인"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._entry_prices["005930"] = 70_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 10, 10, 0, 0)
+        engine._peak_prices["005930"] = 72_000.0
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_sell("005930", now, reason="signal")
+
+        assert "005930" not in engine._entry_prices
+        assert "005930" not in engine._buy_timestamps
+        assert "005930" not in engine._peak_prices
+
+    @pytest.mark.asyncio
+    async def test_entry_prices_set_on_buy_success(self):
+        """매수 성공 시 _entry_prices 설정 확인"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 72000, now)
+
+        assert engine._entry_prices["005930"] == 72000.0
+        assert engine._buy_timestamps["005930"] == now
+        assert engine._peak_prices["005930"] == 72000.0
+
+    @pytest.mark.asyncio
+    async def test_entry_prices_not_set_on_buy_failure(self):
+        """매수 실패 시 _entry_prices 미설정"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": False, "order_no": "", "message": "주문 실패",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 72000, now)
+
+        assert "005930" not in engine._entry_prices
+        assert "005930" not in engine._buy_timestamps
+        assert "005930" not in engine._peak_prices
