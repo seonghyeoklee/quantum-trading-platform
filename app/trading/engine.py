@@ -561,6 +561,11 @@ class TradingEngine:
                 self._signals.append(signal)
                 self._journal.log_event(TradeEvent.from_signal(signal))
 
+                # 현재가 0 → 시세 이상: 매매 판단 스킵
+                if signal.current_price <= 0:
+                    logger.warning("[%s] 현재가 0 — 매매 판단 스킵", symbol)
+                    continue
+
                 # 고점 갱신 (보유 중인 종목)
                 cfg = self.settings.trading
                 if symbol in self._entry_prices:
@@ -582,10 +587,10 @@ class TradingEngine:
                             continue
 
                 # SMA 크로스오버: 리스크 체크 (stop-loss / max-holding)
-                if cfg.strategy_type == StrategyType.SMA_CROSSOVER and symbol in self._entry_prices:
-                    entry_price = self._entry_prices[symbol]
+                if cfg.strategy_type == StrategyType.SMA_CROSSOVER:
+                    entry_price = self._entry_prices.get(symbol, 0.0)
                     # stop-loss
-                    if cfg.stop_loss_pct > 0:
+                    if cfg.stop_loss_pct > 0 and entry_price > 0:
                         loss_pct = (entry_price - signal.current_price) / entry_price * 100
                         if loss_pct >= cfg.stop_loss_pct:
                             logger.info(
