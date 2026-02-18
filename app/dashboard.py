@@ -58,6 +58,8 @@ td { padding: 7px 10px; }
 
 .epic-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(139,92,246,0.15); color: #a78bfa; }
 
+.project-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+
 .modal-summary { font-size: 13px; color: #aaa; padding: 10px 0 4px; }
 .modal-empty { color: #555; font-size: 13px; text-align: center; padding: 32px 0; }
 .modal-overflow { font-size: 12px; color: #666; padding: 8px 0; text-align: center; }
@@ -455,6 +457,31 @@ function epicBadgeHtml(e) {
   return `<span class="epic-badge">${e}</span>`;
 }
 
+/* --- project badge (멀티 프로젝트 식별) --- */
+const PROJECT_PALETTE = [
+  {bg:'rgba(34,197,94,0.15)', fg:'#4ade80'},
+  {bg:'rgba(59,130,246,0.15)', fg:'#60a5fa'},
+  {bg:'rgba(245,158,11,0.15)', fg:'#fbbf24'},
+  {bg:'rgba(236,72,153,0.15)', fg:'#f472b6'},
+  {bg:'rgba(168,85,247,0.15)', fg:'#c084fc'},
+  {bg:'rgba(20,184,166,0.15)', fg:'#2dd4bf'},
+  {bg:'rgba(244,63,94,0.15)',  fg:'#fb7185'},
+  {bg:'rgba(99,102,241,0.15)', fg:'#818cf8'},
+];
+
+function projectColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return PROJECT_PALETTE[Math.abs(h) % PROJECT_PALETTE.length];
+}
+
+function projectBadgeHtml(task) {
+  const name = task.target || task.project || '';
+  if (!name) return '';
+  const c = projectColor(name);
+  return `<span class="project-badge" style="background:${c.bg};color:${c.fg}">${name}</span>`;
+}
+
 async function openStartModal() {
   const overlay = document.getElementById('start-modal');
   const body = document.getElementById('modal-body');
@@ -497,6 +524,7 @@ async function openStartModal() {
   for (const t of display) {
     html += `<li class="modal-task-item">
       <span class="modal-task-id">#${t.id}</span>
+      ${projectBadgeHtml(t)}
       <span class="modal-task-title">${t.title || ''}</span>
       ${priorityBadgeHtml(t.priority)}
       ${epicBadgeHtml(t.epic)}
