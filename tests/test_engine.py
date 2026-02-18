@@ -748,6 +748,104 @@ class TestRiskManagement:
         assert "005930" not in engine._entry_prices
         assert "005930" not in engine._buy_timestamps
 
+    @pytest.mark.asyncio
+    async def test_stop_loss_no_crash_when_entry_price_zero(self):
+        """entry_price=0 → division by zero 없이 손절 스킵"""
+        settings = _make_settings()
+        settings.trading.stop_loss_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+        engine._entry_prices["005930"] = 0.0
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=50000,
+            change=0, change_rate=0, volume=5000,
+            high=50000, low=50000, opening=50000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.sell = AsyncMock()
+            engine.order.buy = AsyncMock()
+            engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+            await engine._tick()  # ZeroDivisionError가 아닌 정상 종료
+
+        engine.order.sell.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stop_loss_no_crash_when_entry_missing(self):
+        """_entry_prices에 종목 없음 → KeyError 없이 정상 진행"""
+        settings = _make_settings()
+        settings.trading.stop_loss_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+        # _entry_prices에 아무것도 설정하지 않음
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=50000,
+            change=0, change_rate=0, volume=5000,
+            high=50000, low=50000, opening=50000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.sell = AsyncMock()
+            engine.order.buy = AsyncMock()
+            engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+            await engine._tick()  # KeyError가 아닌 정상 종료
+
+        engine.order.sell.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_zero_price_skips_trading_logic(self):
+        """KIS API가 current_price=0 반환 → 매매 판단 스킵"""
+        settings = _make_settings()
+        settings.trading.stop_loss_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+        engine._entry_prices["005930"] = 100_000.0
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=0,
+            change=0, change_rate=0, volume=0,
+            high=0, low=0, opening=0,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.sell = AsyncMock()
+            engine.order.buy = AsyncMock()
+            engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+            await engine._tick()
+
+        # 매매 로직 전혀 실행되지 않아야 함
+        engine.order.sell.assert_not_called()
+        engine.order.buy.assert_not_called()
+        # 시그널은 기록됨
+        assert len(engine._signals) == 1
+        assert engine._signals[0].current_price == 0
+
 
 class TestDayTrading:
     """데이트레이딩 (볼린저밴드 + 장 마감 청산 + 거래 제한) 테스트"""
