@@ -6,13 +6,13 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
 from app.config import StrategyConfig, load_settings
 from app.dashboard import build_dashboard_html
-from app.models import BacktestRequest, MarketType, detect_market_type
+from app.models import BacktestRequest, MarketType, detect_market_type, validate_symbol
 from typing import Literal
 from app.trading.backtest import (
     fetch_chart_from_yfinance,
@@ -36,9 +36,37 @@ def get_engine(request: Request) -> TradingEngine:
 # --- 요청/응답 모델 ---
 
 
+_MAX_SYMBOLS = 20
+
+
 class StartRequest(BaseModel):
     symbols: list[str] | None = None
     market: Literal["domestic", "us"] | None = None  # None이면 symbols 기반 자동 판단
+
+    @field_validator("symbols")
+    @classmethod
+    def _validate_symbols(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        # 빈 문자열 제거
+        cleaned = [s.strip() for s in v if s.strip()]
+        if not cleaned:
+            return None
+        # 포맷 검증
+        for s in cleaned:
+            validate_symbol(s)
+        # 대문자 정규화 (미국 심볼)
+        normalized = [s.upper() if s.isalpha() else s for s in cleaned]
+        # 중복 제거 (순서 유지)
+        seen: set[str] = set()
+        unique: list[str] = []
+        for s in normalized:
+            if s not in seen:
+                seen.add(s)
+                unique.append(s)
+        if len(unique) > _MAX_SYMBOLS:
+            raise ValueError(f"심볼은 최대 {_MAX_SYMBOLS}개까지 가능합니다 (입력: {len(unique)}개)")
+        return unique
 
 
 # --- 엔드포인트 ---
@@ -59,6 +87,10 @@ async def health():
 
 @router.get("/market/price/{symbol}")
 async def get_price(symbol: str, engine: TradingEngine = Depends(get_engine)):
+    try:
+        symbol = validate_symbol(symbol)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     try:
         if detect_market_type(symbol) == MarketType.US:
             exchange = engine.settings.trading.us_symbol_exchanges.get(symbol, "NAS")

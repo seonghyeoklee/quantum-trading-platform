@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+import re
+from datetime import date, datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class MarketType(str, Enum):
@@ -11,6 +12,22 @@ class MarketType(str, Enum):
 
     DOMESTIC = "domestic"
     US = "us"
+
+
+_DOMESTIC_SYMBOL_RE = re.compile(r"^\d{6}$")
+_US_SYMBOL_RE = re.compile(r"^[A-Z]{1,5}$")
+
+
+def validate_symbol(symbol: str) -> str:
+    """심볼 포맷 검증. 유효하면 반환, 아니면 ValueError."""
+    if _DOMESTIC_SYMBOL_RE.match(symbol):
+        return symbol
+    upper = symbol.upper()
+    if _US_SYMBOL_RE.match(upper):
+        return upper
+    raise ValueError(
+        f"유효하지 않은 심볼: '{symbol}' (국내: 6자리 숫자, 미국: 영문 1-5자)"
+    )
 
 
 def detect_market_type(symbol: str) -> MarketType:
@@ -142,6 +159,38 @@ class BacktestRequest(BaseModel):
     bollinger_num_std: float = 2.0
     bollinger_max_holding_days: int = 5
     bollinger_max_daily_trades: int = 5
+
+    @field_validator("symbol")
+    @classmethod
+    def _validate_symbol(cls, v: str) -> str:
+        return validate_symbol(v)
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _validate_date(cls, v: str) -> str:
+        if v == "":
+            return v
+        if not re.match(r"^\d{8}$", v):
+            raise ValueError(f"날짜는 YYYYMMDD 형식이어야 합니다: '{v}'")
+        try:
+            parsed = datetime.strptime(v, "%Y%m%d").date()
+        except ValueError:
+            raise ValueError(f"유효하지 않은 날짜: '{v}'")
+        if parsed > date.today():
+            raise ValueError(f"미래 날짜는 사용할 수 없습니다: '{v}'")
+        return v
+
+    @field_validator("end_date")
+    @classmethod
+    def _validate_end_after_start(cls, v: str, info) -> str:
+        if v == "":
+            return v
+        start = info.data.get("start_date", "")
+        if start and v < start:
+            raise ValueError(
+                f"end_date({v})가 start_date({start})보다 이전입니다"
+            )
+        return v
 
 
 class EngineStatus(str, Enum):
