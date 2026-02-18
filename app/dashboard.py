@@ -6,7 +6,11 @@ _DASHBOARD_CSS = """
 /* --- 대시보드 레이아웃 --- */
 header { padding: 24px 0 12px; display: flex; justify-content: space-between; align-items: center; }
 header h1 { font-size: 22px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
 #last-update { color: #888; font-size: 12px; }
+
+.btn-start { background: #22c55e; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.btn-start:hover { background: #16a34a; }
 
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .card { background: #1a1d27; border-radius: 10px; padding: 16px; }
@@ -30,6 +34,41 @@ td { padding: 7px 10px; }
 
 .empty-msg { color: #555; font-size: 13px; text-align: center; padding: 32px; }
 
+/* --- Start Agent 모달 --- */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; justify-content: center; align-items: center; }
+.modal-overlay.active { display: flex; }
+.modal { background: #1a1d27; border-radius: 14px; width: 560px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.modal-header { padding: 20px 24px 12px; border-bottom: 1px solid #252830; }
+.modal-header h2 { font-size: 17px; color: #fff; margin-bottom: 4px; }
+.modal-header .modal-filter-info { font-size: 12px; color: #888; }
+.modal-body { padding: 16px 24px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 12px 24px 20px; border-top: 1px solid #252830; display: flex; justify-content: flex-end; gap: 10px; }
+
+.modal-task-list { list-style: none; padding: 0; margin: 0; }
+.modal-task-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #252830; }
+.modal-task-item:last-child { border-bottom: none; }
+.modal-task-id { color: #555; font-size: 12px; font-weight: 600; min-width: 40px; }
+.modal-task-title { flex: 1; color: #e0e0e0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.priority-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; min-width: 18px; text-align: center; }
+.priority-critical { background: rgba(239,68,68,0.15); color: #f87171; }
+.priority-high { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.priority-medium { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.priority-low { background: rgba(107,114,128,0.15); color: #9ca3af; }
+
+.epic-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(139,92,246,0.15); color: #a78bfa; }
+
+.modal-summary { font-size: 13px; color: #aaa; padding: 10px 0 4px; }
+.modal-empty { color: #555; font-size: 13px; text-align: center; padding: 32px 0; }
+.modal-overflow { font-size: 12px; color: #666; padding: 8px 0; text-align: center; }
+
+.btn-modal { border: none; border-radius: 8px; padding: 8px 24px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.btn-modal-cancel { background: #374151; color: #9ca3af; }
+.btn-modal-cancel:hover { background: #4b5563; }
+.btn-modal-start { background: #22c55e; color: #fff; }
+.btn-modal-start:hover { background: #16a34a; }
+.btn-modal-start:disabled { background: #374151; color: #555; cursor: not-allowed; }
+
 /* --- 반응형 --- */
 @media (max-width: 900px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
@@ -38,6 +77,7 @@ td { padding: 7px 10px; }
 @media (max-width: 520px) {
   .cards { grid-template-columns: 1fr; }
   .container { padding: 12px; }
+  .modal { width: 100%; max-width: 100%; border-radius: 14px 14px 0 0; }
 }
 """.strip()
 
@@ -45,8 +85,28 @@ _BODY_HTML = """
 <div class="container">
   <header>
     <h1>Quantum Trading Dashboard</h1>
-    <span id="last-update">--</span>
+    <div class="header-right">
+      <span id="last-update">--</span>
+      <button class="btn-start" onclick="openStartModal()">Start</button>
+    </div>
   </header>
+
+  <!-- Start Agent 미리보기 모달 -->
+  <div id="start-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Start Agent</h2>
+        <div class="modal-filter-info" id="modal-filter-info">전체 태스크</div>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <div class="modal-empty">로딩 중...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal btn-modal-cancel" onclick="closeStartModal()">Cancel</button>
+        <button class="btn-modal btn-modal-start" id="modal-start-btn" onclick="confirmStart()" disabled>Start</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 요약 카드 -->
   <div class="cards">
@@ -356,6 +416,143 @@ async function fetchStrategy() {
   if (data.trailing_stop_pct) parts.push('트레일링 ' + data.trailing_stop_pct + '%');
   document.getElementById('strategy-detail').textContent = parts.join(' · ') || '--';
 }
+
+/* ---------- Start Agent modal ---------- */
+const MODAL_MAX_TASKS = 20;
+
+function getActiveFilters() {
+  const priority = document.getElementById('filter-priority');
+  const epic = document.getElementById('filter-epic');
+  return {
+    priority: priority ? priority.value : '',
+    epic: epic ? epic.value : '',
+  };
+}
+
+function buildFilterQS(filters) {
+  const params = new URLSearchParams();
+  params.set('status', 'pending');
+  if (filters.priority) params.set('priority', filters.priority);
+  if (filters.epic) params.set('epic', filters.epic);
+  return params.toString();
+}
+
+function filterInfoText(filters) {
+  const parts = [];
+  if (filters.priority) parts.push('Priority: ' + filters.priority);
+  if (filters.epic) parts.push('Epic: ' + filters.epic);
+  return parts.length ? parts.join(' · ') : '전체 태스크';
+}
+
+function priorityBadgeHtml(p) {
+  if (!p) return '';
+  const cls = {critical:'priority-critical', high:'priority-high', medium:'priority-medium', low:'priority-low'}[p.toLowerCase()] || 'priority-low';
+  return `<span class="priority-badge ${cls}">${p}</span>`;
+}
+
+function epicBadgeHtml(e) {
+  if (!e) return '';
+  return `<span class="epic-badge">${e}</span>`;
+}
+
+async function openStartModal() {
+  const overlay = document.getElementById('start-modal');
+  const body = document.getElementById('modal-body');
+  const filterInfo = document.getElementById('modal-filter-info');
+  const startBtn = document.getElementById('modal-start-btn');
+
+  overlay.classList.add('active');
+  body.innerHTML = '<div class="modal-empty">로딩 중...</div>';
+  startBtn.disabled = true;
+
+  const filters = getActiveFilters();
+  filterInfo.textContent = filterInfoText(filters);
+
+  const data = await safeFetch('/api/tasks?' + buildFilterQS(filters));
+  if (!data) {
+    body.innerHTML = '<div class="modal-empty">태스크 목록을 불러올 수 없습니다.</div>';
+    return;
+  }
+
+  const tasks = Array.isArray(data) ? data : (data.tasks || []);
+  // priority DESC (critical>high>medium>low), created_at ASC
+  const prioOrder = {critical:0, high:1, medium:2, low:3};
+  tasks.sort((a, b) => {
+    const pa = prioOrder[(a.priority || '').toLowerCase()] ?? 99;
+    const pb = prioOrder[(b.priority || '').toLowerCase()] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return (a.created_at || '').localeCompare(b.created_at || '');
+  });
+
+  if (tasks.length === 0) {
+    body.innerHTML = '<div class="modal-empty">실행할 태스크가 없습니다.</div>';
+    return;
+  }
+
+  const display = tasks.slice(0, MODAL_MAX_TASKS);
+  const overflow = tasks.length - display.length;
+
+  let html = `<div class="modal-summary">총 ${tasks.length}개 태스크 (priority 순)</div>`;
+  html += '<ul class="modal-task-list">';
+  for (const t of display) {
+    html += `<li class="modal-task-item">
+      <span class="modal-task-id">#${t.id}</span>
+      <span class="modal-task-title">${t.title || ''}</span>
+      ${priorityBadgeHtml(t.priority)}
+      ${epicBadgeHtml(t.epic)}
+    </li>`;
+  }
+  html += '</ul>';
+  if (overflow > 0) {
+    html += `<div class="modal-overflow">외 ${overflow}건</div>`;
+  }
+
+  body.innerHTML = html;
+  startBtn.disabled = false;
+}
+
+function closeStartModal() {
+  document.getElementById('start-modal').classList.remove('active');
+}
+
+async function confirmStart() {
+  const startBtn = document.getElementById('modal-start-btn');
+  startBtn.disabled = true;
+  startBtn.textContent = '시작 중...';
+
+  const filters = getActiveFilters();
+  const payload = {};
+  if (filters.priority) payload.priority = filters.priority;
+  if (filters.epic) payload.epic = filters.epic;
+
+  try {
+    const r = await fetch('/api/agent/start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      alert('에이전트 시작 실패: ' + err);
+    }
+  } catch (e) {
+    alert('에이전트 시작 오류: ' + e.message);
+  }
+
+  startBtn.textContent = 'Start';
+  startBtn.disabled = false;
+  closeStartModal();
+  fetchStatus();
+}
+
+// ESC 키로 모달 닫기
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeStartModal();
+});
+// 오버레이 클릭으로 모달 닫기
+document.getElementById('start-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeStartModal();
+});
 
 /* ---------- init ---------- */
 document.addEventListener('DOMContentLoaded', () => {
