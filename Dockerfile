@@ -2,6 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# curl 설치 (healthcheck용)
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 # uv 설치
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
