@@ -274,6 +274,7 @@ def evaluate_bollinger_signal(
     period: int = 20,
     num_std: float = 2.0,
     volume_ma_period: int | None = None,
+    min_bandwidth: float = 0.0,
 ) -> BollingerResult:
     """볼린저밴드 반전 시그널 판단.
 
@@ -323,6 +324,18 @@ def evaluate_bollinger_signal(
             lower_band=lower,
             reason_detail="밴드 폭 0 (무변동)",
         )
+
+    # 밴드 폭 최소 필터 (장 초반 노이즈 방지)
+    if min_bandwidth > 0 and middle > 0:
+        bandwidth = (upper - lower) / middle * 100
+        if bandwidth < min_bandwidth:
+            return BollingerResult(
+                signal=SignalType.HOLD,
+                upper_band=upper,
+                middle_band=middle,
+                lower_band=lower,
+                reason_detail=f"밴드 폭 부족 ({bandwidth:.2f}% < {min_bandwidth:.1f}%)",
+            )
 
     # BUY: 전봉 종가 ≤ 하단밴드 AND 현봉 종가 > 하단밴드 (반등 확인)
     if prev_close <= prev_lower and current_close > lower:
