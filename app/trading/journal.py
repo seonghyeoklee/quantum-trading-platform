@@ -196,11 +196,15 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
         if s.upper_band is not None:
             bb_str = f"{s.upper_band:.0f}/{s.middle_band:.0f}/{s.lower_band:.0f}"
 
+        reason_str = s.signal_reason or ""
+        reason_style = "color:#64748b" if s.signal in ("HOLD", "") else ""
+
         signal_rows += f"""
         <tr>
             <td>{ts}</td>
             <td>{s.symbol}</td>
             <td><span class="{sig_class}">{s.signal}</span></td>
+            <td class="reason-detail" style="{reason_style}">{reason_str}</td>
             <td>{s.current_price:,.0f}</td>
             <td>{s.short_ma:.0f}</td>
             <td>{s.long_ma:.0f}</td>
@@ -299,11 +303,11 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
         <table>
             <thead>
                 <tr>
-                    <th>시각</th><th>종목</th><th>시그널</th><th>현재가</th>
+                    <th>시각</th><th>종목</th><th>시그널</th><th>판단 근거</th><th>현재가</th>
                     <th>단기MA</th><th>장기MA</th><th>RSI</th><th>거래량</th><th>BB</th>
                 </tr>
             </thead>
-            <tbody>{signal_rows if signal_rows else '<tr><td colspan="9" style="text-align:center;color:#64748b;">시그널 없음</td></tr>'}</tbody>
+            <tbody>{signal_rows if signal_rows else '<tr><td colspan="10" style="text-align:center;color:#64748b;">시그널 없음</td></tr>'}</tbody>
         </table>
     </details>
 </div>"""
