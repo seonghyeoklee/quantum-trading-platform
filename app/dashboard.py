@@ -211,6 +211,20 @@ _DASHBOARD_JS = r"""
 let pnlHistory = [];
 let pnlChart = null;
 
+/* ---------- 종목명 매핑 ---------- */
+const STOCK_NAMES = {
+  '005930':'삼성전자', '000660':'SK하이닉스', '005380':'현대차',
+  '035420':'NAVER', '005490':'POSCO홀딩스', '105560':'KB금융',
+  '009540':'HD한국조선해양', '034020':'두산에너빌리티', '298040':'효성중공업',
+  '064350':'현대로템', '010120':'LS일렉트릭',
+  'AAPL':'Apple', 'NVDA':'NVIDIA', 'MSFT':'Microsoft',
+  'GOOGL':'Alphabet', 'META':'Meta', 'TSLA':'Tesla',
+};
+function stockLabel(sym) {
+  const name = STOCK_NAMES[sym];
+  return name ? name : sym;
+}
+
 /* ---------- helpers ---------- */
 function fmt(n) {
   if (n == null) return '--';
@@ -276,7 +290,7 @@ function updateSignalsTable(signals) {
   if (!signals.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">시그널 없음</td></tr>'; return; }
   tbody.innerHTML = signals.slice(0, 20).map(s => `<tr>
     <td style="text-align:left">${fmtTime(s.timestamp)}</td>
-    <td style="text-align:left">${s.symbol}</td>
+    <td style="text-align:left">${stockLabel(s.symbol)}</td>
     <td>${signalBadge(s.signal)}</td>
     <td>${fmt(s.current_price)}</td>
     <td>${fmt(s.short_ma)}</td>
@@ -289,7 +303,7 @@ function updateOrdersTable(orders) {
   if (!orders.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">주문 없음</td></tr>'; return; }
   tbody.innerHTML = orders.slice(0, 20).map(o => `<tr>
     <td style="text-align:left">${fmtTime(o.timestamp)}</td>
-    <td style="text-align:left">${o.symbol}</td>
+    <td style="text-align:left">${stockLabel(o.symbol)}</td>
     <td>${o.side === 'buy' ? '<span class="buy-badge">매수</span>' : '<span class="sell-badge">매도</span>'}</td>
     <td>${o.quantity}</td>
     <td>${reasonBadge(o.reason)}</td>

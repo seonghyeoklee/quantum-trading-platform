@@ -16,6 +16,7 @@ from app.models import (
     EventType,
     MarketType,
     OrderResult,
+    Position,
     SignalType,
     TradeEvent,
     TradingSignal,
@@ -229,6 +230,9 @@ class TradingEngine:
             raise
         logger.info("KIS API 연결 확인 완료")
 
+        # 보유 포지션 복원 (매수가/고점/매수시각)
+        await self._restore_positions(market)
+
         self._status = EngineStatus.RUNNING
         self._started_at = datetime.now()
         self._loop_count = 0
@@ -263,6 +267,48 @@ class TradingEngine:
         today = date.today()
         if self._journal.read_events(today):
             self._journal.generate_daily_report(today)
+
+    async def _restore_positions(
+        self, market: MarketType | None = None
+    ) -> None:
+        """보유 포지션에서 매수가/고점/매수시각 복원 (재시작 시 초기화 방지)"""
+        all_positions: list[Position] = []
+        try:
+            if market is None or market == MarketType.DOMESTIC:
+                dom_pos, _ = await self.order.get_balance()
+                all_positions.extend(dom_pos)
+            if market is None or market == MarketType.US:
+                us_pos, _ = await self.us_order.get_balance()
+                all_positions.extend(us_pos)
+        except Exception:
+            logger.warning("포지션 복원 중 잔고 조회 실패 — 건너뜀", exc_info=True)
+            return
+
+        now = datetime.now()
+        watch_set = set(self._watch_symbols)
+        restored = 0
+
+        for pos in all_positions:
+            if pos.quantity <= 0 or pos.symbol not in watch_set:
+                continue
+            if pos.symbol in self._entry_prices:
+                continue  # 이미 추적 중
+
+            self._entry_prices[pos.symbol] = float(pos.avg_price)
+            self._buy_timestamps[pos.symbol] = now
+            peak = max(float(pos.avg_price), float(pos.current_price))
+            self._peak_prices[pos.symbol] = peak
+            restored += 1
+
+            self._journal.log_event(TradeEvent.engine_event(
+                EventType.STATE_RESTORE,
+                f"{pos.symbol}: avg_price={pos.avg_price}, "
+                f"current_price={pos.current_price}, qty={pos.quantity}",
+                timestamp=now,
+            ))
+
+        if restored > 0:
+            logger.info("보유 포지션 %d종목 매수 정보 복원 완료", restored)
 
     async def _run_loop(self) -> None:
         interval = self.settings.trading.trading_interval
@@ -324,6 +370,7 @@ class TradingEngine:
                 all_positions.extend(us_pos)
 
         closed = 0
+        close_time = now.strftime("%H:%M")
         for pos in all_positions:
             if pos.quantity > 0:
                 pos_mkt = detect_market_type(pos.symbol)
@@ -333,6 +380,7 @@ class TradingEngine:
                 else:
                     result = await self.order.sell(pos.symbol, pos.quantity)
                 entry_price = self._entry_prices.get(pos.symbol, 0.0)
+                detail = f"장 마감 강제 청산 ({close_time})"
                 order_result = OrderResult(
                     symbol=pos.symbol,
                     side="sell",
@@ -342,12 +390,14 @@ class TradingEngine:
                     success=result.get("success", False),
                     timestamp=now,
                     reason="force_close",
+                    reason_detail=detail,
                 )
                 self._orders.append(order_result)
                 self._journal.log_event(TradeEvent.from_order(
                     pos.symbol, "sell", pos.quantity, result,
                     "force_close", pos.current_price, entry_price,
                     event_type=EventType.FORCE_CLOSE, timestamp=now,
+                    reason_detail=detail,
                 ))
                 self._entry_prices.pop(pos.symbol, None)
                 self._buy_timestamps.pop(pos.symbol, None)
@@ -388,10 +438,10 @@ class TradingEngine:
                 volume_ma_period=vol_period,
             )
             logger.info(
-                "[%s] %s | 현재가=%.0f, BB(%.0f/%.0f/%.0f), vol_ok=%s",
+                "[%s] %s | 현재가=%.0f, BB(%.0f/%.0f/%.0f), vol_ok=%s | %s",
                 symbol, result.signal.value, price_info.current_price,
                 result.upper_band, result.middle_band, result.lower_band,
-                result.volume_confirmed,
+                result.volume_confirmed, result.reason_detail,
             )
             return TradingSignal(
                 symbol=symbol,
@@ -402,6 +452,7 @@ class TradingEngine:
                 middle_band=result.middle_band,
                 lower_band=result.lower_band,
                 volume_confirmed=result.volume_confirmed,
+                reason_detail=result.reason_detail,
             )
 
         # SMA 크로스오버 전략
@@ -435,9 +486,10 @@ class TradingEngine:
                 volume_confirmed=result.volume_confirmed,
                 obv_confirmed=result.obv_confirmed,
                 raw_signal=result.raw_signal,
+                reason_detail=result.reason_detail,
             )
         else:
-            signal_type, short_ma, long_ma = evaluate_signal(
+            signal_type, short_ma, long_ma, reason_detail = evaluate_signal(
                 chart, short_period, long_period
             )
             signal = TradingSignal(
@@ -447,12 +499,14 @@ class TradingEngine:
                 long_ma=long_ma,
                 current_price=price_info.current_price,
                 timestamp=now,
+                reason_detail=reason_detail,
             )
 
         logger.info(
-            "[%s] %s | 현재가=%.0f, SMA%d=%.0f, SMA%d=%.0f",
+            "[%s] %s | 현재가=%.0f, SMA%d=%.0f, SMA%d=%.0f | %s",
             symbol, signal.signal.value, price_info.current_price,
             short_period, signal.short_ma, long_period, signal.long_ma,
+            signal.reason_detail,
         )
         return signal
 
@@ -579,11 +633,17 @@ class TradingEngine:
                     if peak > 0:
                         drop_pct = (peak - signal.current_price) / peak * 100
                         if drop_pct >= cfg.trailing_stop_pct:
-                            logger.info(
-                                "[%s] 트레일링 스탑: 고점=%.0f, 현재가=%.0f, 하락=%.1f%%",
-                                symbol, peak, signal.current_price, drop_pct,
+                            detail = (
+                                f"트레일링 스탑: 고점 {peak:,.0f} → "
+                                f"현재가 {signal.current_price:,.0f} "
+                                f"(고점 대비 -{drop_pct:.1f}%)"
                             )
-                            await self._execute_sell(symbol, now, reason="trailing_stop")
+                            logger.info("[%s] %s", symbol, detail)
+                            await self._execute_sell(
+                                symbol, now,
+                                reason="trailing_stop",
+                                reason_detail=detail,
+                            )
                             continue
 
                 # SMA 크로스오버: 리스크 체크 (stop-loss / max-holding)
@@ -593,21 +653,34 @@ class TradingEngine:
                     if cfg.stop_loss_pct > 0 and entry_price > 0:
                         loss_pct = (entry_price - signal.current_price) / entry_price * 100
                         if loss_pct >= cfg.stop_loss_pct:
-                            logger.info(
-                                "[%s] 손절 매도: 매수가=%.0f, 현재가=%.0f, 손실=%.1f%%",
-                                symbol, entry_price, signal.current_price, loss_pct,
+                            detail = (
+                                f"손절 매도: 매수가 {entry_price:,.0f} → "
+                                f"현재가 {signal.current_price:,.0f} "
+                                f"(손실 -{loss_pct:.1f}%)"
                             )
-                            await self._execute_sell(symbol, now, reason="stop_loss")
+                            logger.info("[%s] %s", symbol, detail)
+                            await self._execute_sell(
+                                symbol, now,
+                                reason="stop_loss",
+                                reason_detail=detail,
+                            )
                             continue
                     # max-holding
                     if cfg.max_holding_days > 0 and symbol in self._buy_timestamps:
-                        days_held = (now - self._buy_timestamps[symbol]).days
+                        buy_ts = self._buy_timestamps[symbol]
+                        days_held = (now - buy_ts).days
                         if days_held >= cfg.max_holding_days:
-                            logger.info(
-                                "[%s] 보유기간 초과 매도: %d일 보유 (한도 %d일)",
-                                symbol, days_held, cfg.max_holding_days,
+                            detail = (
+                                f"보유기간 초과: 매수일 {buy_ts.strftime('%m/%d')} → "
+                                f"현재 {now.strftime('%m/%d')} "
+                                f"({days_held}일 보유, 한도 {cfg.max_holding_days}일)"
                             )
-                            await self._execute_sell(symbol, now, reason="max_holding")
+                            logger.info("[%s] %s", symbol, detail)
+                            await self._execute_sell(
+                                symbol, now,
+                                reason="max_holding",
+                                reason_detail=detail,
+                            )
                             continue
 
                 # 매매 실행 (데이트레이딩 제한은 국내 종목에만 적용)
@@ -629,7 +702,11 @@ class TradingEngine:
                             continue
                     await self._execute_buy(symbol, signal.current_price, now)
                 elif signal.signal == SignalType.SELL:
-                    await self._execute_sell(symbol, now, reason="signal")
+                    await self._execute_sell(
+                        symbol, now,
+                        reason="signal",
+                        reason_detail=signal.reason_detail,
+                    )
 
             except Exception:
                 logger.exception("[%s] 처리 중 오류", symbol)
@@ -670,10 +747,13 @@ class TradingEngine:
             if current_price <= 0:
                 return
 
-            # 동적 수량 계산 (국내/해외 분리)
+            # 동적 수량 계산 (국내/해외 분리, capital_ratio 공통 적용)
             cfg = self.settings.trading
             if mkt == MarketType.US:
-                target = cfg.us_target_order_amount
+                if cfg.capital_ratio > 0 and summary.deposit > 0:
+                    target = summary.deposit * cfg.capital_ratio
+                else:
+                    target = cfg.us_target_order_amount
                 min_qty = cfg.us_min_quantity
                 max_qty = cfg.us_max_quantity
             else:
@@ -705,7 +785,7 @@ class TradingEngine:
             self._orders.append(order_result)
             self._journal.log_event(TradeEvent.from_order(
                 symbol, "buy", quantity, result,
-                "signal", current_price, timestamp=now,
+                "signal", current_price, current_price, timestamp=now,
             ))
 
             # 매수 성공 시 일일 거래 카운터 증가 + 매수 정보 기록
@@ -718,7 +798,11 @@ class TradingEngine:
                 self._peak_prices[symbol] = float(current_price)
 
     async def _execute_sell(
-        self, symbol: str, now: datetime, reason: str = "signal"
+        self,
+        symbol: str,
+        now: datetime,
+        reason: str = "signal",
+        reason_detail: str = "",
     ) -> None:
         """보유 종목 전량 매도 (잔고 확인 → 주문을 Lock으로 원자적 실행)"""
         mkt = detect_market_type(symbol)
@@ -747,11 +831,13 @@ class TradingEngine:
                         success=result.get("success", False),
                         timestamp=now,
                         reason=reason,
+                        reason_detail=reason_detail,
                     )
                     self._orders.append(order_result)
                     self._journal.log_event(TradeEvent.from_order(
                         symbol, "sell", pos.quantity, result,
-                        reason, pos.current_price, entry_price, timestamp=now,
+                        reason, pos.current_price, entry_price,
+                        timestamp=now, reason_detail=reason_detail,
                     ))
                     # 매도 시 매수 정보 삭제
                     self._entry_prices.pop(symbol, None)

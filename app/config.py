@@ -117,14 +117,11 @@ class TradingConfig(BaseSettings):
     max_daily_trades: int = 5  # 종목당 하루 최대 매수 횟수
 
     # 장 마감 청산
-    force_close_minute: int = 1510  # 15:10 이후 강제 매도 (HHMM)
-    no_new_buy_minute: int = 1450  # 14:50 이후 신규 매수 금지
+    force_close_minute: int = 1525  # 15:25 이후 강제 매도 (HHMM)
+    no_new_buy_minute: int = 1520  # 15:20 이후 신규 매수 금지
 
     # 활성 매매 시간대 (HHMM 튜플 리스트). 빈 리스트면 전 구간 매매.
-    active_trading_windows: list[tuple[int, int]] = [
-        (930, 1100),   # 오전 골든타임
-        (1400, 1450),  # 오후 골든타임 (14:50 매수 마감)
-    ]
+    active_trading_windows: list[tuple[int, int]] = []  # 전 구간 매매
 
     # 복합 전략 (RSI + 거래량 + OBV 필터) — SMA_CROSSOVER 전략용
     use_advanced_strategy: bool = True
@@ -142,7 +139,7 @@ class TradingConfig(BaseSettings):
     trailing_stop_pct: float = 0.0
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.10  # 예수금의 10%씩 종목당 투자
+    capital_ratio: float = 0.0
 
     # 자동 국면 전환
     auto_regime: bool = False

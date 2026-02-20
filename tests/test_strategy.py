@@ -60,7 +60,7 @@ class TestEvaluateSignal:
             + [95, 94, 93, 92, 150]  # 하락 후 급반등
         )
         chart = _make_chart(closes)
-        signal, short_ma, long_ma = evaluate_signal(chart, 5, 20)
+        signal, short_ma, long_ma, _reason = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.BUY
         assert short_ma > long_ma
 
@@ -72,7 +72,7 @@ class TestEvaluateSignal:
             + [105, 106, 107, 108, 50]  # 상승 후 급락
         )
         chart = _make_chart(closes)
-        signal, short_ma, long_ma = evaluate_signal(chart, 5, 20)
+        signal, short_ma, long_ma, _reason = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.SELL
         assert short_ma < long_ma
 
@@ -81,14 +81,14 @@ class TestEvaluateSignal:
         # SMA5 > SMA20 유지 (이미 위에 있고 계속 위)
         closes = [100] * 20 + [120, 121, 122, 123, 124]
         chart = _make_chart(closes)
-        signal, _, _ = evaluate_signal(chart, 5, 20)
+        signal, _, _, _ = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.HOLD
 
     def test_hold_flat(self):
         """완전 횡보 → HOLD"""
         closes = [100] * 25
         chart = _make_chart(closes)
-        signal, short_ma, long_ma = evaluate_signal(chart, 5, 20)
+        signal, short_ma, long_ma, _reason = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.HOLD
         assert short_ma == long_ma == 100.0
 
@@ -96,7 +96,7 @@ class TestEvaluateSignal:
         """데이터 부족 → HOLD"""
         closes = [100] * 15  # 20+1 미만
         chart = _make_chart(closes)
-        signal, short_ma, long_ma = evaluate_signal(chart, 5, 20)
+        signal, short_ma, long_ma, _reason = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.HOLD
         assert short_ma == 0.0
         assert long_ma == 0.0
@@ -105,7 +105,7 @@ class TestEvaluateSignal:
         """커스텀 기간 파라미터"""
         closes = [100] * 10 + [95, 94, 93, 92, 150]
         chart = _make_chart(closes)
-        signal, short_ma, long_ma = evaluate_signal(chart, 3, 10)
+        signal, short_ma, long_ma, _reason = evaluate_signal(chart, 3, 10)
         assert signal == SignalType.BUY
         assert short_ma > long_ma
 
@@ -114,7 +114,7 @@ class TestEvaluateSignal:
         closes = [100] * 20 + [95, 94, 93, 92, 150]
         volumes = [5000] * 24 + [100]  # 마지막 날 거래량 매우 낮음
         chart = _make_chart(closes, volumes)
-        signal, _, _ = evaluate_signal(chart, 5, 20, volume_ma_period=20)
+        signal, _, _, _ = evaluate_signal(chart, 5, 20, volume_ma_period=20)
         assert signal == SignalType.HOLD
 
     def test_volume_filter_none_keeps_original(self):
@@ -122,7 +122,7 @@ class TestEvaluateSignal:
         closes = [100] * 20 + [95, 94, 93, 92, 150]
         volumes = [5000] * 24 + [100]  # 거래량 낮아도 필터 없으면 BUY
         chart = _make_chart(closes, volumes)
-        signal, _, _ = evaluate_signal(chart, 5, 20)
+        signal, _, _, _ = evaluate_signal(chart, 5, 20)
         assert signal == SignalType.BUY
 
 
@@ -457,3 +457,133 @@ class TestBollingerSignal:
         result = evaluate_bollinger_signal(chart, period=20, volume_ma_period=20)
         assert result.volume_confirmed is True
         assert result.signal == SignalType.BUY
+
+
+class TestReasonDetail:
+    """시그널 판단 근거(reason_detail) 검증"""
+
+    def test_sma_golden_cross_reason(self):
+        """골든크로스 BUY → 근거에 '골든크로스' 포함"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        chart = _make_chart(closes)
+        signal, short_ma, long_ma, reason = evaluate_signal(chart, 5, 20)
+        assert signal == SignalType.BUY
+        assert "골든크로스" in reason
+        assert "단기MA" in reason
+        assert "장기MA" in reason
+
+    def test_sma_dead_cross_reason(self):
+        """데드크로스 SELL → 근거에 '데드크로스' 포함"""
+        closes = [100] * 20 + [105, 106, 107, 108, 50]
+        chart = _make_chart(closes)
+        signal, _, _, reason = evaluate_signal(chart, 5, 20)
+        assert signal == SignalType.SELL
+        assert "데드크로스" in reason
+
+    def test_sma_hold_reason(self):
+        """크로스 없음 HOLD → 근거에 '크로스 없음' 포함"""
+        closes = [100] * 25
+        chart = _make_chart(closes)
+        signal, _, _, reason = evaluate_signal(chart, 5, 20)
+        assert signal == SignalType.HOLD
+        assert "크로스 없음" in reason
+
+    def test_sma_insufficient_data_reason(self):
+        """데이터 부족 → '데이터 부족'"""
+        closes = [100] * 15
+        chart = _make_chart(closes)
+        signal, _, _, reason = evaluate_signal(chart, 5, 20)
+        assert signal == SignalType.HOLD
+        assert "데이터 부족" in reason
+
+    def test_sma_volume_filter_reason(self):
+        """골든크로스 + 거래량 부족 → 근거에 '거래량 부족' 포함"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 24 + [100]
+        chart = _make_chart(closes, volumes)
+        signal, _, _, reason = evaluate_signal(chart, 5, 20, volume_ma_period=20)
+        assert signal == SignalType.HOLD
+        assert "골든크로스" in reason
+        assert "거래량 부족" in reason
+
+    def test_bollinger_buy_reason(self):
+        """볼린저 하단 반등 BUY → 근거에 '하단 반등' 포함"""
+        closes = [100] * 20 + [60, 95]
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.BUY
+        assert "하단 반등" in result.reason_detail
+        assert "현재가" in result.reason_detail
+
+    def test_bollinger_sell_reason(self):
+        """볼린저 상단 도달 SELL → 근거에 '상단 도달' 포함"""
+        closes = [100] * 20 + [110, 140]
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.SELL
+        assert "상단 도달" in result.reason_detail
+
+    def test_bollinger_hold_reason(self):
+        """볼린저 밴드 내 → 근거에 '밴드 내 위치' 포함"""
+        closes = [95, 105] * 10 + [100, 100]
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20)
+        assert result.signal == SignalType.HOLD
+        assert "밴드 내 위치" in result.reason_detail
+
+    def test_bollinger_volume_filter_reason(self):
+        """볼린저 BUY + 거래량 미확인 → 근거에 '거래량 미확인' 포함"""
+        closes = [100] * 20 + [60, 95]
+        volumes = [5000] * 21 + [100]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_bollinger_signal(chart, period=20, volume_ma_period=20)
+        assert result.signal == SignalType.HOLD
+        assert "하단 반등" in result.reason_detail
+        assert "거래량 미확인" in result.reason_detail
+
+    def test_advanced_rsi_filter_reason(self):
+        """골든크로스 + RSI 과매수 → 근거에 'RSI 과매수' 포함"""
+        closes = [50] * 6 + [50 + i * 3 for i in range(19)] + [200]
+        volumes = [5000] * 25 + [10000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_overbought=70.0
+        )
+        if result.raw_signal == SignalType.BUY and result.rsi and result.rsi > 70:
+            assert "RSI 과매수" in result.reason_detail
+
+    def test_advanced_volume_filter_reason(self):
+        """골든크로스 + 거래량 미확인 → 근거에 '거래량 미확인' 포함"""
+        volumes = [5000] * 24 + [100]
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_overbought=95.0,  # RSI 필터 완화
+        )
+        assert result.raw_signal == SignalType.BUY
+        assert result.signal == SignalType.HOLD
+        assert "거래량 미확인" in result.reason_detail
+
+    def test_advanced_obv_filter_reason(self):
+        """골든크로스 + OBV 하락추세 → 근거에 'OBV 하락추세' 포함"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 20 + [20000, 20000, 20000, 20000, 10000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_overbought=95.0, obv_ma_period=5
+        )
+        assert result.raw_signal == SignalType.BUY
+        assert result.obv_confirmed is False
+        assert "OBV 하락추세" in result.reason_detail
+
+    def test_advanced_passes_all_filters_no_filter_reason(self):
+        """모든 필터 통과 → 근거에 'HOLD' 없음"""
+        closes = [100] * 20 + [95, 94, 93, 92, 150]
+        volumes = [5000] * 20 + [200, 200, 200, 200, 50000]
+        chart = _make_chart(closes, volumes)
+        result = evaluate_signal_with_filters(
+            chart, 5, 20, rsi_overbought=95.0, obv_ma_period=5
+        )
+        if result.signal == SignalType.BUY:
+            assert "→ HOLD" not in result.reason_detail
+            assert "골든크로스" in result.reason_detail

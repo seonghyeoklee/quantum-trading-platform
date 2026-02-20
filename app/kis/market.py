@@ -135,6 +135,7 @@ class KISMarketClient:
                 "FID_INPUT_ISCD": symbol,
                 "FID_INPUT_HOUR_1": query_time,
                 "FID_PW_DATA_INCU_YN": "Y",
+                "FID_ETC_CLS_CODE": "",
             }
 
             data = await self._client.get(url, headers=headers, params=params)

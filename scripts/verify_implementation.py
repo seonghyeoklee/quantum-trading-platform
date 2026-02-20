@@ -61,9 +61,9 @@ chart = fetch_chart(ticker, start_date, end_date)
 print(f"삼성전자 데이터: {len(chart)}일")
 
 # 필터 없이
-sig_no, s, l = evaluate_signal(chart, 10, 40)
+sig_no, s, l, _r = evaluate_signal(chart, 10, 40)
 # 필터 있으면 BUY가 차단될 수 있음
-sig_vol, sv, lv = evaluate_signal(chart, 10, 40, volume_ma_period=20)
+sig_vol, sv, lv, _r2 = evaluate_signal(chart, 10, 40, volume_ma_period=20)
 
 print(f"  volume_ma_period=None → {sig_no.value} (SMA10={s:.0f}, SMA40={l:.0f})")
 print(f"  volume_ma_period=20   → {sig_vol.value} (SMA10={sv:.0f}, SMA40={lv:.0f})")

@@ -13,6 +13,7 @@ class StrategyResult(NamedTuple):
     rsi: float | None
     volume_confirmed: bool
     obv_confirmed: bool
+    reason_detail: str = ""
 
 
 class BollingerResult(NamedTuple):
@@ -21,6 +22,7 @@ class BollingerResult(NamedTuple):
     middle_band: float
     lower_band: float
     volume_confirmed: bool = True
+    reason_detail: str = ""
 
 
 def compute_sma(prices: list[float], period: int) -> list[float | None]:
@@ -40,7 +42,7 @@ def evaluate_signal(
     short_period: int = 5,
     long_period: int = 20,
     volume_ma_period: int | None = None,
-) -> tuple[SignalType, float, float]:
+) -> tuple[SignalType, float, float, str]:
     """
     이동평균 크로스오버 시그널 판단.
 
@@ -49,10 +51,10 @@ def evaluate_signal(
     SELL에는 미적용 (매도 차단하면 안 됨).
 
     Returns:
-        (signal, short_ma_today, long_ma_today)
+        (signal, short_ma_today, long_ma_today, reason_detail)
     """
     if len(chart) < long_period + 1:
-        return SignalType.HOLD, 0.0, 0.0
+        return SignalType.HOLD, 0.0, 0.0, "데이터 부족"
 
     closes = [c.close for c in chart]
     short_ma = compute_sma(closes, short_period)
@@ -65,17 +67,23 @@ def evaluate_signal(
     yesterday_long = long_ma[-2]
 
     if any(v is None for v in [today_short, today_long, yesterday_short, yesterday_long]):
-        return SignalType.HOLD, 0.0, 0.0
+        return SignalType.HOLD, 0.0, 0.0, "MA 계산 불가"
 
     signal = SignalType.HOLD
+    reason = ""
 
     # 골든크로스: 전일 SMA5 <= SMA20 → 오늘 SMA5 > SMA20
     if yesterday_short <= yesterday_long and today_short > today_long:
         signal = SignalType.BUY
+        reason = f"골든크로스 (단기MA {today_short:.1f} > 장기MA {today_long:.1f})"
 
     # 데드크로스: 전일 SMA5 >= SMA20 → 오늘 SMA5 < SMA20
     elif yesterday_short >= yesterday_long and today_short < today_long:
         signal = SignalType.SELL
+        reason = f"데드크로스 (단기MA {today_short:.1f} < 장기MA {today_long:.1f})"
+
+    else:
+        reason = f"크로스 없음 (단기MA {today_short:.1f}, 장기MA {today_long:.1f})"
 
     # 거래량 필터 (BUY 시그널에만 적용)
     if volume_ma_period is not None and signal == SignalType.BUY:
@@ -84,11 +92,13 @@ def evaluate_signal(
         current_vol_sma = vol_sma[-1] if vol_sma else None
         if current_vol_sma is not None and current_vol_sma > 0:
             if volumes[-1] <= current_vol_sma:
+                reason += f" → 거래량 부족({volumes[-1]:.0f} ≤ SMA{volume_ma_period} {current_vol_sma:.0f}) HOLD"
                 signal = SignalType.HOLD
         else:
+            reason += " → 거래량 SMA 계산 불가 HOLD"
             signal = SignalType.HOLD
 
-    return signal, today_short, today_long
+    return signal, today_short, today_long, reason
 
 
 def compute_rsi(prices: list[float], period: int = 14) -> list[float | None]:
@@ -164,7 +174,9 @@ def evaluate_signal_with_filters(
 ) -> StrategyResult:
     """SMA 크로스오버 + RSI 필터 + 거래량 확인 + OBV 확인"""
     # 1) 기존 SMA 크로스오버 시그널
-    raw_signal, short_ma, long_ma = evaluate_signal(chart, short_period, long_period)
+    raw_signal, short_ma, long_ma, base_reason = evaluate_signal(
+        chart, short_period, long_period,
+    )
 
     # 2) RSI 계산
     closes = [float(c.close) for c in chart]
@@ -191,28 +203,42 @@ def evaluate_signal_with_filters(
     else:
         obv_confirmed = False
 
-    # 5) 필터 적용
+    # 5) 필터 적용 + 근거 추적
     signal = raw_signal
+    reason = base_reason
+    filter_reasons: list[str] = []
 
     if signal != SignalType.HOLD:
         # RSI 필터
         if current_rsi is not None:
             if signal == SignalType.BUY and current_rsi > rsi_overbought:
+                filter_reasons.append(
+                    f"RSI 과매수({current_rsi:.1f} > {rsi_overbought:.0f})"
+                )
                 signal = SignalType.HOLD
             elif signal == SignalType.SELL and current_rsi < rsi_oversold:
+                filter_reasons.append(
+                    f"RSI 과매도({current_rsi:.1f} < {rsi_oversold:.0f})"
+                )
                 signal = SignalType.HOLD
 
         # 거래량 확인 (RSI 필터 통과한 경우만)
         if signal != SignalType.HOLD and not volume_confirmed:
+            filter_reasons.append("거래량 미확인")
             signal = SignalType.HOLD
 
         # OBV 확인 (거래량 필터 통과한 경우만)
         if signal != SignalType.HOLD:
             if signal == SignalType.BUY and not obv_confirmed:
+                filter_reasons.append("OBV 하락추세")
                 signal = SignalType.HOLD
             elif signal == SignalType.SELL and obv_confirmed:
                 # SELL인데 OBV가 상승추세면 매도 차단
+                filter_reasons.append("OBV 상승추세")
                 signal = SignalType.HOLD
+
+    if filter_reasons:
+        reason += " → " + " & ".join(filter_reasons) + " → HOLD"
 
     return StrategyResult(
         signal=signal,
@@ -222,6 +248,7 @@ def evaluate_signal_with_filters(
         rsi=current_rsi,
         volume_confirmed=volume_confirmed,
         obv_confirmed=obv_confirmed,
+        reason_detail=reason,
     )
 
 
@@ -263,6 +290,7 @@ def evaluate_bollinger_signal(
             upper_band=0.0,
             middle_band=0.0,
             lower_band=0.0,
+            reason_detail="데이터 부족",
         )
 
     closes = [float(c.close) for c in chart]
@@ -277,12 +305,14 @@ def evaluate_bollinger_signal(
             upper_band=0.0,
             middle_band=0.0,
             lower_band=0.0,
+            reason_detail="밴드 계산 불가",
         )
 
     current_close = closes[-1]
     prev_close = closes[-2]
 
     signal = SignalType.HOLD
+    reason = ""
 
     # 밴드 폭이 0이면 (표준편차 0 = 무변동) 시그널 없음
     if upper <= lower:
@@ -291,14 +321,19 @@ def evaluate_bollinger_signal(
             upper_band=upper,
             middle_band=middle,
             lower_band=lower,
+            reason_detail="밴드 폭 0 (무변동)",
         )
 
     # BUY: 전봉 종가 ≤ 하단밴드 AND 현봉 종가 > 하단밴드 (반등 확인)
     if prev_close <= prev_lower and current_close > lower:
         signal = SignalType.BUY
+        reason = f"하단 반등 (현재가 {current_close:.1f} > 하한 {lower:.1f})"
     # SELL: 현봉 종가 ≥ 상단밴드 (상단 도달)
     elif current_close >= upper:
         signal = SignalType.SELL
+        reason = f"상단 도달 (현재가 {current_close:.1f} ≥ 상한 {upper:.1f})"
+    else:
+        reason = f"밴드 내 위치 (하한 {lower:.1f} < 현재가 {current_close:.1f} < 상한 {upper:.1f})"
 
     # 거래량 필터 (매수 시그널에만 적용)
     volume_confirmed = True
@@ -311,6 +346,7 @@ def evaluate_bollinger_signal(
         else:
             volume_confirmed = False
         if not volume_confirmed:
+            reason += " → 거래량 미확인 → HOLD"
             signal = SignalType.HOLD
 
     return BollingerResult(
@@ -319,4 +355,5 @@ def evaluate_bollinger_signal(
         middle_band=middle,
         lower_band=lower,
         volume_confirmed=volume_confirmed,
+        reason_detail=reason,
     )
