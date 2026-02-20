@@ -106,6 +106,7 @@ summary { cursor: pointer; font-size: 1.1rem; font-weight: 600; color: #f1f5f9; 
 summary:hover { color: #3b82f6; }
 
 body { padding: 20px; }
+.reason-detail { color: #94a3b8; font-size: 0.8rem; max-width: 280px; }
 """
 
 
@@ -169,6 +170,8 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
             pnl_class = "positive" if pnl >= 0 else "negative"
             pnl_str = f'<span class="{pnl_class}">{pnl:+,.0f}</span>'
 
+        detail_str = o.reason_detail or ""
+
         order_rows += f"""
         <tr>
             <td>{ts}</td>
@@ -177,6 +180,7 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
             <td>{o.quantity}</td>
             <td>{o.current_price:,.0f}</td>
             <td>{reason_badge}</td>
+            <td class="reason-detail">{detail_str}</td>
             <td class="{status_class}">{status_icon}</td>
             <td>{pnl_str}</td>
         </tr>"""
@@ -283,10 +287,10 @@ def _build_report_html(d: date, events: list[TradeEvent]) -> str:
             <thead>
                 <tr>
                     <th>시각</th><th>종목</th><th>구분</th><th>수량</th>
-                    <th>가격</th><th>사유</th><th>결과</th><th>손익</th>
+                    <th>가격</th><th>사유</th><th>상세</th><th>결과</th><th>손익</th>
                 </tr>
             </thead>
-            <tbody>{order_rows if order_rows else '<tr><td colspan="8" style="text-align:center;color:#64748b;">주문 없음</td></tr>'}</tbody>
+            <tbody>{order_rows if order_rows else '<tr><td colspan="9" style="text-align:center;color:#64748b;">주문 없음</td></tr>'}</tbody>
         </table>
     </div>
 

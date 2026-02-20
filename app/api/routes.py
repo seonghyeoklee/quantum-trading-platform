@@ -157,6 +157,7 @@ async def get_positions(engine: TradingEngine = Depends(get_engine)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+
 @router.get("/trading/strategy")
 async def get_strategy(engine: TradingEngine = Depends(get_engine)):
     """현재 전략 설정 조회"""

@@ -193,7 +193,8 @@ class TestGetBalance:
         assert len(positions) == 0
 
     @pytest.mark.asyncio
-    async def test_balance_error_raises(self):
+    async def test_balance_error_returns_empty(self):
+        """잔고조회 + 매수가능금액 모두 실패 시 빈 결과 반환 (에러 미발생)"""
         client = _make_client()
         client._client.get = AsyncMock(return_value={
             "rt_cd": "1",
@@ -201,8 +202,9 @@ class TestGetBalance:
             "msg1": "Server error",
         })
 
-        with pytest.raises(RuntimeError, match="해외 잔고 조회 오류"):
-            await client.get_balance()
+        positions, summary = await client.get_balance()
+        assert positions == []
+        assert summary.deposit == 0.0
 
     @pytest.mark.asyncio
     async def test_output2_list_format(self):

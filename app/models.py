@@ -47,6 +47,7 @@ class EventType(str, Enum):
     ENGINE_STOP = "engine_stop"
     REGIME_CHANGE = "regime_change"
     STRATEGY_CHANGE = "strategy_change"
+    STATE_RESTORE = "state_restore"
 
 
 class StockPrice(BaseModel):
@@ -99,6 +100,9 @@ class TradingSignal(BaseModel):
     middle_band: float | None = None
     lower_band: float | None = None
 
+    # 시그널 판단 근거
+    reason_detail: str = ""
+
 
 class OrderResult(BaseModel):
     """주문 결과"""
@@ -111,6 +115,7 @@ class OrderResult(BaseModel):
     success: bool = False
     timestamp: datetime
     reason: str = ""  # "signal" / "stop_loss" / "trailing_stop" / "max_holding" / "force_close"
+    reason_detail: str = ""  # 매도 상세 사유 (수치 포함)
 
 
 class Position(BaseModel):
@@ -233,7 +238,10 @@ class TradeEvent(BaseModel):
     order_no: str = ""
     success: bool = False
     reason: str = ""
+    reason_detail: str = ""  # 매도 상세 사유 (수치 포함)
     entry_price: float = 0.0
+    # 시그널 판단 근거
+    signal_reason: str = ""
     # 이벤트 상세
     detail: str = ""
 
@@ -253,6 +261,7 @@ class TradeEvent(BaseModel):
             upper_band=signal.upper_band,
             middle_band=signal.middle_band,
             lower_band=signal.lower_band,
+            signal_reason=signal.reason_detail,
         )
 
     @classmethod
@@ -268,6 +277,7 @@ class TradeEvent(BaseModel):
         *,
         event_type: EventType = EventType.ORDER,
         timestamp: datetime | None = None,
+        reason_detail: str = "",
     ) -> TradeEvent:
         """주문 결과 → 주문/강제청산 이벤트"""
         return cls(
@@ -279,6 +289,7 @@ class TradeEvent(BaseModel):
             order_no=result.get("order_no", ""),
             success=result.get("success", False),
             reason=reason,
+            reason_detail=reason_detail,
             current_price=current_price,
             entry_price=entry_price,
         )

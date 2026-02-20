@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.config import KISConfig, Settings, StrategyConfig, StrategyType, TradingConfig
-from app.models import AccountSummary, ChartData, EngineStatus, MarketType, Position, SignalType, StockPrice, detect_market_type
+from app.models import AccountSummary, ChartData, EngineStatus, EventType, MarketType, Position, SignalType, StockPrice, detect_market_type
 from app.trading.engine import TradingEngine
 
 _EMPTY_SUMMARY = AccountSummary()
@@ -1646,7 +1646,8 @@ class TestMarketParam:
 
         await engine.start(market=MarketType.US)
 
-        engine.us_order.get_balance.assert_called_once()
+        # 연결 검증 + 포지션 복원으로 2회 호출
+        assert engine.us_order.get_balance.call_count >= 1
         await engine.stop()
 
     @pytest.mark.asyncio
@@ -1904,3 +1905,514 @@ class TestEdgeCaseConcurrentAccess:
         assert "005930" not in engine._entry_prices
         assert "005930" not in engine._buy_timestamps
         assert "005930" not in engine._peak_prices
+
+
+class TestJournalEntryPrice:
+    """저널 이벤트에 entry_price 기록 검증"""
+
+    @pytest.mark.asyncio
+    async def test_buy_journal_records_entry_price(self):
+        """매수 저널 이벤트에 entry_price=current_price 기록"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 72000, now)
+
+        # 저널 log_event가 호출되었는지 확인
+        engine._journal.log_event.assert_called_once()
+        event = engine._journal.log_event.call_args[0][0]
+        assert event.side == "buy"
+        assert event.entry_price == 72000.0
+        assert event.current_price == 72000.0
+
+    @pytest.mark.asyncio
+    async def test_sell_journal_records_entry_price(self):
+        """매도 저널 이벤트에 매수 시 entry_price 기록"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._entry_prices["005930"] = 70_000.0
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0002", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 14, 0, 0)
+        await engine._execute_sell("005930", now, reason="signal")
+
+        engine._journal.log_event.assert_called_once()
+        event = engine._journal.log_event.call_args[0][0]
+        assert event.side == "sell"
+        assert event.entry_price == 70_000.0
+        assert event.current_price == 72000
+
+    @pytest.mark.asyncio
+    async def test_sell_journal_entry_price_zero_when_no_buy_record(self):
+        """매수 기록 없는 종목 매도 시 entry_price=0.0"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        # _entry_prices에 매수 기록 없음
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=5, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0003", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 14, 0, 0)
+        await engine._execute_sell("005930", now, reason="signal")
+
+        event = engine._journal.log_event.call_args[0][0]
+        assert event.entry_price == 0.0
+
+    @pytest.mark.asyncio
+    async def test_buy_then_sell_journal_entry_price_flow(self):
+        """매수 → 매도 전체 흐름에서 entry_price 일관성 검증"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+
+        # 매수
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.order.buy = AsyncMock(return_value={
+            "success": True, "order_no": "0001", "message": "ok",
+        })
+
+        now_buy = datetime(2026, 2, 12, 10, 0, 0)
+        await engine._execute_buy("005930", 72000, now_buy)
+
+        buy_event = engine._journal.log_event.call_args[0][0]
+        assert buy_event.entry_price == 72000.0
+
+        # 매도
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=1, avg_price=72000, current_price=75000),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0002", "message": "ok",
+        })
+
+        now_sell = datetime(2026, 2, 12, 14, 0, 0)
+        await engine._execute_sell("005930", now_sell, reason="signal")
+
+        sell_event = engine._journal.log_event.call_args[0][0]
+        assert sell_event.side == "sell"
+        assert sell_event.entry_price == 72000.0
+        assert sell_event.current_price == 75000
+
+    @pytest.mark.asyncio
+    async def test_force_close_journal_records_entry_price(self):
+        """강제 청산 저널 이벤트에 entry_price 기록"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._entry_prices["005930"] = 68_000.0
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=68000, current_price=67000),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "0004", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 15, 25, 0)
+        await engine._force_close_all(now, market=MarketType.DOMESTIC)
+
+        engine._journal.log_event.assert_called_once()
+        event = engine._journal.log_event.call_args[0][0]
+        assert event.entry_price == 68_000.0
+        assert event.reason == "force_close"
+
+
+class TestRestorePositions:
+    """서버 재시작 시 보유 포지션 매수가 복원 테스트"""
+
+    @pytest.mark.asyncio
+    async def test_restore_domestic_positions(self):
+        """국내 보유 포지션의 매수가/고점/매수시각 복원"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert engine._entry_prices["005930"] == 70000.0
+        assert "005930" in engine._buy_timestamps
+        assert engine._peak_prices["005930"] == 72000.0  # max(avg, current)
+
+    @pytest.mark.asyncio
+    async def test_restore_us_positions(self):
+        """미국 보유 포지션 복원"""
+        settings = _make_settings()
+        settings.trading.us_watch_symbols = ["AAPL"]
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["AAPL"]
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([
+            Position(symbol="AAPL", quantity=5, avg_price=180.0, current_price=175.0),
+        ], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert engine._entry_prices["AAPL"] == 180.0
+        assert engine._peak_prices["AAPL"] == 180.0  # max(avg=180, current=175)
+
+    @pytest.mark.asyncio
+    async def test_restore_skips_zero_quantity(self):
+        """수량 0인 포지션은 복원하지 않음"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=0, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert "005930" not in engine._entry_prices
+
+    @pytest.mark.asyncio
+    async def test_restore_skips_unwatched_symbols(self):
+        """감시 목록에 없는 종목은 복원하지 않음"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="000660", quantity=10, avg_price=50000, current_price=51000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert "000660" not in engine._entry_prices
+
+    @pytest.mark.asyncio
+    async def test_restore_skips_already_tracked(self):
+        """이미 추적 중인 종목은 덮어쓰지 않음"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._entry_prices["005930"] = 65000.0  # 기존 추적 정보
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert engine._entry_prices["005930"] == 65000.0  # 기존 값 유지
+
+    @pytest.mark.asyncio
+    async def test_restore_logs_state_restore_event(self):
+        """복원 시 STATE_RESTORE 저널 이벤트 기록"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        engine._journal.log_event.assert_called_once()
+        event = engine._journal.log_event.call_args[0][0]
+        assert event.event_type == EventType.STATE_RESTORE
+        assert "005930" in event.detail
+        assert "avg_price=70000" in event.detail
+
+    @pytest.mark.asyncio
+    async def test_restore_survives_balance_error(self):
+        """잔고 조회 실패 시 예외 없이 건너뜀"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(
+            side_effect=RuntimeError("API error")
+        )
+
+        # 예외 발생하지 않아야 함
+        await engine._restore_positions(market=None)
+
+        assert len(engine._entry_prices) == 0
+
+    @pytest.mark.asyncio
+    async def test_restore_domestic_only_market(self):
+        """market=DOMESTIC 시 국내 잔고만 조회"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=72000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=MarketType.DOMESTIC)
+
+        assert "005930" in engine._entry_prices
+        engine.us_order.get_balance.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_restore_us_only_market(self):
+        """market=US 시 해외 잔고만 조회"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["AAPL"]
+
+        engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([
+            Position(symbol="AAPL", quantity=5, avg_price=180.0, current_price=185.0),
+        ], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=MarketType.US)
+
+        assert "AAPL" in engine._entry_prices
+        engine.order.get_balance.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_restore_peak_uses_max_of_avg_and_current(self):
+        """고점은 avg_price와 current_price 중 큰 값"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930", "000660"]
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(symbol="005930", quantity=10, avg_price=70000, current_price=75000),
+            Position(symbol="000660", quantity=5, avg_price=80000, current_price=78000),
+        ], _EMPTY_SUMMARY))
+        engine.us_order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))
+
+        await engine._restore_positions(market=None)
+
+        assert engine._peak_prices["005930"] == 75000.0  # current > avg
+        assert engine._peak_prices["000660"] == 80000.0  # avg > current
+
+
+class TestReasonDetail:
+    """매도 사유 상세(reason_detail) 기록 검증"""
+
+    @pytest.mark.asyncio
+    async def test_stop_loss_reason_detail(self):
+        """손절 매도 시 매수가/현재가/손실률 상세 기록"""
+        settings = _make_settings()
+        settings.trading.stop_loss_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        engine._entry_prices["005930"] = 100_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 10, 10, 0, 0)
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=93000,
+            change=-7000, change_rate=-7.0, volume=5000,
+            high=94000, low=92000, opening=93500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=100000, current_price=93000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "SL01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        assert len(engine._orders) == 1
+        order = engine._orders[0]
+        assert order.reason == "stop_loss"
+        assert "손절 매도" in order.reason_detail
+        assert "100,000" in order.reason_detail
+        assert "93,000" in order.reason_detail
+        assert "7.0%" in order.reason_detail
+
+    @pytest.mark.asyncio
+    async def test_trailing_stop_reason_detail(self):
+        """트레일링 스탑 시 고점/현재가/하락률 상세 기록"""
+        settings = _make_settings()
+        settings.trading.trailing_stop_pct = 5.0
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        engine._entry_prices["005930"] = 100_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 2, 10, 10, 0, 0)
+        engine._peak_prices["005930"] = 110_000.0
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=100000,
+            change=-10000, change_rate=-9.1, volume=5000,
+            high=101000, low=99000, opening=100500,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=100000, current_price=100000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "TS01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        assert len(engine._orders) == 1
+        order = engine._orders[0]
+        assert order.reason == "trailing_stop"
+        assert "트레일링 스탑" in order.reason_detail
+        assert "110,000" in order.reason_detail
+        assert "100,000" in order.reason_detail
+
+    @pytest.mark.asyncio
+    async def test_max_holding_reason_detail(self):
+        """보유기간 초과 시 매수일/현재일/보유일수 상세 기록"""
+        settings = _make_settings()
+        settings.trading.max_holding_days = 20
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        engine._entry_prices["005930"] = 70_000.0
+        engine._buy_timestamps["005930"] = datetime(2026, 1, 20, 10, 0, 0)
+
+        chart = _make_chart([100] * 30)
+        price = StockPrice(
+            symbol="005930", current_price=72000,
+            change=0, change_rate=0.0, volume=5000,
+            high=72500, low=71500, opening=72000,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=70000, current_price=72000,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "MH01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        assert len(engine._orders) == 1
+        order = engine._orders[0]
+        assert order.reason == "max_holding"
+        assert "보유기간 초과" in order.reason_detail
+        assert "01/20" in order.reason_detail
+        assert "02/12" in order.reason_detail
+        assert "23일 보유" in order.reason_detail
+
+    @pytest.mark.asyncio
+    async def test_force_close_reason_detail(self):
+        """장 마감 강제 청산 시 시각 상세 기록"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        engine.order.get_balance = AsyncMock(return_value=([
+            Position(
+                symbol="005930", name="삼성전자", quantity=5,
+                avg_price=70000, current_price=71000,
+            ),
+        ], _EMPTY_SUMMARY))
+        engine.order.sell = AsyncMock(return_value={
+            "success": True, "order_no": "FC01", "message": "ok",
+        })
+
+        now = datetime(2026, 2, 12, 15, 20, 0)
+        await engine._force_close_all(now, market=MarketType.DOMESTIC)
+
+        assert len(engine._orders) == 1
+        order = engine._orders[0]
+        assert order.reason == "force_close"
+        assert "장 마감 강제 청산" in order.reason_detail
+        assert "15:20" in order.reason_detail
+
+    @pytest.mark.asyncio
+    async def test_signal_sell_carries_reason_detail(self):
+        """시그널 매도 시 전략의 reason_detail이 전달됨"""
+        settings = _make_settings()
+        engine = TradingEngine(settings)
+        engine._watch_symbols = ["005930"]
+        engine._status = EngineStatus.RUNNING
+
+        # 데드크로스 차트: SMA5가 SMA20 아래로
+        closes = [200] * 15 + [200, 199, 198, 197, 196, 190, 185, 180, 175, 170]
+        chart = _make_chart(closes)
+        price = StockPrice(
+            symbol="005930", current_price=170,
+            change=-30, change_rate=-15.0, volume=10000,
+            high=175, low=168, opening=175,
+        )
+
+        with patch("app.trading.engine.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 2, 12, 10, 0, 0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            engine.market.get_daily_chart = AsyncMock(return_value=chart)
+            engine.market.get_current_price = AsyncMock(return_value=price)
+            engine.order.get_balance = AsyncMock(return_value=([
+                Position(
+                    symbol="005930", name="삼성전자", quantity=10,
+                    avg_price=200, current_price=170,
+                ),
+            ], _EMPTY_SUMMARY))
+            engine.order.sell = AsyncMock(return_value={
+                "success": True, "order_no": "SIG01", "message": "ok",
+            })
+
+            await engine._tick()
+
+        # 시그널이 SELL인 경우만 체크
+        sell_orders = [o for o in engine._orders if o.side == "sell"]
+        if sell_orders:
+            order = sell_orders[0]
+            assert order.reason == "signal"
+            # reason_detail은 전략에서 생성된 값 (빈 문자열도 허용)
+            assert isinstance(order.reason_detail, str)

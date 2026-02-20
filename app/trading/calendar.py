@@ -48,7 +48,7 @@ KR_HOLIDAYS: set[date] = {
 }
 
 MARKET_OPEN = time(9, 0)
-MARKET_CLOSE = time(15, 20)
+MARKET_CLOSE = time(15, 30)
 
 
 def is_trading_day(d: date) -> bool:
