@@ -33,6 +33,7 @@ class StrategyConfig(BaseModel):
     bollinger_period: int = 20
     bollinger_num_std: float = 2.0
     bollinger_volume_filter: bool = True
+    bollinger_min_bandwidth: float = 1.0  # 밴드 폭 최소 % (장 초반 노이즈 방지)
 
     # 분봉 설정
     use_minute_chart: bool = True
@@ -112,6 +113,7 @@ class TradingConfig(BaseSettings):
     bollinger_num_std: float = 2.0  # 표준편차 배수
     bollinger_volume_filter: bool = True  # 볼린저 매수 시 거래량 필터 적용
     bollinger_volume_ma_period: int = 20  # 거래량 SMA 기간
+    bollinger_min_bandwidth: float = 1.0  # 밴드 폭 최소 % (장 초반 노이즈 방지)
 
     # 단타 제한
     max_daily_trades: int = 5  # 종목당 하루 최대 매수 횟수

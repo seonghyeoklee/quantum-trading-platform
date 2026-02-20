@@ -458,6 +458,40 @@ class TestBollingerSignal:
         assert result.volume_confirmed is True
         assert result.signal == SignalType.BUY
 
+    def test_narrow_bandwidth_hold(self):
+        """밴드 폭이 min_bandwidth 미만 → HOLD (장 초반 노이즈 방지)"""
+        # 거의 동일한 가격 → 밴드 폭 극도로 좁음 (bandwidth ≈ 0.87%)
+        closes = [100] * 21 + [101]  # 상단 도달(SELL 조건)이지만 밴드 폭 좁음
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20, min_bandwidth=1.0)
+        assert result.signal == SignalType.HOLD
+        assert "밴드 폭 부족" in result.reason_detail
+
+    def test_wide_bandwidth_not_blocked(self):
+        """밴드 폭이 충분하면 min_bandwidth 필터에 걸리지 않음"""
+        # 등락 큰 데이터 → 밴드 폭 충분
+        closes = [100] * 20 + [60, 95]  # 하단 반등 → BUY
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20, min_bandwidth=1.0)
+        assert result.signal == SignalType.BUY
+
+    def test_min_bandwidth_zero_disabled(self):
+        """min_bandwidth=0 → 필터 비활성"""
+        closes = [100] * 20 + [99, 101]
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20, min_bandwidth=0.0)
+        # 밴드 폭 필터 비활성 → 밴드 폭 부족 사유 없음
+        assert "밴드 폭 부족" not in result.reason_detail
+
+    def test_min_bandwidth_reason_contains_values(self):
+        """밴드 폭 부족 사유에 실제 폭/기준값 포함"""
+        closes = [100] * 20 + [99, 101]
+        chart = _make_chart(closes)
+        result = evaluate_bollinger_signal(chart, period=20, min_bandwidth=5.0)
+        assert result.signal == SignalType.HOLD
+        assert "밴드 폭 부족" in result.reason_detail
+        assert "5.0%" in result.reason_detail
+
 
 class TestReasonDetail:
     """시그널 판단 근거(reason_detail) 검증"""

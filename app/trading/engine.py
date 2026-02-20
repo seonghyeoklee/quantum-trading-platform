@@ -436,6 +436,7 @@ class TradingEngine:
                 period=cfg.bollinger_period,
                 num_std=cfg.bollinger_num_std,
                 volume_ma_period=vol_period,
+                min_bandwidth=cfg.bollinger_min_bandwidth,
             )
             logger.info(
                 "[%s] %s | 현재가=%.0f, BB(%.0f/%.0f/%.0f), vol_ok=%s | %s",
