@@ -173,13 +173,14 @@ _BODY_HTML = """
             <th style="text-align:left">시각</th>
             <th style="text-align:left">종목</th>
             <th>신호</th>
+            <th style="text-align:left">판단 근거</th>
             <th>가격</th>
             <th>단기MA</th>
             <th>장기MA</th>
           </tr>
         </thead>
         <tbody id="signals-body">
-          <tr><td colspan="6" class="empty-msg">--</td></tr>
+          <tr><td colspan="7" class="empty-msg">--</td></tr>
         </tbody>
       </table>
     </div>
@@ -193,10 +194,11 @@ _BODY_HTML = """
             <th>매수/매도</th>
             <th>수량</th>
             <th>사유</th>
+            <th style="text-align:left">상세</th>
           </tr>
         </thead>
         <tbody id="orders-body">
-          <tr><td colspan="5" class="empty-msg">--</td></tr>
+          <tr><td colspan="6" class="empty-msg">--</td></tr>
         </tbody>
       </table>
     </div>
@@ -287,26 +289,32 @@ function updateStatusUI(data) {
 
 function updateSignalsTable(signals) {
   const tbody = document.getElementById('signals-body');
-  if (!signals.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">시그널 없음</td></tr>'; return; }
-  tbody.innerHTML = signals.slice(0, 20).map(s => `<tr>
+  if (!signals.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">시그널 없음</td></tr>'; return; }
+  tbody.innerHTML = signals.slice(0, 20).map(s => {
+    const reason = s.reason_detail || '';
+    const reasonStyle = s.signal === 'HOLD' || !s.signal ? 'color:#64748b' : '';
+    return `<tr>
     <td style="text-align:left">${fmtTime(s.timestamp)}</td>
     <td style="text-align:left">${stockLabel(s.symbol)}</td>
     <td>${signalBadge(s.signal)}</td>
+    <td class="reason-detail" style="text-align:left;${reasonStyle}">${reason}</td>
     <td>${fmt(s.current_price)}</td>
     <td>${fmt(s.short_ma)}</td>
     <td>${fmt(s.long_ma)}</td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
 }
 
 function updateOrdersTable(orders) {
   const tbody = document.getElementById('orders-body');
-  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">주문 없음</td></tr>'; return; }
+  if (!orders.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">주문 없음</td></tr>'; return; }
   tbody.innerHTML = orders.slice(0, 20).map(o => `<tr>
     <td style="text-align:left">${fmtTime(o.timestamp)}</td>
     <td style="text-align:left">${stockLabel(o.symbol)}</td>
     <td>${o.side === 'buy' ? '<span class="buy-badge">매수</span>' : '<span class="sell-badge">매도</span>'}</td>
     <td>${o.quantity}</td>
     <td>${reasonBadge(o.reason)}</td>
+    <td class="reason-detail" style="text-align:left">${o.reason_detail || ''}</td>
   </tr>`).join('');
 }
 

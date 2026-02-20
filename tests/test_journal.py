@@ -112,6 +112,52 @@ class TestJournalReport:
         assert "주문 없음" in html
 
 
+class TestSignalReasonInReport:
+    """시그널 테이블 판단 근거 컬럼 테스트"""
+
+    def test_signal_reason_column_header(self, journal):
+        """시그널 테이블에 판단 근거 헤더 존재"""
+        journal.log_event(_make_event(event_type="engine_start"))
+        path = journal.generate_daily_report(date(2026, 2, 14))
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+        assert "판단 근거" in html
+
+    def test_signal_reason_displayed(self, journal):
+        """signal_reason 텍스트가 리포트에 표시"""
+        journal.log_event(_make_event(
+            event_type="signal", signal="BUY", current_price=72000,
+            signal_reason="골든크로스: SMA5 > SMA20",
+        ))
+        path = journal.generate_daily_report(date(2026, 2, 14))
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+        assert "골든크로스: SMA5 &gt; SMA20" in html or "골든크로스: SMA5 > SMA20" in html
+
+    def test_hold_signal_reason_grey(self, journal):
+        """HOLD 시그널의 근거는 회색 스타일"""
+        journal.log_event(_make_event(
+            event_type="signal", signal="HOLD", current_price=72000,
+            signal_reason="크로스 미발생",
+        ))
+        path = journal.generate_daily_report(date(2026, 2, 14))
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+        assert "color:#64748b" in html
+
+    def test_order_reason_detail_displayed(self, journal):
+        """주문 테이블에 reason_detail 표시"""
+        journal.log_event(_make_event(
+            event_type="order", side="sell", quantity=10,
+            current_price=73000, success=True,
+            reason="stop_loss", reason_detail="매수가 75,000 대비 -2.7% 하락",
+        ))
+        path = journal.generate_daily_report(date(2026, 2, 14))
+        with open(path, encoding="utf-8") as f:
+            html = f.read()
+        assert "매수가 75,000 대비 -2.7% 하락" in html
+
+
 class TestReasonField:
     """reason 필드 직렬화"""
 
