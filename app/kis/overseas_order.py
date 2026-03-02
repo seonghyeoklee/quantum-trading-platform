@@ -223,20 +223,15 @@ class KISOverseasOrderClient:
                 )
 
             output2 = data.get("output2", {})
+            if isinstance(output2, list) and output2:
+                logger.debug("output2 list 형식 수신 (len=%d)", len(output2))
+                output2 = output2[0]
             if isinstance(output2, dict) and output2:
                 summary = AccountSummary(
                     deposit=float(output2.get("frcr_dncl_amt_2", 0)),
                     total_eval=float(output2.get("tot_evlu_pfls_amt", 0)),
                     eval_profit_loss=float(output2.get("ovrs_tot_pfls", 0)),
                     eval_profit_loss_rate=float(output2.get("tot_pftrt", 0)),
-                )
-            elif isinstance(output2, list) and output2:
-                o2 = output2[0]
-                summary = AccountSummary(
-                    deposit=float(o2.get("frcr_dncl_amt_2", 0)),
-                    total_eval=float(o2.get("tot_evlu_pfls_amt", 0)),
-                    eval_profit_loss=float(o2.get("ovrs_tot_pfls", 0)),
-                    eval_profit_loss_rate=float(o2.get("tot_pftrt", 0)),
                 )
         else:
             logger.warning(

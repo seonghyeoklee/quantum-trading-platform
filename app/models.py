@@ -15,7 +15,7 @@ class MarketType(str, Enum):
 
 
 _DOMESTIC_SYMBOL_RE = re.compile(r"^\d{6}$")
-_US_SYMBOL_RE = re.compile(r"^[A-Z]{1,5}$")
+_US_SYMBOL_RE = re.compile(r"^[A-Z]{1,5}(\.[A-Z]{1,2})?$")
 
 
 def validate_symbol(symbol: str) -> str:
@@ -26,7 +26,7 @@ def validate_symbol(symbol: str) -> str:
     if _US_SYMBOL_RE.match(upper):
         return upper
     raise ValueError(
-        f"유효하지 않은 심볼: '{symbol}' (국내: 6자리 숫자, 미국: 영문 1-5자)"
+        f"유효하지 않은 심볼: '{symbol}' (국내: 6자리 숫자, 미국: 영문 1-5자 또는 BRK.A 형식)"
     )
 
 
@@ -48,6 +48,9 @@ class EventType(str, Enum):
     REGIME_CHANGE = "regime_change"
     STRATEGY_CHANGE = "strategy_change"
     STATE_RESTORE = "state_restore"
+    SCANNER_SCAN = "scanner_scan"
+    SCANNER_ADD = "scanner_add"
+    SCANNER_REMOVE = "scanner_remove"
 
 
 class StockPrice(BaseModel):
@@ -100,6 +103,9 @@ class TradingSignal(BaseModel):
     middle_band: float | None = None
     lower_band: float | None = None
 
+    # ATR (동적 손절용)
+    atr: float | None = None
+
     # 시그널 판단 근거
     reason_detail: str = ""
 
@@ -142,6 +148,18 @@ class AccountSummary(BaseModel):
     eval_profit_loss_rate: float = 0.0  # 자산증감율
 
 
+class VolumeRankItem(BaseModel):
+    """거래량 순위 종목"""
+
+    symbol: str
+    name: str = ""
+    current_price: float = 0.0
+    change_rate: float = 0.0
+    volume: int = 0
+    volume_increase_rate: float = 0.0
+    trade_amount: float = 0.0
+
+
 class BacktestRequest(BaseModel):
     """백테스트 요청"""
 
@@ -152,7 +170,7 @@ class BacktestRequest(BaseModel):
     order_amount: int = 500_000
     use_advanced_strategy: bool = False
 
-    # 전략 선택: "sma_crossover" (기본) 또는 "bollinger"
+    # 전략 선택: "sma_crossover" | "bollinger" | "kama" | "breakout"
     strategy_type: str = "sma_crossover"
 
     # 리스크 관리 (SMA 크로스오버 전략용)
@@ -208,6 +226,7 @@ class TradingStatus(BaseModel):
 
     status: EngineStatus = EngineStatus.STOPPED
     watch_symbols: list[str] = []
+    scanner_symbols: list[str] = []
     recent_signals: list[TradingSignal] = []
     recent_orders: list[OrderResult] = []
     started_at: datetime | None = None

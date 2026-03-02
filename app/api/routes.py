@@ -18,6 +18,8 @@ from app.trading.backtest import (
     fetch_chart_from_yfinance,
     run_backtest,
     run_bollinger_backtest,
+    run_breakout_backtest,
+    run_kama_backtest,
     to_yfinance_ticker,
 )
 from app.trading.engine import TradingEngine
@@ -52,11 +54,8 @@ class StartRequest(BaseModel):
         cleaned = [s.strip() for s in v if s.strip()]
         if not cleaned:
             return None
-        # 포맷 검증
-        for s in cleaned:
-            validate_symbol(s)
-        # 대문자 정규화 (미국 심볼)
-        normalized = [s.upper() if s.isalpha() else s for s in cleaned]
+        # 포맷 검증 + 대문자 정규화
+        normalized = [validate_symbol(s) for s in cleaned]
         # 중복 제거 (순서 유지)
         seen: set[str] = set()
         unique: list[str] = []
@@ -176,6 +175,51 @@ async def update_strategy(
     }
 
 
+@router.get("/market/volume-rank")
+async def get_volume_rank(engine: TradingEngine = Depends(get_engine)):
+    """거래량 순위 상위 30종목"""
+    try:
+        items = await engine.volume_rank.get_volume_ranking(top_n=30)
+        return {"count": len(items), "items": [i.model_dump() for i in items]}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/market/scanner")
+async def get_scanner_status(engine: TradingEngine = Depends(get_engine)):
+    """스캐너 상태: 섹터 스코어 + 선정 대장주"""
+    cfg = engine.settings.trading
+    return {
+        "enabled": cfg.scanner_enabled,
+        "last_scan_time": (
+            engine._last_scan_time.isoformat() if engine._last_scan_time else None
+        ),
+        "scanner_symbols": list(engine._scanner_symbols),
+        "picks": [
+            {
+                "symbol": p.symbol,
+                "name": p.name,
+                "sector": p.sector,
+                "score": p.score,
+                "current_price": p.current_price,
+                "change_rate": p.change_rate,
+                "volume": p.volume,
+            }
+            for p in engine._scanner_picks
+        ],
+        "sector_scores": [
+            {
+                "sector": s.sector,
+                "score": s.score,
+                "stock_count": s.stock_count,
+                "avg_change_rate": s.avg_change_rate,
+                "avg_vol_increase": s.avg_vol_increase,
+            }
+            for s in engine._scanner_sector_scores[:8]
+        ],
+    }
+
+
 @router.post("/backtest")
 async def run_backtest_api(req: BacktestRequest):
     """과거 데이터 기반 전략 백테스트"""
@@ -196,7 +240,23 @@ async def run_backtest_api(req: BacktestRequest):
     if not chart:
         raise HTTPException(status_code=404, detail="조회된 데이터가 없습니다.")
 
-    if req.strategy_type == "bollinger":
+    if req.strategy_type == "kama":
+        result = run_kama_backtest(
+            chart=chart,
+            initial_capital=req.initial_capital,
+            order_amount=req.order_amount,
+            stop_loss_pct=req.stop_loss_pct,
+            max_holding_days=req.max_holding_days,
+        )
+    elif req.strategy_type == "breakout":
+        result = run_breakout_backtest(
+            chart=chart,
+            initial_capital=req.initial_capital,
+            order_amount=req.order_amount,
+            stop_loss_pct=req.stop_loss_pct,
+            max_holding_days=req.max_holding_days,
+        )
+    elif req.strategy_type == "bollinger":
         result = run_bollinger_backtest(
             chart=chart,
             initial_capital=req.initial_capital,

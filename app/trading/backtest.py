@@ -6,7 +6,15 @@ from datetime import datetime, timedelta
 
 from app.models import ChartData, SignalType
 from app.trading.regime import MarketRegime, REGIME_KR, segment_by_regime
-from app.trading.strategy import compute_bollinger_bands, compute_obv, compute_rsi, compute_sma
+from app.trading.strategy import (
+    compute_atr,
+    compute_bollinger_bands,
+    compute_donchian_channels,
+    compute_kama,
+    compute_obv,
+    compute_rsi,
+    compute_sma,
+)
 
 
 def to_yfinance_ticker(symbol: str) -> str:
@@ -117,6 +125,11 @@ def run_backtest(
     volume_filter_basic: bool = False,
     capital_ratio: float = 0.0,
     trailing_stop_pct: float = 0.0,
+    min_sma_gap_pct: float = 0.0,
+    min_profit_pct: float = 0.0,
+    sell_cooldown_bars: int = 0,
+    take_profit_pct: float = 0.0,
+    split_buy_count: int = 1,
 ) -> BacktestResult:
     """과거 차트 데이터로 전략 시뮬레이션."""
     if len(chart) < long_period + 1:
@@ -151,6 +164,8 @@ def run_backtest(
     holding_avg_price = 0.0
     holding_since: int | None = None
     holding_peak_price: float = 0.0
+    last_sell_bar: int = -999  # 마지막 매도 바 인덱스 (쿨다운용)
+    buy_tranche_count: int = 0  # 분할 매수 트렌치 카운터
     trades: list[Trade] = []
     equity_curve: list[float] = []
     completed_trades: list[float] = []  # 매수→매도 페어별 손익률
@@ -176,6 +191,23 @@ def run_backtest(
                     holding_avg_price = 0.0
                     holding_since = None
                     holding_peak_price = 0.0
+                    last_sell_bar = i
+                    buy_tranche_count = 0
+                    forced_exit = True
+
+            # 0.5) take_profit (목표 수익 매도)
+            if not forced_exit and take_profit_pct > 0 and holding_avg_price > 0:
+                profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+                if profit_pct >= take_profit_pct:
+                    cash += holding_qty * close
+                    completed_trades.append(profit_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="take_profit"))
+                    holding_qty = 0
+                    holding_avg_price = 0.0
+                    holding_since = None
+                    holding_peak_price = 0.0
+                    last_sell_bar = i
+                    buy_tranche_count = 0
                     forced_exit = True
 
             # 1) stop-loss
@@ -190,6 +222,8 @@ def run_backtest(
                     holding_avg_price = 0.0
                     holding_since = None
                     holding_peak_price = 0.0
+                    last_sell_bar = i
+                    buy_tranche_count = 0
                     forced_exit = True
 
             # 2) max_holding
@@ -203,6 +237,8 @@ def run_backtest(
                     holding_avg_price = 0.0
                     holding_since = None
                     holding_peak_price = 0.0
+                    last_sell_bar = i
+                    buy_tranche_count = 0
                     forced_exit = True
 
         if not forced_exit and i >= long_period:
@@ -211,6 +247,14 @@ def run_backtest(
                 short_sma[i], long_sma[i],
                 short_sma[i - 1], long_sma[i - 1],
             )
+
+            # SMA 최소 갭 필터
+            if min_sma_gap_pct > 0 and signal != SignalType.HOLD:
+                l_val = long_sma[i]
+                if l_val is not None and l_val > 0:
+                    gap = abs(short_sma[i] - l_val) / l_val * 100
+                    if gap < min_sma_gap_pct:
+                        signal = SignalType.HOLD
 
             # Advanced: RSI + 거래량 필터
             if use_advanced and signal != SignalType.HOLD:
@@ -245,29 +289,53 @@ def run_backtest(
                     signal = SignalType.HOLD
 
             # 주문 실행
-            if signal == SignalType.BUY and holding_qty == 0:
-                if capital_ratio > 0:
-                    effective_amount = int(cash * capital_ratio)
+            can_buy = holding_qty == 0 or (split_buy_count > 1 and buy_tranche_count < split_buy_count)
+            if signal == SignalType.BUY and can_buy:
+                # 매도 후 쿨다운 체크
+                if sell_cooldown_bars > 0 and (i - last_sell_bar) < sell_cooldown_bars:
+                    pass  # 쿨다운 중 — 매수 스킵
                 else:
-                    effective_amount = order_amount
-                qty = effective_amount // close
-                if qty > 0 and cash >= qty * close:
-                    cash -= qty * close
-                    holding_qty = qty
-                    holding_avg_price = float(close)
-                    holding_since = i
-                    holding_peak_price = float(close)
-                    trades.append(Trade(date=chart[i].date, side="buy", price=close, quantity=qty, reason="signal"))
+                    if capital_ratio > 0:
+                        effective_amount = int(cash * capital_ratio)
+                    else:
+                        effective_amount = order_amount
+                    # 분할 매수: 주문금액을 분할 수로 나눔
+                    if split_buy_count > 1:
+                        effective_amount = effective_amount // split_buy_count
+                    qty = effective_amount // close
+                    if qty > 0 and cash >= qty * close:
+                        cash -= qty * close
+                        # 분할 매수: 가중평균 매수가 계산
+                        if buy_tranche_count > 0 and holding_avg_price > 0:
+                            total_qty = holding_qty + qty
+                            holding_avg_price = (holding_avg_price * holding_qty + float(close) * qty) / total_qty
+                            holding_qty = total_qty
+                        else:
+                            holding_qty = qty
+                            holding_avg_price = float(close)
+                            holding_since = i
+                        holding_peak_price = max(holding_peak_price, float(close))
+                        buy_tranche_count += 1
+                        trades.append(Trade(date=chart[i].date, side="buy", price=close, quantity=qty, reason="signal"))
 
             elif signal == SignalType.SELL and holding_qty > 0:
-                cash += holding_qty * close
-                pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
-                completed_trades.append(pnl_pct)
-                trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="signal"))
-                holding_qty = 0
-                holding_avg_price = 0.0
-                holding_since = None
-                holding_peak_price = 0.0
+                # 매도 최소 수익률 게이트
+                sell_ok = True
+                if min_profit_pct > 0 and holding_avg_price > 0:
+                    profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    if 0 <= profit_pct < min_profit_pct:
+                        sell_ok = False  # 수익률 부족 — 매도 보류
+                if sell_ok:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="signal"))
+                    holding_qty = 0
+                    holding_avg_price = 0.0
+                    holding_since = None
+                    holding_peak_price = 0.0
+                    last_sell_bar = i
+                    buy_tranche_count = 0
 
         # 일별 자산 = 현금 + 보유주식 평가액
         equity = cash + holding_qty * close
@@ -333,6 +401,13 @@ def run_bollinger_backtest(
     volume_ma_period: int | None = None,
     capital_ratio: float = 0.0,
     trailing_stop_pct: float = 0.0,
+    # 엔진 패리티 4개
+    trailing_stop_grace_minutes: int = 0,
+    min_profit_pct: float = 0.0,
+    stop_loss_pct: float = 0.0,
+    min_bandwidth: float = 0.0,
+    take_profit_pct: float = 0.0,
+    split_buy_count: int = 1,
 ) -> BacktestResult:
     """볼린저밴드 반전 전략 백테스트.
 
@@ -367,9 +442,12 @@ def run_bollinger_backtest(
     holding_avg_price = 0.0
     holding_since: int | None = None
     holding_peak_price: float = 0.0
+    buy_tranche_count: int = 0
     trades: list[Trade] = []
     equity_curve: list[float] = []
     completed_trades: list[float] = []
+
+    buy_hhmm: int | None = None  # 매수 시점 HHMM (유예 기간 계산용)
 
     daily_buy_count: dict[str, int] = {}
 
@@ -379,7 +457,7 @@ def run_bollinger_backtest(
         return any(start <= hhmm < end for start, end in active_windows)
 
     def _do_sell(i: int, close: int, date: str, reason: str = "") -> None:
-        nonlocal cash, holding_qty, holding_avg_price, holding_since, holding_peak_price
+        nonlocal cash, holding_qty, holding_avg_price, holding_since, holding_peak_price, buy_hhmm, buy_tranche_count
         cash += holding_qty * close
         pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
         completed_trades.append(pnl_pct)
@@ -388,6 +466,8 @@ def run_bollinger_backtest(
         holding_avg_price = 0.0
         holding_since = None
         holding_peak_price = 0.0
+        buy_hhmm = None
+        buy_tranche_count = 0
 
     for i in range(len(chart)):
         close = chart[i].close
@@ -406,11 +486,35 @@ def run_bollinger_backtest(
         if holding_qty > 0:
             holding_peak_price = max(holding_peak_price, float(close))
 
-        # 트레일링 스탑 (밴드 평가 전에 우선 처리)
+        # 트레일링 스탑 (밴드 평가 전에 우선 처리, grace period 적용)
         if holding_qty > 0 and trailing_stop_pct > 0 and holding_peak_price > 0:
-            drop_pct = (holding_peak_price - close) / holding_peak_price * 100
-            if drop_pct >= trailing_stop_pct:
-                _do_sell(i, close, date, reason="trailing_stop")
+            grace_ok = True
+            if trailing_stop_grace_minutes > 0 and buy_hhmm is not None and hhmm is not None:
+                buy_mins = buy_hhmm // 100 * 60 + buy_hhmm % 100
+                curr_mins = hhmm // 100 * 60 + hhmm % 100
+                elapsed = curr_mins - buy_mins
+                if elapsed < trailing_stop_grace_minutes:
+                    grace_ok = False
+            if grace_ok:
+                drop_pct = (holding_peak_price - close) / holding_peak_price * 100
+                if drop_pct >= trailing_stop_pct:
+                    _do_sell(i, close, date, reason="trailing_stop")
+                    equity_curve.append(cash + holding_qty * close)
+                    continue
+
+        # 목표 수익 매도 (take_profit)
+        if holding_qty > 0 and take_profit_pct > 0 and holding_avg_price > 0:
+            profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+            if profit_pct >= take_profit_pct:
+                _do_sell(i, close, date, reason="take_profit")
+                equity_curve.append(cash + holding_qty * close)
+                continue
+
+        # 손절 (stop-loss)
+        if holding_qty > 0 and stop_loss_pct > 0 and holding_avg_price > 0:
+            loss_pct = (holding_avg_price - close) / holding_avg_price * 100
+            if loss_pct >= stop_loss_pct:
+                _do_sell(i, close, date, reason="stop_loss")
                 equity_curve.append(cash + holding_qty * close)
                 continue
 
@@ -428,17 +532,31 @@ def run_bollinger_backtest(
                 if holding_qty > 0:
                     days_held = i - holding_since if holding_since is not None else 0
                     if closes[i] >= upper:
-                        _do_sell(i, close, date, reason="signal")
+                        # min_profit_pct 게이트: 수익률이 0 이상이지만 기준 미만이면 매도 보류
+                        if min_profit_pct > 0 and holding_avg_price > 0:
+                            profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+                            if 0 <= profit_pct < min_profit_pct:
+                                pass  # 매도 보류
+                            else:
+                                _do_sell(i, close, date, reason="signal")
+                        else:
+                            _do_sell(i, close, date, reason="signal")
                     elif days_held >= max_holding_days:
                         _do_sell(i, close, date, reason="max_holding")
 
-                # BUY: 하단 반등 (활성 시간대 + 매수 금지 시간 + 거래량 필터)
-                if holding_qty == 0 and in_window:
+                # BUY: 하단 반등 (활성 시간대 + 매수 금지 시간 + 밴드폭 + 거래량 필터)
+                can_buy = holding_qty == 0 or (split_buy_count > 1 and buy_tranche_count < split_buy_count)
+                if can_buy and in_window:
                     buy_blocked = (
                         hhmm is not None
                         and no_new_buy_minute is not None
                         and hhmm >= no_new_buy_minute
                     )
+                    # min_bandwidth 체크: 밴드 폭이 기준 미만이면 매수 차단
+                    if not buy_blocked and min_bandwidth > 0 and middle is not None and middle > 0:
+                        bandwidth = (upper - lower) / middle * 100
+                        if bandwidth < min_bandwidth:
+                            buy_blocked = True
                     # 거래량 필터: 현재 거래량 > 거래량 SMA
                     if not buy_blocked and vol_sma is not None:
                         v = vol_sma[i]
@@ -454,16 +572,27 @@ def run_bollinger_backtest(
                                 effective_amount = target_order_amount
                             else:
                                 effective_amount = order_amount
+                            # 분할 매수: 주문금액을 분할 수로 나눔
+                            if split_buy_count > 1:
+                                effective_amount = effective_amount // split_buy_count
                             if target_order_amount is not None and capital_ratio <= 0:
                                 qty = max(min_quantity, min(effective_amount // close, max_quantity))
                             else:
                                 qty = effective_amount // close
                             if qty > 0 and cash >= qty * close:
                                 cash -= qty * close
-                                holding_qty = qty
-                                holding_avg_price = float(close)
-                                holding_since = i
-                                holding_peak_price = float(close)
+                                # 분할 매수: 가중평균 매수가 계산
+                                if buy_tranche_count > 0 and holding_avg_price > 0:
+                                    total_qty = holding_qty + qty
+                                    holding_avg_price = (holding_avg_price * holding_qty + float(close) * qty) / total_qty
+                                    holding_qty = total_qty
+                                else:
+                                    holding_qty = qty
+                                    holding_avg_price = float(close)
+                                    holding_since = i
+                                holding_peak_price = max(holding_peak_price, float(close))
+                                buy_hhmm = hhmm
+                                buy_tranche_count += 1
                                 daily_buy_count[day_key] = today_buys + 1
                                 trades.append(Trade(date=date, side="buy", price=close, quantity=qty, reason="signal"))
 
@@ -490,6 +619,309 @@ def run_bollinger_backtest(
         win_rate=round(win_rate, 2),
         max_drawdown_pct=round(max_drawdown_pct, 2),
         sharpe_ratio=round(sharpe_ratio, 4) if sharpe_ratio is not None else None,
+        trades=trades,
+        equity_curve=equity_curve,
+    )
+
+
+def run_kama_backtest(
+    chart: list[ChartData],
+    initial_capital: int = 10_000_000,
+    order_amount: int = 500_000,
+    er_period: int = 10,
+    fast_period: int = 2,
+    slow_period: int = 30,
+    signal_period: int = 10,
+    stop_loss_pct: float = 0.0,
+    trailing_stop_pct: float = 0.0,
+    take_profit_pct: float = 0.0,
+    max_holding_days: int = 0,
+    capital_ratio: float = 0.0,
+) -> BacktestResult:
+    """KAMA 크로스오버 전략 백테스트.
+
+    KAMA vs Signal Line(SMA of KAMA) 크로스오버.
+    골든크로스 → BUY, 데드크로스 → SELL.
+    """
+    min_data = er_period + signal_period + 2
+    if len(chart) < min_data:
+        return BacktestResult(
+            total_return_pct=0.0, buy_and_hold_pct=0.0, trade_count=0,
+            win_rate=0.0, max_drawdown_pct=0.0, sharpe_ratio=None,
+        )
+
+    closes = [float(c.close) for c in chart]
+    kama_values = compute_kama(closes, er_period, fast_period, slow_period)
+
+    # KAMA 유효 값만 추출하고 signal line 계산
+    valid_kama: list[float] = []
+    kama_start_idx: list[int] = []
+    for i, v in enumerate(kama_values):
+        if v is not None:
+            valid_kama.append(v)
+            kama_start_idx.append(i)
+
+    if len(valid_kama) < signal_period + 1:
+        return BacktestResult(
+            total_return_pct=0.0, buy_and_hold_pct=0.0, trade_count=0,
+            win_rate=0.0, max_drawdown_pct=0.0, sharpe_ratio=None,
+        )
+
+    kama_signal_sma = compute_sma(valid_kama, signal_period)
+
+    # valid_kama 인덱스 → chart 인덱스 매핑
+    # signal_start: signal_sma가 유효해지는 valid_kama 인덱스
+    signal_start = signal_period - 1
+
+    cash = float(initial_capital)
+    holding_qty = 0
+    holding_avg_price = 0.0
+    holding_since: int | None = None
+    holding_peak_price: float = 0.0
+    trades: list[Trade] = []
+    equity_curve: list[float] = []
+    completed_trades: list[float] = []
+
+    for i in range(len(chart)):
+        close = chart[i].close
+        forced_exit = False
+
+        # 리스크 체크
+        if holding_qty > 0:
+            holding_peak_price = max(holding_peak_price, float(close))
+
+            if not forced_exit and trailing_stop_pct > 0 and holding_peak_price > 0:
+                drop_pct = (holding_peak_price - close) / holding_peak_price * 100
+                if drop_pct >= trailing_stop_pct:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="trailing_stop"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and take_profit_pct > 0 and holding_avg_price > 0:
+                profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+                if profit_pct >= take_profit_pct:
+                    cash += holding_qty * close
+                    completed_trades.append(profit_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="take_profit"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and stop_loss_pct > 0 and holding_avg_price > 0:
+                loss_pct = (holding_avg_price - close) / holding_avg_price * 100
+                if loss_pct >= stop_loss_pct:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="stop_loss"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and max_holding_days > 0 and holding_since is not None:
+                if i - holding_since >= max_holding_days:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="max_holding"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+        # KAMA 크로스오버 시그널
+        if not forced_exit and kama_values[i] is not None:
+            # valid_kama 인덱스 매핑
+            vk_idx = kama_start_idx.index(i) if i in kama_start_idx else -1
+            if vk_idx >= signal_start and vk_idx >= 1:
+                today_kama = valid_kama[vk_idx]
+                today_signal = kama_signal_sma[vk_idx]
+                yesterday_kama = valid_kama[vk_idx - 1]
+                yesterday_signal = kama_signal_sma[vk_idx - 1]
+
+                if today_signal is not None and yesterday_signal is not None:
+                    signal = SignalType.HOLD
+                    if yesterday_kama <= yesterday_signal and today_kama > today_signal:
+                        signal = SignalType.BUY
+                    elif yesterday_kama >= yesterday_signal and today_kama < today_signal:
+                        signal = SignalType.SELL
+
+                    if signal == SignalType.BUY and holding_qty == 0:
+                        if capital_ratio > 0:
+                            effective_amount = int(cash * capital_ratio)
+                        else:
+                            effective_amount = order_amount
+                        qty = effective_amount // close
+                        if qty > 0 and cash >= qty * close:
+                            cash -= qty * close
+                            holding_qty = qty
+                            holding_avg_price = float(close)
+                            holding_since = i
+                            holding_peak_price = float(close)
+                            trades.append(Trade(date=chart[i].date, side="buy", price=close, quantity=qty, reason="signal"))
+
+                    elif signal == SignalType.SELL and holding_qty > 0:
+                        cash += holding_qty * close
+                        pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                        completed_trades.append(pnl_pct)
+                        trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="signal"))
+                        holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+
+        equity = cash + holding_qty * close
+        equity_curve.append(equity)
+
+    final_equity = equity_curve[-1] if equity_curve else float(initial_capital)
+    total_return_pct = (final_equity - initial_capital) / initial_capital * 100
+    first_close = chart[0].close
+    last_close = chart[-1].close
+    buy_and_hold_pct = (last_close - first_close) / first_close * 100
+    win_count = sum(1 for pnl in completed_trades if pnl > 0)
+    win_rate = (win_count / len(completed_trades) * 100) if completed_trades else 0.0
+
+    return BacktestResult(
+        total_return_pct=round(total_return_pct, 2),
+        buy_and_hold_pct=round(buy_and_hold_pct, 2),
+        trade_count=len(trades),
+        win_rate=round(win_rate, 2),
+        max_drawdown_pct=round(_calc_max_drawdown(equity_curve), 2),
+        sharpe_ratio=round(sr, 4) if (sr := _calc_sharpe_ratio(equity_curve)) is not None else None,
+        trades=trades,
+        equity_curve=equity_curve,
+    )
+
+
+def run_breakout_backtest(
+    chart: list[ChartData],
+    initial_capital: int = 10_000_000,
+    order_amount: int = 500_000,
+    upper_period: int = 20,
+    lower_period: int = 10,
+    stop_loss_pct: float = 0.0,
+    trailing_stop_pct: float = 0.0,
+    take_profit_pct: float = 0.0,
+    max_holding_days: int = 0,
+    capital_ratio: float = 0.0,
+    volume_filter: bool = False,
+    volume_ma_period: int = 20,
+) -> BacktestResult:
+    """도치안 채널 브레이크아웃 전략 백테스트.
+
+    N일 고가 돌파 → BUY, M일 저가 이탈 → SELL (M < N 비대칭).
+    """
+    min_data = max(upper_period, lower_period) + 1
+    if len(chart) < min_data:
+        return BacktestResult(
+            total_return_pct=0.0, buy_and_hold_pct=0.0, trade_count=0,
+            win_rate=0.0, max_drawdown_pct=0.0, sharpe_ratio=None,
+        )
+
+    channels = compute_donchian_channels(chart, upper_period, lower_period)
+    volumes = [float(c.volume) for c in chart]
+    vol_sma = compute_sma(volumes, volume_ma_period) if volume_filter else None
+
+    cash = float(initial_capital)
+    holding_qty = 0
+    holding_avg_price = 0.0
+    holding_since: int | None = None
+    holding_peak_price: float = 0.0
+    trades: list[Trade] = []
+    equity_curve: list[float] = []
+    completed_trades: list[float] = []
+
+    for i in range(len(chart)):
+        close = chart[i].close
+        forced_exit = False
+
+        if holding_qty > 0:
+            holding_peak_price = max(holding_peak_price, float(close))
+
+            if not forced_exit and trailing_stop_pct > 0 and holding_peak_price > 0:
+                drop_pct = (holding_peak_price - close) / holding_peak_price * 100
+                if drop_pct >= trailing_stop_pct:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="trailing_stop"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and take_profit_pct > 0 and holding_avg_price > 0:
+                profit_pct = (close - holding_avg_price) / holding_avg_price * 100
+                if profit_pct >= take_profit_pct:
+                    cash += holding_qty * close
+                    completed_trades.append(profit_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="take_profit"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and stop_loss_pct > 0 and holding_avg_price > 0:
+                loss_pct = (holding_avg_price - close) / holding_avg_price * 100
+                if loss_pct >= stop_loss_pct:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="stop_loss"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+            if not forced_exit and max_holding_days > 0 and holding_since is not None:
+                if i - holding_since >= max_holding_days:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="max_holding"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+                    forced_exit = True
+
+        if not forced_exit:
+            upper, lower = channels[i]
+            if upper is not None and lower is not None:
+                # BUY: 종가 > 채널 상단 (전일 N일 최고가)
+                if close > upper and holding_qty == 0:
+                    buy_ok = True
+                    if vol_sma is not None:
+                        v = vol_sma[i]
+                        if v is None or v <= 0 or volumes[i] <= v:
+                            buy_ok = False
+                    if buy_ok:
+                        if capital_ratio > 0:
+                            effective_amount = int(cash * capital_ratio)
+                        else:
+                            effective_amount = order_amount
+                        qty = effective_amount // close
+                        if qty > 0 and cash >= qty * close:
+                            cash -= qty * close
+                            holding_qty = qty
+                            holding_avg_price = float(close)
+                            holding_since = i
+                            holding_peak_price = float(close)
+                            trades.append(Trade(date=chart[i].date, side="buy", price=close, quantity=qty, reason="signal"))
+
+                # SELL: 종가 < 채널 하단 (전일 M일 최저가)
+                elif close < lower and holding_qty > 0:
+                    cash += holding_qty * close
+                    pnl_pct = (close - holding_avg_price) / holding_avg_price * 100
+                    completed_trades.append(pnl_pct)
+                    trades.append(Trade(date=chart[i].date, side="sell", price=close, quantity=holding_qty, reason="signal"))
+                    holding_qty = 0; holding_avg_price = 0.0; holding_since = None; holding_peak_price = 0.0
+
+        equity = cash + holding_qty * close
+        equity_curve.append(equity)
+
+    final_equity = equity_curve[-1] if equity_curve else float(initial_capital)
+    total_return_pct = (final_equity - initial_capital) / initial_capital * 100
+    first_close = chart[0].close
+    last_close = chart[-1].close
+    buy_and_hold_pct = (last_close - first_close) / first_close * 100
+    win_count = sum(1 for pnl in completed_trades if pnl > 0)
+    win_rate = (win_count / len(completed_trades) * 100) if completed_trades else 0.0
+
+    return BacktestResult(
+        total_return_pct=round(total_return_pct, 2),
+        buy_and_hold_pct=round(buy_and_hold_pct, 2),
+        trade_count=len(trades),
+        win_rate=round(win_rate, 2),
+        max_drawdown_pct=round(_calc_max_drawdown(equity_curve), 2),
+        sharpe_ratio=round(sr, 4) if (sr := _calc_sharpe_ratio(equity_curve)) is not None else None,
         trades=trades,
         equity_curve=equity_curve,
     )
@@ -556,13 +988,15 @@ def run_regime_segmented_backtest(
     capital_ratio: float = 0.3,
     trailing_stop_pct: float = 0.0,
 ) -> list[RegimeBacktestResult]:
-    """차트를 국면별로 분할하여 4개 전략을 각각 독립 실행.
+    """차트를 국면별로 분할하여 6개 전략을 각각 독립 실행.
 
-    전략 4종:
+    전략 6종:
     - SMA 기본: SMA 크로스오버 (필터 없음)
     - SMA+리스크: SMA + stop_loss + max_holding
     - SMA+Adv+리스크: SMA + RSI/거래량/OBV 필터 + 리스크
     - 볼린저: 볼린저밴드 반전 전략
+    - KAMA: Kaufman Adaptive MA 크로스오버
+    - 브레이크아웃: 도치안 채널 브레이크아웃
 
     각 국면 구간에 warm-up 데이터(max(long_period, 120)봉)를 앞에 붙여 SMA 계산 가능하게 함.
     """
@@ -639,6 +1073,28 @@ def run_regime_segmented_backtest(
             period=bollinger_period,
             num_std=bollinger_num_std,
             max_holding_days=max_holding_days,
+            capital_ratio=capital_ratio,
+        )
+
+        # 5) KAMA 크로스오버
+        strategies["KAMA"] = run_kama_backtest(
+            segment,
+            initial_capital=initial_capital,
+            order_amount=order_amount,
+            stop_loss_pct=stop_loss_pct,
+            max_holding_days=max_holding_days,
+            trailing_stop_pct=trailing_stop_pct,
+            capital_ratio=capital_ratio,
+        )
+
+        # 6) 브레이크아웃 (도치안 채널)
+        strategies["브레이크아웃"] = run_breakout_backtest(
+            segment,
+            initial_capital=initial_capital,
+            order_amount=order_amount,
+            stop_loss_pct=stop_loss_pct,
+            max_holding_days=max_holding_days,
+            trailing_stop_pct=trailing_stop_pct,
             capital_ratio=capital_ratio,
         )
 

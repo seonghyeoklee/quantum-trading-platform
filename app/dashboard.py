@@ -28,6 +28,18 @@ header h1 { font-size: 22px; }
 
 #pnl-chart-wrap { height: 240px; position: relative; }
 
+/* --- 스캐너 섹션 --- */
+#scanner-section { display: none; }
+#scanner-section.visible { display: block; }
+.scanner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+#sector-chart-wrap { height: 200px; position: relative; }
+.pick-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+.pick-card { background: #252830; border-radius: 8px; padding: 12px 16px; min-width: 160px; flex: 1; }
+.pick-sector { font-size: 11px; color: #888; margin-bottom: 2px; }
+.pick-name { font-size: 14px; font-weight: 700; color: #fff; }
+.pick-symbol { font-size: 11px; color: #666; }
+.pick-stats { font-size: 12px; margin-top: 6px; }
+
 table { font-size: 12px; }
 th { padding: 8px 10px; font-size: 11px; }
 td { padding: 7px 10px; }
@@ -153,6 +165,21 @@ _BODY_HTML = """
         <tr><td colspan="7" class="empty-msg">데이터 로딩 중...</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- 시장 흐름 (스캐너) -->
+  <div class="section" id="scanner-section">
+    <h2>시장 흐름 <span style="font-size:11px;color:#555;font-weight:400" id="scanner-update">--</span></h2>
+    <div class="scanner-grid">
+      <div>
+        <div id="sector-chart-wrap"><canvas id="sector-chart"></canvas></div>
+      </div>
+      <div>
+        <div class="pick-cards" id="pick-cards">
+          <div class="empty-msg">스캐너 데이터 없음</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- P&L 추이 차트 -->
@@ -441,6 +468,73 @@ async function fetchStrategy() {
   document.getElementById('strategy-detail').textContent = parts.join(' · ') || '--';
 }
 
+/* ---------- scanner polling (30s) ---------- */
+let sectorChart = null;
+
+async function fetchScanner() {
+  const data = await safeFetch('/market/scanner');
+  if (!data) return;
+
+  const section = document.getElementById('scanner-section');
+  if (!data.enabled) { section.classList.remove('visible'); return; }
+  section.classList.add('visible');
+
+  // 갱신 시각
+  if (data.last_scan_time) {
+    const d = new Date(data.last_scan_time);
+    document.getElementById('scanner-update').textContent =
+      '마지막 스캔 ' + d.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false});
+  }
+
+  // 섹터 바 차트
+  const scores = data.sector_scores || [];
+  if (scores.length) {
+    const labels = scores.map(s => s.sector);
+    const values = scores.map(s => s.score);
+    const colors = scores.map((_, i) => [
+      '#22c55e','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#ec4899','#6366f1'
+    ][i % 8]);
+
+    if (!sectorChart) {
+      const ctx = document.getElementById('sector-chart').getContext('2d');
+      sectorChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#666' }, grid: { color: '#252830' } },
+            y: { ticks: { color: '#ccc', font: { size: 11 } }, grid: { display: false } },
+          }
+        }
+      });
+    } else {
+      sectorChart.data.labels = labels;
+      sectorChart.data.datasets[0].data = values;
+      sectorChart.data.datasets[0].backgroundColor = colors;
+      sectorChart.update('none');
+    }
+  }
+
+  // 대장주 카드
+  const picks = data.picks || [];
+  const cardsEl = document.getElementById('pick-cards');
+  if (!picks.length) {
+    cardsEl.innerHTML = '<div class="empty-msg">선정 종목 없음</div>';
+  } else {
+    cardsEl.innerHTML = picks.map(p => `<div class="pick-card">
+      <div class="pick-sector">${p.sector}</div>
+      <div class="pick-name">${p.name || p.symbol}</div>
+      <div class="pick-symbol">${p.symbol}</div>
+      <div class="pick-stats">
+        <span>${fmt(p.current_price)}원</span>
+        <span class="${pnlClass(p.change_rate)}" style="margin-left:8px">${fmtPct(p.change_rate)}</span>
+      </div>
+    </div>`).join('');
+  }
+}
+
 /* ---------- Start Agent modal ---------- */
 const MODAL_MAX_TASKS = 20;
 
@@ -609,8 +703,10 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchStatus();
   fetchPositions();
   fetchStrategy();
+  fetchScanner();
   setInterval(fetchStatus, 5000);
   setInterval(fetchPositions, 10000);
+  setInterval(fetchScanner, 30000);
 });
 """.strip()
 

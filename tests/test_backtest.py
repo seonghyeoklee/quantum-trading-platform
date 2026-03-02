@@ -691,7 +691,7 @@ class TestRegimeSegmentedBacktest:
         for r in results:
             assert isinstance(r, RegimeBacktestResult)
             assert r.days > 0
-            assert len(r.strategy_results) == 4
+            assert len(r.strategy_results) == 6
             for label, br in r.strategy_results.items():
                 assert isinstance(br, BacktestResult)
 

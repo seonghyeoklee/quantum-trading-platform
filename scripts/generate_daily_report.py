@@ -8,7 +8,7 @@ Usage:
 import sys
 from datetime import date
 
-from app.trading.journal import TradingJournal
+from app.trading.journal import TradingJournal, _match_trades
 
 
 def main() -> None:
@@ -31,16 +31,17 @@ def main() -> None:
         print(f"빈 리포트 생성: {path}")
         return
 
-    print(f"{d.isoformat()}: {len(events)}건 이벤트")
-
     signals = [e for e in events if e.event_type == "signal"]
     orders = [e for e in events if e.event_type in ("order", "force_close")]
     buys = [o for o in orders if o.side == "buy"]
     sells = [o for o in orders if o.side == "sell"]
+    trades = _match_trades(events)
 
+    print(f"{d.isoformat()}: {len(events)}건 이벤트")
     print(f"  시그널: {len(signals)}건")
     print(f"  매수: {len(buys)}건")
     print(f"  매도: {len(sells)}건")
+    print(f"  매매 매칭: {len(trades)}건")
 
     path = journal.generate_daily_report(d)
     print(f"리포트 생성: {path}")
