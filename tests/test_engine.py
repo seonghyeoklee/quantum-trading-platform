@@ -47,6 +47,21 @@ def _make_settings(
             max_daily_trades=5,
             force_close_minute=1510,
             no_new_buy_minute=1500,
+            # 테스트 고정값 (config 기본값 변경에 무관하게 동작)
+            capital_ratio=0.0,
+            stop_loss_pct=3.0,
+            max_holding_days=20,
+            min_profit_pct=0.3,
+            trailing_stop_pct=2.0,
+            rsi_period=14,
+            rsi_overbought=70.0,
+            rsi_oversold=30.0,
+            volume_ma_period=15,
+            obv_ma_period=20,
+            minute_short_period=7,
+            minute_long_period=20,
+            total_order_budget=500_000,
+            us_total_order_budget=1000.0,
         ),
     )
 
@@ -616,6 +631,7 @@ class TestMinuteMode:
         """2만원 주식 → max_quantity 제한 적용"""
         settings = _make_settings()
         settings.trading.target_order_amount = 1_000_000
+        settings.trading.total_order_budget = 1_000_000
         settings.trading.min_quantity = 1
         settings.trading.max_quantity = 50
         engine = TradingEngine(settings)
@@ -636,6 +652,7 @@ class TestMinuteMode:
         """5.5만원 주식 → target_amount 기반 계산"""
         settings = _make_settings()
         settings.trading.target_order_amount = 1_000_000
+        settings.trading.total_order_budget = 1_000_000
         settings.trading.min_quantity = 1
         settings.trading.max_quantity = 50
         engine = TradingEngine(settings)
@@ -1189,7 +1206,10 @@ class TestForceCloseDuplicatePrevention:
             "success": True, "order_no": "FC01", "message": "ok",
         })
         engine.market.get_minute_chart = AsyncMock()
-        engine.market.get_current_price = AsyncMock()
+        from app.models import StockPrice
+        engine.market.get_current_price = AsyncMock(return_value=StockPrice(
+            symbol="005930", name="삼성전자", current_price=72000, volume=100000,
+        ))
 
         with patch("app.trading.engine.datetime") as mock_dt:
             mock_dt.now.return_value = datetime(2026, 2, 12, 15, 10, 0)
@@ -3763,6 +3783,7 @@ class TestSplitBuyEngine:
         settings = _make_settings()
         settings.trading.split_buy_count = 3
         settings.trading.target_order_amount = 900_000  # 300K per tranche
+        settings.trading.total_order_budget = 900_000
         engine = TradingEngine(settings)
 
         engine.order.get_balance = AsyncMock(return_value=([], _EMPTY_SUMMARY))

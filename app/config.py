@@ -22,23 +22,23 @@ class AllocationMode(str, Enum):
 class StrategyConfig(BaseModel):
     """런타임 전략 전환용 설정 모델"""
 
-    strategy_type: StrategyType = StrategyType.BOLLINGER
+    strategy_type: StrategyType = StrategyType.SMA_CROSSOVER
 
-    # SMA 크로스오버 파라미터
-    short_ma_period: int = 7
-    long_ma_period: int = 20
+    # SMA 크로스오버 파라미터 (백테스트 최적화: 539.87% 평균수익률)
+    short_ma_period: int = 9
+    long_ma_period: int = 39
     use_advanced_strategy: bool = True
-    rsi_period: int = 14
-    rsi_overbought: float = 70.0
-    rsi_oversold: float = 30.0
-    volume_ma_period: int = 15
-    obv_ma_period: int = 20
-    stop_loss_pct: float = 3.0
-    max_holding_days: int = 20
+    rsi_period: int = 12
+    rsi_overbought: float = 80.0
+    rsi_oversold: float = 44.0
+    volume_ma_period: int = 16
+    obv_ma_period: int = 9
+    stop_loss_pct: float = 20.0
+    max_holding_days: int = 0
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
     # 시그널 매도 시 수익률 < 기준이면 보류 (손실 중이면 매도 허용)
-    min_profit_pct: float = 0.3
+    min_profit_pct: float = 0.0
 
     # 볼린저밴드 파라미터
     bollinger_period: int = 20
@@ -58,11 +58,11 @@ class StrategyConfig(BaseModel):
 
     # 분봉 설정
     use_minute_chart: bool = True
-    minute_short_period: int = 7
-    minute_long_period: int = 20
+    minute_short_period: int = 9
+    minute_long_period: int = 39
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
-    trailing_stop_pct: float = 2.0
+    trailing_stop_pct: float = 0.0
     trailing_stop_grace_minutes: int = 15  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
 
     # 목표 수익률 자동 매도 (0=비활성, 예: 3.0 → 매수가 대비 +3% 도달 시 자동 매도)
@@ -116,18 +116,18 @@ class StrategyConfig(BaseModel):
     bandwidth_percentile: float = 0.0
     bandwidth_lookback: int = 100
 
-    # KAMA 파라미터
-    kama_er_period: int = 10
-    kama_fast_period: int = 2
-    kama_slow_period: int = 30
-    kama_signal_period: int = 10
+    # KAMA 파라미터 (백테스트 최적화: 353.20% 평균수익률)
+    kama_er_period: int = 15
+    kama_fast_period: int = 6
+    kama_slow_period: int = 32
+    kama_signal_period: int = 12
     kama_volume_filter: bool = False
 
-    # 브레이크아웃 파라미터
+    # 브레이크아웃 파라미터 (백테스트 최적화: 244.61% 평균수익률)
     breakout_upper_period: int = 20
-    breakout_lower_period: int = 10
+    breakout_lower_period: int = 15
     breakout_atr_filter: float = 0.0
-    breakout_volume_filter: bool = True
+    breakout_volume_filter: bool = False
 
     # 멀티 타임프레임 확인 (분봉 전략 시 일봉 추세 필터)
     use_daily_trend_filter: bool = False
@@ -168,14 +168,14 @@ class TradingConfig(BaseSettings):
     # 매매 금액 (백테스트용 종목당 주문금액)
     order_amount: int = 1_800_000
 
-    # 전략 파라미터 (백테스트 최적화 결과 — 일봉용)
-    short_ma_period: int = 7
-    long_ma_period: int = 20
+    # 전략 파라미터 (백테스트 최적화: SMA 539.87% — 일봉용)
+    short_ma_period: int = 9
+    long_ma_period: int = 39
 
     # 분봉 전략 파라미터
     use_minute_chart: bool = True          # 분봉 모드 활성화
-    minute_short_period: int = 7           # 7분 SMA
-    minute_long_period: int = 20           # 20분 SMA
+    minute_short_period: int = 9           # 9분 SMA (최적화)
+    minute_long_period: int = 39           # 39분 SMA (최적화)
     minute_chart_lookback: int = 120       # 분봉 조회 범위 (분)
 
     # SMA 크로스 최소 갭 % (0=비활성, 두 MA 간 갭이 기준 미만이면 HOLD)
@@ -188,8 +188,8 @@ class TradingConfig(BaseSettings):
     min_quantity: int = 1                  # 최소 주문수량
     max_quantity: int = 999               # 최대 주문수량 (가격대별 자동 계산에 맡김)
 
-    # 전략 선택
-    strategy_type: StrategyType = StrategyType.BOLLINGER
+    # 전략 선택 (백테스트 최적화 결과: SMA 크로스오버가 최고 수익률)
+    strategy_type: StrategyType = StrategyType.SMA_CROSSOVER
 
     # 볼린저밴드 파라미터
     bollinger_period: int = 20  # SMA 기간 (20분)
@@ -213,20 +213,20 @@ class TradingConfig(BaseSettings):
     # 활성 매매 시간대 (HHMM 튜플 리스트). 빈 리스트면 전 구간 매매.
     active_trading_windows: list[tuple[int, int]] = []  # 전 구간 매매
 
-    # 복합 전략 (RSI + 거래량 + OBV 필터) — SMA_CROSSOVER 전략용
+    # 복합 전략 (RSI + 거래량 + OBV 필터) — SMA_CROSSOVER 전략용 (최적화)
     use_advanced_strategy: bool = True
-    rsi_period: int = 14
-    rsi_overbought: float = 70.0
-    rsi_oversold: float = 30.0
-    volume_ma_period: int = 15
-    obv_ma_period: int = 20
+    rsi_period: int = 12
+    rsi_overbought: float = 80.0
+    rsi_oversold: float = 44.0
+    volume_ma_period: int = 16
+    obv_ma_period: int = 9
 
-    # 리스크 관리 (전략 무관)
-    stop_loss_pct: float = 3.0       # 매수가 대비 N% 하락 시 손절 (0=비활성)
-    max_holding_days: int = 20       # 최대 보유 거래일 (0=비활성)
+    # 리스크 관리 (전략 무관, 최적화)
+    stop_loss_pct: float = 20.0      # 매수가 대비 N% 하락 시 손절 (넓은 손절 = 추세 유지)
+    max_holding_days: int = 0        # 비활성 (추세 끝까지 보유)
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
-    min_profit_pct: float = 0.3
+    min_profit_pct: float = 0.0
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
     trailing_stop_pct: float = 2.0
@@ -284,18 +284,18 @@ class TradingConfig(BaseSettings):
     bandwidth_percentile: float = 0.0
     bandwidth_lookback: int = 100
 
-    # KAMA 파라미터
-    kama_er_period: int = 10
-    kama_fast_period: int = 2
-    kama_slow_period: int = 30
-    kama_signal_period: int = 10
+    # KAMA 파라미터 (백테스트 최적화: 353.20% 평균수익률)
+    kama_er_period: int = 15
+    kama_fast_period: int = 6
+    kama_slow_period: int = 32
+    kama_signal_period: int = 12
     kama_volume_filter: bool = False
 
-    # 브레이크아웃 파라미터
-    breakout_upper_period: int = 10
-    breakout_lower_period: int = 20
+    # 브레이크아웃 파라미터 (백테스트 최적화: 244.61% 평균수익률)
+    breakout_upper_period: int = 20
+    breakout_lower_period: int = 15
     breakout_atr_filter: float = 0.0
-    breakout_volume_filter: bool = True
+    breakout_volume_filter: bool = False
 
     # 멀티 타임프레임 확인 (분봉 전략 시 일봉 추세 필터)
     use_daily_trend_filter: bool = False

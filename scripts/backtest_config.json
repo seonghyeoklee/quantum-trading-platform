@@ -15,13 +15,52 @@
   "start_date": "20230101",
   "end_date": "20260101",
   "initial_capital": 10000000,
-  "order_amount": 1800000,
-  "short_period": 10,
-  "long_period": 42,
+  "order_amount": 1000000,
+  "short_period": 9,
+  "long_period": 39,
   "use_advanced": true,
-  "rsi_period": 14,
-  "rsi_overbought": 72.0,
-  "rsi_oversold": 28.0,
-  "volume_ma_period": 15,
-  "obv_ma_period": 22
+  "rsi_period": 12,
+  "rsi_overbought": 80.0,
+  "rsi_oversold": 44.0,
+  "volume_ma_period": 16,
+  "obv_ma_period": 9,
+  "capital_ratio": 1.0,
+  "stop_loss_pct": 20.0,
+  "_optimized_strategies": {
+    "sma": {
+      "avg_return_pct": 539.87,
+      "short_period": 9,
+      "long_period": 39,
+      "use_advanced": true,
+      "rsi_period": 12,
+      "rsi_overbought": 80,
+      "rsi_oversold": 44,
+      "volume_ma_period": 16,
+      "obv_ma_period": 9,
+      "stop_loss_pct": 20.0,
+      "capital_ratio": 1.0
+    },
+    "kama": {
+      "avg_return_pct": 353.20,
+      "er_period": 15,
+      "fast_period": 6,
+      "slow_period": 32,
+      "signal_period": 12,
+      "stop_loss_pct": 10.0,
+      "capital_ratio": 1.0
+    },
+    "breakout": {
+      "avg_return_pct": 244.61,
+      "upper_period": 20,
+      "lower_period": 15,
+      "capital_ratio": 1.0
+    },
+    "bollinger": {
+      "avg_return_pct": 76.05,
+      "period": 20,
+      "num_std": 2.0,
+      "max_holding_days": 20,
+      "capital_ratio": 1.0
+    }
+  }
 }
