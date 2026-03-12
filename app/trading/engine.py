@@ -27,7 +27,7 @@ from app.models import (
 from app.trading.calendar import is_market_open, is_trading_day, is_us_market_open
 from app.trading.journal import TradingJournal
 from app.trading.regime import MarketRegime, REGIME_KR, detect_current_regime
-from app.trading.sector import ScannerPick, SectorScore, score_sectors, select_leaders
+from app.trading.sector import ScannerPick, SectorScore, get_sector, score_sectors, select_leaders
 from app.trading.strategy import (
     compute_atr,
     compute_sma,
@@ -898,31 +898,45 @@ class TradingEngine:
 
         self._last_scan_time = now
 
-        # 섹터 스코어링 + 대장주 선정
+        # 거래량 상위 종목 필터링 → 상위 N개 직접 선정
+        filtered = [
+            item for item in rank_items
+            if item.current_price >= cfg.scanner_min_price
+            and item.volume >= cfg.scanner_min_volume
+            and item.change_rate >= cfg.scanner_min_change_rate
+        ]
+        top_picks = filtered[:cfg.scanner_max_picks]
+
+        # 섹터 스코어링은 참고용으로만 유지
         sector_scores = score_sectors(
             rank_items,
             min_price=cfg.scanner_min_price,
             min_volume=cfg.scanner_min_volume,
             min_change_rate=cfg.scanner_min_change_rate,
         )
-        picks = select_leaders(
-            sector_scores,
-            top_n_sectors=cfg.scanner_top_sectors,
-            max_picks=cfg.scanner_max_picks,
-        )
-
         self._scanner_sector_scores = sector_scores
-        self._scanner_picks = picks
+        self._scanner_picks = [
+            ScannerPick(
+                symbol=item.symbol,
+                name=item.name,
+                sector=get_sector(item.symbol),
+                score=float(item.volume),
+                current_price=item.current_price,
+                change_rate=item.change_rate,
+                volume=item.volume,
+            )
+            for item in top_picks
+        ]
 
-        new_symbols = [p.symbol for p in picks]
+        new_symbols = [item.symbol for item in top_picks]
         old_set = set(self._scanner_symbols)
         new_set = set(new_symbols)
 
         # 추가된 종목 로깅
         added = new_set - old_set
         for sym in added:
-            pick = next((p for p in picks if p.symbol == sym), None)
-            detail = f"{sym} ({pick.name}, {pick.sector})" if pick else sym
+            item = next((i for i in top_picks if i.symbol == sym), None)
+            detail = f"{sym} ({item.name}, {item.change_rate:+.1f}%, 거래량 {item.volume:,})" if item else sym
             logger.info("스캐너 종목 추가: %s", detail)
             self._journal.log_event(TradeEvent.engine_event(
                 EventType.SCANNER_ADD, detail, timestamp=now,
@@ -945,10 +959,10 @@ class TradingEngine:
         self._scanner_symbols = list(new_symbols)
 
         # 스캔 결과 저널 기록
-        top_sectors = [f"{s.sector}({s.stock_count})" for s in sector_scores[:5]]
+        pick_names = [f"{i.name}({i.change_rate:+.1f}%)" for i in top_picks]
         self._journal.log_event(TradeEvent.engine_event(
             EventType.SCANNER_SCAN,
-            f"섹터: {', '.join(top_sectors)} | 선정: {self._scanner_symbols}",
+            f"거래량 상위 {len(top_picks)}종목: {', '.join(pick_names)}",
             timestamp=now,
         ))
 
