@@ -192,7 +192,7 @@ class TradingConfig(BaseSettings):
     # 동적 주문수량
     target_order_amount: int = 10_000_000  # 목표 주문금액
     min_quantity: int = 1                  # 최소 주문수량
-    max_quantity: int = 50                 # 최대 주문수량
+    max_quantity: int = 999               # 최대 주문수량 (가격대별 자동 계산에 맡김)
 
     # 전략 선택
     strategy_type: StrategyType = StrategyType.BOLLINGER
