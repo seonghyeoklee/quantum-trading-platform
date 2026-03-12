@@ -24,6 +24,12 @@ async def lifespan(app: FastAPI):
     engine = TradingEngine(settings)
     app.state.engine = engine
     logger.info("자동매매 엔진 초기화 완료")
+
+    # 서버 시작 시 국내 자동매매 즉시 시작
+    from app.trading.calendar import MarketType
+    await engine.start(market=MarketType.DOMESTIC)
+    logger.info("국내 자동매매 자동 시작")
+
     try:
         yield
     finally:
