@@ -30,12 +30,12 @@ class KISVolumeRankClient:
 
         params = {
             "FID_COND_MRKT_DIV_CODE": "J",     # 주식
-            "FID_COND_SCR_DIV_CODE": "20101",   # 거래량 순위
+            "FID_COND_SCR_DIV_CODE": "20171",   # 거래량 순위 (공식 스펙)
             "FID_INPUT_ISCD": "0000",            # 전체
             "FID_DIV_CLS_CODE": "0",             # 전체
             "FID_BLNG_CLS_CODE": "0",            # 전체
             "FID_TRGT_CLS_CODE": "111111111",    # 전체
-            "FID_TRGT_EXLS_CLS_CODE": "000000",  # 제외 없음
+            "FID_TRGT_EXLS_CLS_CODE": "0000000000",  # 제외 없음 (10자리)
             "FID_INPUT_PRICE_1": "",              # 가격 조건 없음
             "FID_INPUT_PRICE_2": "",
             "FID_VOL_CNT": "",                    # 거래량 조건 없음
@@ -54,9 +54,12 @@ class KISVolumeRankClient:
             )
 
         items: list[VolumeRankItem] = []
-        for row in data.get("output", [])[:top_n]:
+        for row in data.get("output", []):
             symbol = row.get("mksc_shrn_iscd", "")  # 종목코드 (6자리)
             if not symbol or len(symbol) != 6:
+                continue
+            # ETF/ETN 제외: 숫자 6자리인 일반 주식만
+            if not symbol.isdigit():
                 continue
             try:
                 items.append(VolumeRankItem(
@@ -71,5 +74,7 @@ class KISVolumeRankClient:
             except (ValueError, TypeError):
                 logger.warning("거래량순위 종목 파싱 실패: %s", symbol)
                 continue
+            if len(items) >= top_n:
+                break
 
         return items

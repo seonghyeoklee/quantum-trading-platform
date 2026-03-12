@@ -143,12 +143,10 @@ def score_sectors(
             continue
         filtered.append(item)
 
-    # 섹터별 그룹핑
+    # 섹터별 그룹핑 (매핑 안 된 종목은 "기타"로 포함)
     sector_groups: dict[str, list[VolumeRankItem]] = {}
     for item in filtered:
         sector = get_sector(item.symbol)
-        if sector == "기타":
-            continue
         sector_groups.setdefault(sector, []).append(item)
 
     # 스코어 계산
@@ -157,7 +155,7 @@ def score_sectors(
         count = len(stocks)
         avg_change = sum(s.change_rate for s in stocks) / count
         avg_vol_inc = sum(s.volume_increase_rate for s in stocks) / count
-        score = count * 2.0 + avg_vol_inc * 0.01 + avg_change * 0.5
+        score = count * 2.0 + avg_vol_inc * 0.01 + abs(avg_change) * 0.3
         scores.append(SectorScore(
             sector=sector,
             score=score,

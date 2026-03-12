@@ -100,7 +100,7 @@ class StrategyConfig(BaseModel):
     scanner_max_picks: int = 5              # 최대 선정 종목
     scanner_min_price: float = 1000.0       # 최소 주가 (동전주 제외)
     scanner_min_volume: int = 100_000       # 최소 거래량
-    scanner_min_change_rate: float = 0.0    # 최소 등락률
+    scanner_min_change_rate: float = -30.0  # 최소 등락률 (하락종목도 포함)
 
     # 주문금액 배분 모드
     allocation_mode: AllocationMode = AllocationMode.EQUAL
@@ -274,7 +274,7 @@ class TradingConfig(BaseSettings):
     scanner_max_picks: int = 5              # 최대 선정 종목
     scanner_min_price: float = 1000.0       # 최소 주가 (동전주 제외)
     scanner_min_volume: int = 100_000       # 최소 거래량
-    scanner_min_change_rate: float = 0.0    # 최소 등락률
+    scanner_min_change_rate: float = -30.0  # 최소 등락률 (하락종목도 포함)
 
     # 주문금액 배분 모드
     allocation_mode: AllocationMode = AllocationMode.EQUAL
