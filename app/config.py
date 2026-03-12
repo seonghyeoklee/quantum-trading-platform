@@ -72,7 +72,7 @@ class StrategyConfig(BaseModel):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.3
+    capital_ratio: float = 0.5
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
@@ -104,7 +104,7 @@ class StrategyConfig(BaseModel):
 
     # 주문금액 배분 모드
     allocation_mode: AllocationMode = AllocationMode.EQUAL
-    total_order_budget: int = 11_000_000       # 국내 총 예산 (KRW)
+    total_order_budget: int = 5_000_000        # 국내 총 예산 (KRW)
     us_total_order_budget: float = 6000.0      # 해외 총 예산 (USD)
 
     # ATR 기반 동적 손절/트레일링 (0=고정 % 사용)
@@ -156,19 +156,13 @@ class KISConfig(BaseSettings):
 class TradingConfig(BaseSettings):
     """매매 설정"""
 
-    # 감시 종목 (백테스트 최적화 기반 포트폴리오)
+    # 감시 종목 (25만원 이하 중저가 대형주, 스캐너와 함께 운용)
     watch_symbols: list[str] = [
-        "005930",  # 삼성전자
-        "000660",  # SK하이닉스
-        "005380",  # 현대차
-        "035420",  # NAVER
-        "005490",  # POSCO홀딩스
-        "105560",  # KB금융
-        "009540",  # HD한국조선해양
-        "034020",  # 두산에너빌리티
-        "298040",  # 효성중공업
-        "064350",  # 현대로템
-        "010120",  # LS일렉트릭
+        "005930",  # 삼성전자 (~18.7만)
+        "105560",  # KB금융 (~14.9만)
+        "034020",  # 두산에너빌리티 (~10.1만)
+        "064350",  # 현대로템 (~20.1만)
+        "012450",  # 한화에어로스페이스 (~20만대)
     ]
 
     # 매매 금액 (백테스트용 종목당 주문금액)
@@ -245,7 +239,7 @@ class TradingConfig(BaseSettings):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.3
+    capital_ratio: float = 0.5
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
@@ -271,14 +265,14 @@ class TradingConfig(BaseSettings):
     scanner_enabled: bool = True            # 거래량 스캐너 활성
     scanner_interval_minutes: int = 1       # 스캔 주기 (1분)
     scanner_top_sectors: int = 5            # 상위 5개 섹터
-    scanner_max_picks: int = 7              # 최대 7종목 선정
+    scanner_max_picks: int = 5              # 최대 5종목 선정
     scanner_min_price: float = 1000.0       # 최소 주가 (동전주 제외)
     scanner_min_volume: int = 100_000       # 최소 거래량
     scanner_min_change_rate: float = -30.0  # 최소 등락률 (하락종목도 포함)
 
     # 주문금액 배분 모드
     allocation_mode: AllocationMode = AllocationMode.EQUAL
-    total_order_budget: int = 11_000_000       # 국내 총 예산 (KRW)
+    total_order_budget: int = 5_000_000        # 국내 총 예산 (KRW)
     us_total_order_budget: float = 6000.0      # 해외 총 예산 (USD)
 
     # ATR 기반 동적 손절/트레일링 (0=고정 % 사용)

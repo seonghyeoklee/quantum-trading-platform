@@ -1350,20 +1350,22 @@ class TradingEngine:
             )
 
         # EQUAL 모드: 총 예산을 매매 대상 종목 수로 균등 배분
-        # 매매 대상 = scanner_symbols + watch_symbols (중복 제거)
+        if cfg.capital_ratio > 0 and deposit > 0:
+            total_budget = deposit * cfg.capital_ratio
+        else:
+            total_budget = float(
+                cfg.us_total_order_budget if mkt == MarketType.US
+                else cfg.total_order_budget
+            )
+
+        # 매매 대상 중 해당 시장 종목 수로 나눔
         all_symbols = list(dict.fromkeys(
             self._scanner_symbols + list(self._watch_symbols)
         ))
         num_symbols = max(1, sum(
             1 for s in all_symbols if detect_market_type(s) == mkt
         ))
-
-        if cfg.capital_ratio > 0 and deposit > 0:
-            total_budget = deposit * cfg.capital_ratio
-            return total_budget / num_symbols
-
-        total = cfg.us_total_order_budget if mkt == MarketType.US else cfg.total_order_budget
-        return total / num_symbols
+        return total_budget / num_symbols
 
     async def _execute_buy(
         self, symbol: str, current_price: float, now: datetime, *, name: str = ""
