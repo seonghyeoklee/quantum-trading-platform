@@ -88,6 +88,7 @@ class TradingSignal(BaseModel):
     """매매 시그널"""
 
     symbol: str
+    name: str = ""
     signal: SignalType
     short_ma: float = 0.0  # 단기 이동평균
     long_ma: float = 0.0  # 장기 이동평균
@@ -114,6 +115,7 @@ class OrderResult(BaseModel):
     """주문 결과"""
 
     symbol: str
+    name: str = ""
     side: str  # buy / sell
     quantity: int
     order_no: str = ""

@@ -8,6 +8,21 @@ from app.models import ChartData, StockPrice
 
 logger = logging.getLogger(__name__)
 
+# 종목코드 → 종목명 캐시 (모의투자 API는 hts_kor_isnm을 안 줌)
+# 기본 watch_symbols + 거래량순위에서 동적 업데이트
+STOCK_NAMES: dict[str, str] = {
+    "005930": "삼성전자", "000660": "SK하이닉스", "005380": "현대차",
+    "035420": "NAVER", "005490": "POSCO홀딩스", "105560": "KB금융",
+    "009540": "HD한국조선해양", "034020": "두산에너빌리티", "298040": "효성중공업",
+    "064350": "현대로템", "010120": "LS일렉트릭",
+    "000270": "기아", "035720": "카카오", "207940": "삼성바이오로직스",
+    "068270": "셀트리온", "051910": "LG화학", "006400": "삼성SDI",
+    "373220": "LG에너지솔루션", "055550": "신한지주", "012330": "현대모비스",
+    "329180": "HD현대중공업", "012450": "한화에어로스페이스",
+    "267260": "HD현대일렉트릭", "010130": "고려아연",
+    "096770": "SK이노베이션", "017670": "SK텔레콤",
+}
+
 
 class KISMarketClient:
     def __init__(self, auth: KISAuth):
@@ -50,9 +65,10 @@ class KISMarketClient:
             raise RuntimeError(
                 f"KIS API 현재가 응답에 output 필드 없음: {symbol} (rt_cd={data.get('rt_cd')})"
             )
+        stock_name = output.get("hts_kor_isnm", "") or STOCK_NAMES.get(symbol, "")
         return StockPrice(
             symbol=symbol,
-            name=output.get("hts_kor_isnm", ""),
+            name=stock_name,
             current_price=float(output.get("stck_prpr", 0)),
             change=float(output.get("prdy_vrss", 0)),
             change_rate=float(output.get("prdy_ctrt", 0)),

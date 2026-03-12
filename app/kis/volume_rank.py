@@ -3,6 +3,7 @@
 import logging
 
 from app.kis.auth import KISAuth
+from app.kis.market import STOCK_NAMES
 from app.models import VolumeRankItem
 
 logger = logging.getLogger(__name__)
@@ -62,9 +63,12 @@ class KISVolumeRankClient:
             if not symbol.isdigit():
                 continue
             try:
+                stock_name = row.get("hts_kor_isnm", "")
+                if stock_name:
+                    STOCK_NAMES[symbol] = stock_name
                 items.append(VolumeRankItem(
                     symbol=symbol,
-                    name=row.get("hts_kor_isnm", ""),
+                    name=stock_name,
                     current_price=float(row.get("stck_prpr", 0)),
                     change_rate=float(row.get("prdy_ctrt", 0)),
                     volume=int(row.get("acml_vol", 0)),

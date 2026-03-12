@@ -513,6 +513,7 @@ class TradingEngine:
                 detail = f"장 마감 강제 청산 ({close_time})"
                 order_result = OrderResult(
                     symbol=pos.symbol,
+                    name=pos.name,
                     side="sell",
                     quantity=pos.quantity,
                     order_no=result.get("order_no", ""),
@@ -585,6 +586,7 @@ class TradingEngine:
             )
             signal = TradingSignal(
                 symbol=symbol,
+                name=price_info.name,
                 signal=result.signal,
                 short_ma=result.kama,
                 long_ma=result.signal_line,
@@ -620,6 +622,7 @@ class TradingEngine:
             )
             signal = TradingSignal(
                 symbol=symbol,
+                name=price_info.name,
                 signal=result.signal,
                 current_price=price_info.current_price,
                 timestamp=now,
@@ -665,6 +668,7 @@ class TradingEngine:
             )
             signal = TradingSignal(
                 symbol=symbol,
+                name=price_info.name,
                 signal=result.signal,
                 current_price=price_info.current_price,
                 timestamp=now,
@@ -714,6 +718,7 @@ class TradingEngine:
             )
             signal = TradingSignal(
                 symbol=symbol,
+                name=price_info.name,
                 signal=result.signal,
                 short_ma=result.short_ma,
                 long_ma=result.long_ma,
@@ -733,6 +738,7 @@ class TradingEngine:
             )
             signal = TradingSignal(
                 symbol=symbol,
+                name=price_info.name,
                 signal=signal_type,
                 short_ma=short_ma,
                 long_ma=long_ma,
@@ -803,6 +809,7 @@ class TradingEngine:
             )
             return TradingSignal(
                 symbol=signal.symbol,
+                name=signal.name,
                 signal=SignalType.HOLD,
                 short_ma=signal.short_ma,
                 long_ma=signal.long_ma,
@@ -1243,7 +1250,7 @@ class TradingEngine:
                                 self.settings.trading.max_daily_trades,
                             )
                             continue
-                    await self._execute_buy(symbol, signal.current_price, now)
+                    await self._execute_buy(symbol, signal.current_price, now, name=signal.name)
                 elif signal.signal == SignalType.SELL:
                     await self._execute_sell(
                         symbol, now,
@@ -1348,7 +1355,7 @@ class TradingEngine:
         return cfg.us_target_order_amount if mkt == MarketType.US else cfg.target_order_amount
 
     async def _execute_buy(
-        self, symbol: str, current_price: float, now: datetime
+        self, symbol: str, current_price: float, now: datetime, *, name: str = ""
     ) -> None:
         """매수 주문 (잔고 확인 → 동적 수량 계산 → 주문을 Lock으로 원자적 실행)"""
         mkt = detect_market_type(symbol)
@@ -1400,6 +1407,7 @@ class TradingEngine:
 
             order_result = OrderResult(
                 symbol=symbol,
+                name=name,
                 side="buy",
                 quantity=quantity,
                 order_no=result.get("order_no", ""),
@@ -1460,6 +1468,7 @@ class TradingEngine:
 
                     order_result = OrderResult(
                         symbol=symbol,
+                        name=pos.name,
                         side="sell",
                         quantity=pos.quantity,
                         order_no=result.get("order_no", ""),
