@@ -22,7 +22,7 @@ class AllocationMode(str, Enum):
 class StrategyConfig(BaseModel):
     """런타임 전략 전환용 설정 모델"""
 
-    strategy_type: StrategyType = StrategyType.BOLLINGER
+    strategy_type: StrategyType = StrategyType.BREAKOUT
 
     # SMA 크로스오버 파라미터
     short_ma_period: int = 7
@@ -33,7 +33,7 @@ class StrategyConfig(BaseModel):
     rsi_oversold: float = 30.0
     volume_ma_period: int = 15
     obv_ma_period: int = 20
-    stop_loss_pct: float = 5.0
+    stop_loss_pct: float = 7.0
     max_holding_days: int = 20
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
@@ -54,7 +54,7 @@ class StrategyConfig(BaseModel):
     # SMA 크로스 최소 갭 % (0=비활성, 두 MA 간 갭이 기준 미만이면 HOLD)
     min_sma_gap_pct: float = 0.1
     # 매도 후 재매수 금지 시간 (분, 0=비활성)
-    sell_cooldown_minutes: int = 30
+    sell_cooldown_minutes: int = 60
 
     # 분봉 설정
     use_minute_chart: bool = True
@@ -62,7 +62,7 @@ class StrategyConfig(BaseModel):
     minute_long_period: int = 20
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
-    trailing_stop_pct: float = 4.0
+    trailing_stop_pct: float = 0.0
     trailing_stop_grace_minutes: int = 30  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
 
     # 목표 수익률 자동 매도 (0=비활성, 예: 3.0 → 매수가 대비 +3% 도달 시 자동 매도)
@@ -72,7 +72,7 @@ class StrategyConfig(BaseModel):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.0
+    capital_ratio: float = 0.5
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
@@ -187,7 +187,7 @@ class TradingConfig(BaseSettings):
     # SMA 크로스 최소 갭 % (0=비활성, 두 MA 간 갭이 기준 미만이면 HOLD)
     min_sma_gap_pct: float = 0.1
     # 매도 후 재매수 금지 시간 (분, 0=비활성)
-    sell_cooldown_minutes: int = 30
+    sell_cooldown_minutes: int = 60
 
     # 동적 주문수량
     target_order_amount: int = 10_000_000  # 목표 주문금액
@@ -195,7 +195,7 @@ class TradingConfig(BaseSettings):
     max_quantity: int = 50                 # 최대 주문수량
 
     # 전략 선택
-    strategy_type: StrategyType = StrategyType.BOLLINGER
+    strategy_type: StrategyType = StrategyType.BREAKOUT
 
     # 볼린저밴드 파라미터
     bollinger_period: int = 20  # SMA 기간 (20분)
@@ -228,14 +228,14 @@ class TradingConfig(BaseSettings):
     obv_ma_period: int = 20
 
     # 리스크 관리 (전략 무관)
-    stop_loss_pct: float = 5.0       # 매수가 대비 N% 하락 시 손절 (0=비활성)
+    stop_loss_pct: float = 7.0       # 매수가 대비 N% 하락 시 손절 (0=비활성)
     max_holding_days: int = 20       # 최대 보유 거래일 (0=비활성)
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
     min_profit_pct: float = 1.0
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
-    trailing_stop_pct: float = 4.0
+    trailing_stop_pct: float = 0.0
     trailing_stop_grace_minutes: int = 30  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
 
     # 목표 수익률 자동 매도 (0=비활성, 예: 3.0 → 매수가 대비 +3% 도달 시 자동 매도)
@@ -245,7 +245,7 @@ class TradingConfig(BaseSettings):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.0
+    capital_ratio: float = 0.5
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
@@ -268,10 +268,10 @@ class TradingConfig(BaseSettings):
     regime_reference_symbol: str = "005930"  # 국면 판별 기준 종목
 
     # 섹터 모멘텀 스캐너
-    scanner_enabled: bool = False           # 기본 비활성 (하위호환)
-    scanner_interval_minutes: int = 10      # 스캔 주기
-    scanner_top_sectors: int = 3            # 상위 N개 섹터
-    scanner_max_picks: int = 5              # 최대 선정 종목
+    scanner_enabled: bool = True            # 거래량 스캐너 활성
+    scanner_interval_minutes: int = 1       # 스캔 주기 (1분)
+    scanner_top_sectors: int = 5            # 상위 5개 섹터
+    scanner_max_picks: int = 7              # 최대 7종목 선정
     scanner_min_price: float = 1000.0       # 최소 주가 (동전주 제외)
     scanner_min_volume: int = 100_000       # 최소 거래량
     scanner_min_change_rate: float = -30.0  # 최소 등락률 (하락종목도 포함)
@@ -298,8 +298,8 @@ class TradingConfig(BaseSettings):
     kama_volume_filter: bool = False
 
     # 브레이크아웃 파라미터
-    breakout_upper_period: int = 20
-    breakout_lower_period: int = 10
+    breakout_upper_period: int = 10
+    breakout_lower_period: int = 20
     breakout_atr_filter: float = 0.0
     breakout_volume_filter: bool = True
 
