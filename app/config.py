@@ -22,7 +22,7 @@ class AllocationMode(str, Enum):
 class StrategyConfig(BaseModel):
     """런타임 전략 전환용 설정 모델"""
 
-    strategy_type: StrategyType = StrategyType.BREAKOUT
+    strategy_type: StrategyType = StrategyType.BOLLINGER
 
     # SMA 크로스오버 파라미터
     short_ma_period: int = 7
@@ -33,28 +33,28 @@ class StrategyConfig(BaseModel):
     rsi_oversold: float = 30.0
     volume_ma_period: int = 15
     obv_ma_period: int = 20
-    stop_loss_pct: float = 7.0
+    stop_loss_pct: float = 3.0
     max_holding_days: int = 20
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
     # 시그널 매도 시 수익률 < 기준이면 보류 (손실 중이면 매도 허용)
-    min_profit_pct: float = 1.0
+    min_profit_pct: float = 0.3
 
     # 볼린저밴드 파라미터
     bollinger_period: int = 20
     bollinger_num_std: float = 2.0
     bollinger_volume_filter: bool = True
-    bollinger_min_bandwidth: float = 2.0  # 밴드 폭 최소 % (좁은 밴드 매매 차단)
+    bollinger_min_bandwidth: float = 1.0  # 밴드 폭 최소 % (좁은 밴드 매매 차단)
     bollinger_min_profit_pct: float = 0.3  # 최소 수익률 게이트 (볼린저 매도 시, 0=비활성)
     bollinger_min_sell_bandwidth: float = 0.0  # 매도 전용 밴드폭 필터 (0=비활성)
-    bollinger_use_middle_exit: bool = False  # 중간밴드 이탈 매도 (보유 시 중간선 아래면 익절)
+    bollinger_use_middle_exit: bool = True  # 중간밴드 이탈 매도 (보유 시 중간선 아래면 익절)
     bollinger_obv_filter: bool = True   # 볼린저 OBV 필터
     bollinger_obv_ma_period: int = 10   # 볼린저 OBV SMA 기간 (분봉용)
 
     # SMA 크로스 최소 갭 % (0=비활성, 두 MA 간 갭이 기준 미만이면 HOLD)
     min_sma_gap_pct: float = 0.1
     # 매도 후 재매수 금지 시간 (분, 0=비활성)
-    sell_cooldown_minutes: int = 60
+    sell_cooldown_minutes: int = 30
 
     # 분봉 설정
     use_minute_chart: bool = True
@@ -62,8 +62,8 @@ class StrategyConfig(BaseModel):
     minute_long_period: int = 20
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
-    trailing_stop_pct: float = 0.0
-    trailing_stop_grace_minutes: int = 30  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
+    trailing_stop_pct: float = 2.0
+    trailing_stop_grace_minutes: int = 15  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
 
     # 목표 수익률 자동 매도 (0=비활성, 예: 3.0 → 매수가 대비 +3% 도달 시 자동 매도)
     take_profit_pct: float = 0.0
@@ -72,7 +72,7 @@ class StrategyConfig(BaseModel):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.5
+    capital_ratio: float = 0.3
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
@@ -187,7 +187,7 @@ class TradingConfig(BaseSettings):
     # SMA 크로스 최소 갭 % (0=비활성, 두 MA 간 갭이 기준 미만이면 HOLD)
     min_sma_gap_pct: float = 0.1
     # 매도 후 재매수 금지 시간 (분, 0=비활성)
-    sell_cooldown_minutes: int = 60
+    sell_cooldown_minutes: int = 30
 
     # 동적 주문수량
     target_order_amount: int = 10_000_000  # 목표 주문금액
@@ -195,17 +195,17 @@ class TradingConfig(BaseSettings):
     max_quantity: int = 50                 # 최대 주문수량
 
     # 전략 선택
-    strategy_type: StrategyType = StrategyType.BREAKOUT
+    strategy_type: StrategyType = StrategyType.BOLLINGER
 
     # 볼린저밴드 파라미터
     bollinger_period: int = 20  # SMA 기간 (20분)
     bollinger_num_std: float = 2.0  # 표준편차 배수
     bollinger_volume_filter: bool = True  # 볼린저 매수 시 거래량 필터 적용
     bollinger_volume_ma_period: int = 20  # 거래량 SMA 기간
-    bollinger_min_bandwidth: float = 2.0  # 밴드 폭 최소 % (좁은 밴드 매매 차단)
+    bollinger_min_bandwidth: float = 1.0  # 밴드 폭 최소 % (좁은 밴드 매매 차단)
     bollinger_min_profit_pct: float = 0.3  # 최소 수익률 게이트 (볼린저 매도 시, 0=비활성)
     bollinger_min_sell_bandwidth: float = 0.0  # 매도 전용 밴드폭 필터 (0=비활성)
-    bollinger_use_middle_exit: bool = False  # 중간밴드 이탈 매도 (보유 시 중간선 아래면 익절)
+    bollinger_use_middle_exit: bool = True  # 중간밴드 이탈 매도 (보유 시 중간선 아래면 익절)
     bollinger_obv_filter: bool = True   # 볼린저 OBV 필터
     bollinger_obv_ma_period: int = 10   # 볼린저 OBV SMA 기간 (분봉용)
 
@@ -228,15 +228,15 @@ class TradingConfig(BaseSettings):
     obv_ma_period: int = 20
 
     # 리스크 관리 (전략 무관)
-    stop_loss_pct: float = 7.0       # 매수가 대비 N% 하락 시 손절 (0=비활성)
+    stop_loss_pct: float = 3.0       # 매수가 대비 N% 하락 시 손절 (0=비활성)
     max_holding_days: int = 20       # 최대 보유 거래일 (0=비활성)
 
     # 매도 최소 수익률 게이트 (전략 공통, 0=비활성)
-    min_profit_pct: float = 1.0
+    min_profit_pct: float = 0.3
 
     # 트레일링 스탑 (고점 대비 하락률, 0=비활성)
-    trailing_stop_pct: float = 0.0
-    trailing_stop_grace_minutes: int = 30  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
+    trailing_stop_pct: float = 2.0
+    trailing_stop_grace_minutes: int = 15  # 매수 후 N분간 트레일링 스탑 비활성 (0=즉시 적용)
 
     # 목표 수익률 자동 매도 (0=비활성, 예: 3.0 → 매수가 대비 +3% 도달 시 자동 매도)
     take_profit_pct: float = 0.0
@@ -245,7 +245,7 @@ class TradingConfig(BaseSettings):
     split_buy_count: int = 1
 
     # 자본 활용 비율 (현금 대비 투자 비율, 0=target_order_amount 사용)
-    capital_ratio: float = 0.5
+    capital_ratio: float = 0.3
 
     # RSI 다이버전스 필터 (SMA 크로스오버 복합 전략용)
     use_rsi_divergence: bool = False
