@@ -997,11 +997,13 @@ class TradingEngine:
             kr_open = False  # 이번 tick에서 국내 종목 더 이상 처리 안 함
 
         # 매매 대상 결정
-        # scanner_enabled=True: 스캔 종목 + 보유 종목 (고정 워치리스트 미사용)
+        # scanner_enabled=True: 스캔 종목 + 고정 워치리스트 + 보유 종목 (중복 제거)
         # scanner_enabled=False: 고정 워치리스트 (기존 동작)
         if cfg.scanner_enabled:
             held_symbols = list(self._entry_prices.keys())
-            all_symbols = list(dict.fromkeys(self._scanner_symbols + held_symbols))
+            all_symbols = list(dict.fromkeys(
+                self._scanner_symbols + list(self._watch_symbols) + held_symbols
+            ))
         else:
             all_symbols = list(self._watch_symbols)
 
